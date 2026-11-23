@@ -136,6 +136,68 @@ public sealed class SchemaUpgraderTests
     }
 
     [Fact]
+    public async Task UpgradeDropsRemovedTimeZoneColumns()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                CREATE TABLE "Rooms" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_Rooms" PRIMARY KEY,
+                    "Name" TEXT NOT NULL,
+                    "TimeZoneId" TEXT NOT NULL,
+                    "Building" TEXT NOT NULL,
+                    "Floor" TEXT NOT NULL
+                );
+                CREATE TABLE "Schedules" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_Schedules" PRIMARY KEY,
+                    "TimeZoneId" TEXT NOT NULL
+                );
+                INSERT INTO "Rooms" ("Id", "Name", "TimeZoneId", "Building", "Floor")
+                VALUES ('room', 'A101', 'Asia/Shanghai', '一号楼', '一层');
+                INSERT INTO "Schedules" ("Id", "TimeZoneId") VALUES ('schedule', 'Asia/Shanghai');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<ControlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ControlDbContext(options);
+        await SchemaUpgrader.UpgradeAsync(db, CancellationToken.None);
+
+        Assert.False(await HasColumnAsync(connection, "Rooms"));
+        Assert.False(await HasColumnAsync(connection, "Schedules"));
+
+        // 删除列后不再要求时区值，旧库可以继续写入教室和任务。
+        await using var insert = connection.CreateCommand();
+        insert.CommandText =
+            """
+            INSERT INTO "Rooms" ("Id", "Name", "Building", "Floor") VALUES ('room2', 'A102', '一号楼', '一层');
+            INSERT INTO "Schedules" ("Id") VALUES ('schedule2');
+            """;
+        await insert.ExecuteNonQueryAsync();
+
+        static async Task<bool> HasColumnAsync(SqliteConnection connection, string table)
+        {
+            await using var read = connection.CreateCommand();
+            read.CommandText = $"PRAGMA table_info(\"{table}\")";
+            await using var reader = await read.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                if (string.Equals(reader.GetString(1), "TimeZoneId", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    [Fact]
     public async Task UpgradeDropsArchiveColumnAndRemovesArchivedSchedules()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

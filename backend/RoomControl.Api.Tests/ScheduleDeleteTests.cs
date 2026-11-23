@@ -121,7 +121,6 @@ public sealed class ScheduleDeleteTests(QuartzSchedulerFixture quartz)
             null,
             0b0011111,
             new TimeSpan(8, 30, 0),
-            "Asia/Shanghai",
             CancellationToken.None);
         var groupId = created[0].GroupId!.Value;
         Assert.True(created[0].Enabled);
@@ -179,7 +178,6 @@ public sealed class ScheduleDeleteTests(QuartzSchedulerFixture quartz)
             null,
             0b0011111,
             new TimeSpan(8, 30, 0),
-            "Asia/Shanghai",
             CancellationToken.None);
         var groupId = created[0].GroupId!.Value;
         await service.SetGroupEnabledAsync(groupId, false, CancellationToken.None);
@@ -192,7 +190,6 @@ public sealed class ScheduleDeleteTests(QuartzSchedulerFixture quartz)
             null,
             0b0011111,
             new TimeSpan(9, 0, 0),
-            "Asia/Shanghai",
             CancellationToken.None);
 
         var schedule = Assert.Single(updated);

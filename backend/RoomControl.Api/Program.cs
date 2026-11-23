@@ -155,8 +155,7 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
     var (statusCode, title) = exception switch
     {
         KeyNotFoundException => (StatusCodes.Status404NotFound, "Not found"),
-        ArgumentException or TimeZoneNotFoundException or InvalidTimeZoneException =>
-            (StatusCodes.Status400BadRequest, "Invalid request"),
+        ArgumentException => (StatusCodes.Status400BadRequest, "Invalid request"),
         ControllerUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Controller unavailable"),
         InvalidOperationException => (StatusCodes.Status409Conflict, "Operation cannot be completed"),
         _ => (StatusCodes.Status500InternalServerError, "Unexpected server error")
@@ -606,7 +605,6 @@ api.MapGet("/rooms", async (ControlDbContext db, CancellationToken cancellationT
         room.Name,
         room.Building,
         room.Floor,
-        room.TimeZoneId,
         Controller = room.Controller is null ? null : new
         {
             room.Controller.Id,
@@ -650,8 +648,7 @@ api.MapPost("/rooms", async (
     {
         Name = name,
         Building = building,
-        Floor = floor,
-        TimeZoneId = request.TimeZoneId
+        Floor = floor
     };
     db.Rooms.Add(room);
     await db.SaveChangesAsync(cancellationToken);
@@ -671,7 +668,6 @@ api.MapPut("/rooms/{roomId:guid}", async (
     room.Name = name;
     room.Building = building;
     room.Floor = floor;
-    room.TimeZoneId = request.TimeZoneId;
     await db.SaveChangesAsync(cancellationToken);
     return Results.NoContent();
 }).RequireAuthorization("AdminOnly");
@@ -1103,7 +1099,6 @@ api.MapGet("/schedules", async (ScheduleService service, CancellationToken cance
         schedule.RunAtUtc,
         schedule.WeekdayMask,
         schedule.LocalTime,
-        schedule.TimeZoneId,
         schedule.NextRunAtUtc,
         JoinMapping = schedule.JoinMapping is null
             ? null
@@ -1124,7 +1119,6 @@ api.MapPost("/schedules", async (
         runAtUtc,
         request.WeekdayMask,
         request.LocalTime,
-        request.TimeZoneId,
         cancellationToken);
     var groupId = schedules[0].GroupId;
     return Results.Created($"/api/schedules/groups/{groupId}", new
@@ -1133,8 +1127,7 @@ api.MapPost("/schedules", async (
         TargetIds = schedules.Select(schedule => schedule.Id).ToArray(),
         schedules[0].Name,
         schedules[0].Kind,
-        schedules[0].NextRunAtUtc,
-        schedules[0].TimeZoneId
+        schedules[0].NextRunAtUtc
     });
 }).RequireAuthorization("OperatorOrAdmin");
 
@@ -1153,7 +1146,6 @@ api.MapPut("/schedules/groups/{groupId:guid}", async (
         runAtUtc,
         request.WeekdayMask,
         request.LocalTime,
-        request.TimeZoneId,
         cancellationToken);
     return Results.Ok(new
     {
@@ -1161,8 +1153,7 @@ api.MapPut("/schedules/groups/{groupId:guid}", async (
         TargetIds = schedules.Select(schedule => schedule.Id).ToArray(),
         schedules[0].Name,
         schedules[0].Kind,
-        schedules[0].NextRunAtUtc,
-        schedules[0].TimeZoneId
+        schedules[0].NextRunAtUtc
     });
 }).RequireAuthorization("OperatorOrAdmin");
 
@@ -1235,7 +1226,6 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
         throw new ArgumentException("At least one control point is required.");
     }
 
-    var timeZone = TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId);
     DateTimeOffset? runAtUtc = null;
     if (request.Kind == ScheduleKind.Once)
     {
@@ -1244,13 +1234,9 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
             throw new ArgumentException("A one-time schedule requires a local run time.");
         }
 
+        // 项目只服务单一本地时区，提交的墙上时间直接按服务器本地时间解释。
         var localRunAt = DateTime.SpecifyKind(request.RunAtLocal.Value, DateTimeKind.Unspecified);
-        if (timeZone.IsInvalidTime(localRunAt) || timeZone.IsAmbiguousTime(localRunAt))
-        {
-            throw new ArgumentException("The selected local run time is invalid or ambiguous in this time zone.");
-        }
-
-        runAtUtc = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(localRunAt, timeZone), TimeSpan.Zero);
+        runAtUtc = new DateTimeOffset(localRunAt);
         if (runAtUtc <= DateTimeOffset.UtcNow)
         {
             throw new ArgumentException("A one-time schedule must have a future run time.");
@@ -1281,8 +1267,6 @@ static (string Name, string Building, string Floor) NormalizeRoom(CreateRoomRequ
         throw new ArgumentException("Building and floor must be at most 60 characters.");
     }
 
-    // 尽早验证时区 ID，避免无效配置在任务执行时才导致失败。
-    _ = TimeZoneInfo.FindSystemTimeZoneById(request.TimeZoneId);
     return (request.Name.Trim(), building, floor);
 }
 

@@ -36,9 +36,8 @@ public sealed class ScheduleService(
 
             if (schedule.Kind == ScheduleKind.Weekly)
             {
-                var timeZone = TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZoneId);
                 schedule.NextRunAtUtc = WeeklyScheduleCalculator.GetNextOccurrence(
-                    now, schedule.WeekdayMask, schedule.LocalTime, timeZone);
+                    now, schedule.WeekdayMask, schedule.LocalTime);
             }
 
             await ScheduleAsync(schedule, cancellationToken);
@@ -54,7 +53,6 @@ public sealed class ScheduleService(
         DateTimeOffset? runAtUtc,
         int weekdayMask,
         TimeSpan localTime,
-        string timeZoneId,
         CancellationToken cancellationToken)
     {
         var mappings = await LoadMappingsAsync(mappingIds, cancellationToken);
@@ -63,7 +61,7 @@ public sealed class ScheduleService(
         // 同一任务的多间教室共享 GroupId，各自保留独立 Job 与执行记录。
         var groupId = Guid.NewGuid();
         var schedules = mappings
-            .Select(mapping => NewSchedule(groupId, mapping, name, kind, runAtUtc, weekdayMask, localTime, timeZoneId))
+            .Select(mapping => NewSchedule(groupId, mapping, name, kind, runAtUtc, weekdayMask, localTime))
             .ToList();
         db.Schedules.AddRange(schedules);
         await db.SaveChangesAsync(cancellationToken);
@@ -84,7 +82,6 @@ public sealed class ScheduleService(
         DateTimeOffset? runAtUtc,
         int weekdayMask,
         TimeSpan localTime,
-        string timeZoneId,
         CancellationToken cancellationToken)
     {
         var mappings = await LoadMappingsAsync(mappingIds, cancellationToken);
@@ -115,7 +112,7 @@ public sealed class ScheduleService(
         foreach (var schedule in kept)
         {
             schedule.GroupId = groupId;
-            ApplyDefinition(schedule, name, kind, runAtUtc, weekdayMask, localTime, timeZoneId);
+            ApplyDefinition(schedule, name, kind, runAtUtc, weekdayMask, localTime);
         }
 
         var keptMappingIds = kept
@@ -125,7 +122,7 @@ public sealed class ScheduleService(
         var groupEnabled = kept.Count > 0 ? kept[0].Enabled : true;
         var created = mappings
             .Where(mapping => !keptMappingIds.Contains(mapping.Id))
-            .Select(mapping => NewSchedule(groupId, mapping, name, kind, runAtUtc, weekdayMask, localTime, timeZoneId))
+            .Select(mapping => NewSchedule(groupId, mapping, name, kind, runAtUtc, weekdayMask, localTime))
             .ToList();
         foreach (var schedule in created)
         {
@@ -282,8 +279,7 @@ public sealed class ScheduleService(
         ScheduleKind kind,
         DateTimeOffset? runAtUtc,
         int weekdayMask,
-        TimeSpan localTime,
-        string timeZoneId)
+        TimeSpan localTime)
     {
         var schedule = new ControlSchedule
         {
@@ -293,7 +289,7 @@ public sealed class ScheduleService(
             RoomName = mapping.Controller.Room.Name,
             Enabled = true,
         };
-        ApplyDefinition(schedule, name, kind, runAtUtc, weekdayMask, localTime, timeZoneId);
+        ApplyDefinition(schedule, name, kind, runAtUtc, weekdayMask, localTime);
         return schedule;
     }
 
@@ -304,15 +300,13 @@ public sealed class ScheduleService(
         ScheduleKind kind,
         DateTimeOffset? runAtUtc,
         int weekdayMask,
-        TimeSpan localTime,
-        string timeZoneId)
+        TimeSpan localTime)
     {
         schedule.Name = name;
         schedule.Kind = kind;
         schedule.RunAtUtc = kind == ScheduleKind.Once ? runAtUtc : null;
         schedule.WeekdayMask = kind == ScheduleKind.Weekly ? weekdayMask : 0;
         schedule.LocalTime = kind == ScheduleKind.Weekly ? localTime : TimeSpan.Zero;
-        schedule.TimeZoneId = timeZoneId;
         schedule.NextRunAtUtc = !schedule.Enabled
             ? null
             : kind == ScheduleKind.Once
@@ -320,8 +314,7 @@ public sealed class ScheduleService(
                 : WeeklyScheduleCalculator.GetNextOccurrence(
                     DateTimeOffset.UtcNow,
                     weekdayMask,
-                    localTime,
-                    TimeZoneInfo.FindSystemTimeZoneById(timeZoneId));
+                    localTime);
     }
 
     private async Task ScheduleAsync(ControlSchedule schedule, CancellationToken cancellationToken)
@@ -347,7 +340,7 @@ public sealed class ScheduleService(
             var cron = BuildWeeklyCron(schedule.WeekdayMask, schedule.LocalTime);
             triggerBuilder
                 .StartAt(DateTimeOffset.UtcNow)
-                .WithCronSchedule(cron, options => options.InTimeZone(TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZoneId)));
+                .WithCronSchedule(cron);
         }
 
         await scheduler.ScheduleJob(job, triggerBuilder.Build(), cancellationToken);
@@ -405,8 +398,7 @@ public sealed class ScheduleService(
             schedule.NextRunAtUtc = WeeklyScheduleCalculator.GetNextOccurrence(
                 DateTimeOffset.UtcNow,
                 schedule.WeekdayMask,
-                schedule.LocalTime,
-                TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZoneId));
+                schedule.LocalTime);
         }
 
         schedule.Enabled = true;

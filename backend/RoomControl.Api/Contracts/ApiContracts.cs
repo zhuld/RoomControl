@@ -5,8 +5,8 @@ namespace RoomControl.Api.Contracts;
 /// <summary>请求与 API 响应模型；不承载 EF Core 实体。</summary>
 public sealed record LoginRequest(string Username, string Password);
 
-/// <summary>创建教室时提交的名称、时区及所属楼栋和楼层。</summary>
-public sealed record CreateRoomRequest(string Name, string TimeZoneId, string? Building, string? Floor);
+/// <summary>创建教室时提交的名称及所属楼栋和楼层。</summary>
+public sealed record CreateRoomRequest(string Name, string? Building, string? Floor);
 
 /// <summary>更新站点名称、副标题和可选的 Data URL Logo。</summary>
 public sealed record UpdateBrandingRequest(string DisplayName, string Subtitle, string? LogoDataUrl);
@@ -57,15 +57,14 @@ public sealed record UpdateJoinMappingRequest(
     int? EnableJoinNumber,
     bool ShowConfirmationPopup = true);
 
-/// <summary>创建或修改按站点时区执行的一次性或每周重复任务；一个任务可覆盖多间教室的同名控制点。</summary>
+/// <summary>创建或修改按服务器本地时间执行的一次性或每周重复任务；一个任务可覆盖多间教室的同名控制点。</summary>
 public sealed record ScheduleDefinitionRequest(
     IReadOnlyList<Guid> JoinMappingIds,
     string Name,
     ScheduleKind Kind,
     DateTime? RunAtLocal,
     int WeekdayMask,
-    TimeSpan LocalTime,
-    string TimeZoneId);
+    TimeSpan LocalTime);
 
 /// <summary>创建用户时提交的身份凭据、角色和启用状态。</summary>
 public sealed record CreateUserRequest(string Username, string Password, string Role, bool IsActive);

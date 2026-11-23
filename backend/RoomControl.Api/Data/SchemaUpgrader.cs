@@ -32,6 +32,13 @@ public static class SchemaUpgrader
                     "ALTER TABLE \"Rooms\" ADD COLUMN \"Floor\" TEXT NOT NULL DEFAULT ''",
                     cancellationToken);
             }
+            // 时区配置已移除：教室统一按服务器本地时间执行，删除遗留列。
+            if (columns.Contains("TimeZoneId"))
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE \"Rooms\" DROP COLUMN \"TimeZoneId\"",
+                    cancellationToken);
+            }
 
             // 旧版本把发送 Join 与状态 Join 共用一个字段，升级时复制旧值保持既有行为。
             var joinMappingColumns = await ReadSqliteColumnsAsync(db, "JoinMappings", cancellationToken);
@@ -179,6 +186,13 @@ public static class SchemaUpgrader
                     "ALTER TABLE \"Schedules\" DROP COLUMN \"IsArchived\"",
                     cancellationToken);
             }
+            if (scheduleColumns.Contains("TimeZoneId"))
+            {
+                // 任务统一按服务器本地时间执行，删除遗留的时区列。
+                await db.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE \"Schedules\" DROP COLUMN \"TimeZoneId\"",
+                    cancellationToken);
+            }
             return;
         }
 
@@ -216,6 +230,8 @@ public static class SchemaUpgrader
             END $$;
             ALTER TABLE "Rooms" ADD COLUMN IF NOT EXISTS "Building" character varying(60) NOT NULL DEFAULT '';
             ALTER TABLE "Rooms" ADD COLUMN IF NOT EXISTS "Floor" character varying(60) NOT NULL DEFAULT '';
+            ALTER TABLE IF EXISTS "Rooms" DROP COLUMN IF EXISTS "TimeZoneId";
+            ALTER TABLE IF EXISTS "Schedules" DROP COLUMN IF EXISTS "TimeZoneId";
             CREATE TABLE IF NOT EXISTS "SiteSettings" (
                 "Id" uuid NOT NULL CONSTRAINT "PK_SiteSettings" PRIMARY KEY,
                 "DisplayName" character varying(60) NOT NULL,

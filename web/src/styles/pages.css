@@ -269,8 +269,7 @@
 }
 
 .room-toolbar-cascader {
-  flex: 0 1 440px;
-  min-width: 260px;
+  min-width: 360px;
 }
 
 .room-grid {
@@ -854,7 +853,7 @@
 @media (max-width: 1420px) {
   .operate-layout,
   .operate-layout.is-rail-open {
-    grid-template-columns: 250px minmax(0, 1fr);
+    grid-template-columns: 200px minmax(0, 1fr);
   }
 
   .receipt-rail {
@@ -871,6 +870,7 @@
   .receipt {
     border-right: 1px solid var(--border);
   }
+
 }
 
 @media (max-width: 1040px) {
@@ -886,6 +886,9 @@
 
   .room-list {
     max-height: 248px;
+  }
+  .room-cascader {
+    display: flex;
   }
 }
 
@@ -945,8 +948,9 @@
 }
 
 .auto-task-main {
-  display: grid;
-  grid-template-columns: minmax(150px, 1.2fr) minmax(130px, 1fr) 140px 150px auto;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
   padding: 11px var(--card-pad);
@@ -1518,7 +1522,7 @@
 
 .room-table-head {
   display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) minmax(120px, 1.2fr) minmax(100px, 0.9fr) 80px auto;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(120px, 1.2fr) 80px auto;
   gap: var(--space-3);
   padding: 8px 14px;
   background: var(--surface-subtle);
@@ -1532,7 +1536,7 @@
 
 .room-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) minmax(120px, 1.2fr) minmax(100px, 0.9fr) 80px auto;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(120px, 1.2fr) 80px auto;
   gap: var(--space-3);
   align-items: center;
   min-height: var(--row-h);

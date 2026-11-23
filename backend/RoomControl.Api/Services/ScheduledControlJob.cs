@@ -64,12 +64,10 @@ public sealed class ScheduledControlJob(
             }
             else
             {
-                var zone = TimeZoneInfo.FindSystemTimeZoneById(schedule.TimeZoneId);
                 schedule.NextRunAtUtc = WeeklyScheduleCalculator.GetNextOccurrence(
                     execution.CompletedAtUtc.Value,
                     schedule.WeekdayMask,
-                    schedule.LocalTime,
-                    zone);
+                    schedule.LocalTime);
             }
 
             await db.SaveChangesAsync(CancellationToken.None);

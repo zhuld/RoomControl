@@ -123,7 +123,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 - 站点品牌：`GET /api/branding`（免登录，供登录页使用）；`PUT /api/branding` 保存左上角名称、副标题与 Logo（图片以 Data URL 存储，限制 200 KB）
 - 楼栋与楼层：`GET/POST /api/buildings`、`PUT/DELETE /api/buildings/{buildingId}`、`POST /api/buildings/{buildingId}/floors`、`PUT/DELETE /api/floors/{floorId}`。楼栋与楼层需预先配置，教室只能从已配置的楼栋、楼层中选择；重命名会同步更新教室，仍有教室时禁止删除
-- 教室：`GET/POST /api/rooms`；`PUT/DELETE /api/rooms/{roomId}`。教室包含名称、楼栋、楼层和站点时区；操作台与配置页均按楼栋、楼层分组，并提供「楼栋 → 楼层 → 教室」三级下拉选择；顶栏支持输入教室快速跳转
+- 教室：`GET/POST /api/rooms`；`PUT/DELETE /api/rooms/{roomId}`。教室包含名称、楼栋和楼层；操作台与配置页均按楼栋、楼层分组，并提供「楼栋 → 楼层 → 教室」三级下拉选择；顶栏支持输入教室快速跳转
 - 中控类型：`GET /api/controller-types` 返回支持的适配器（当前为 Crestron CIP · CIP Raw）；接入中控时只能选择类型，界面上的中控名称由类型确定
 - 中控连接：`POST /api/rooms/{roomId}/controller`；`PUT/DELETE /api/controllers/{controllerId}`
 - 数字控制点：`POST /api/controllers/{controllerId}/joins`；`PUT/DELETE /api/joins/{mappingId}`。创建和更新请求可带 `showConfirmationPopup`（默认 `true`），控制发送指令与删除前是否弹窗确认；`GET /api/rooms` 会返回该开关
@@ -157,7 +157,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 - 左侧任务栏默认自动收起为图标栏，悬停或键盘聚焦时展开为浮层；底部「固定展开」可保持常驻，偏好按浏览器保存。窄屏下改为抽屉式导航。
 - 设计系统：`web/src/styles/tokens.css` 定义主题与语义色、间距、字号、密度；`base.css`、`components.css`、`pages.css` 分层组合。组件只引用语义令牌，不写死十六进制颜色，主题只覆写色板。
 
-定时任务支持一次性和按周重复，使用教室站点时区。一个任务可同时作用于多间教室：勾选教室后按同名控制点对齐，每间教室各自生成一个执行目标（共享 `groupId`），执行记录按教室分别保留；任务可随时修改名称、时间、重复日与教室范围，移除的教室连同其执行记录一并删除。任务可暂停与恢复：暂停后保留定义与执行记录但不再触发，恢复时按当前时间重算下一次执行，一次性任务的时间已过则需先修改执行时间。删除任务会同时清除目标与执行记录。目标中控离线或任务错过一次性执行时间时记录失败，不自动补发。指令已写入 TCP 连接不代表设备状态已改变；网页状态以中控回报的 Join 值为准。
+定时任务支持一次性和按周重复，统一按服务器本地时间执行。一个任务可同时作用于多间教室：勾选教室后按同名控制点对齐，每间教室各自生成一个执行目标（共享 `groupId`），执行记录按教室分别保留；任务可随时修改名称、时间、重复日与教室范围，移除的教室连同其执行记录一并删除。任务可暂停与恢复：暂停后保留定义与执行记录但不再触发，恢复时按当前时间重算下一次执行，一次性任务的时间已过则需先修改执行时间。删除任务会同时清除目标与执行记录。目标中控离线或任务错过一次性执行时间时记录失败，不自动补发；使能 Join 只限制人工操作，不影响定时任务。指令已写入 TCP 连接不代表设备状态已改变；网页状态以中控回报的 Join 值为准。
 
 删除 Join、中控或教室时，关联定时任务及其执行记录会一并删除，不会留下指向已删除控制点的任务。
 

@@ -6,38 +6,14 @@ function toDate(value: string | Date | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function zoneOptions(
-  timeZone: string | undefined,
-  options: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormatOptions {
-  if (!timeZone) return options
-  try {
-    // 无效时区不应让整页渲染失败，回退到浏览器本地时间。
-    new Intl.DateTimeFormat('zh-CN', { timeZone })
-    return { ...options, timeZone }
-  } catch {
-    return options
-  }
+export function formatDateTime(value: string | Date | null | undefined): string {
+  const date = toDate(value)
+  return date ? date.toLocaleString('zh-CN', { hour12: false }) : '—'
 }
 
-export function formatDateTime(
-  value: string | Date | null | undefined,
-  timeZone?: string,
-): string {
+export function formatClock(value: string | Date | null | undefined): string {
   const date = toDate(value)
-  return date
-    ? date.toLocaleString('zh-CN', zoneOptions(timeZone, { hour12: false }))
-    : '—'
-}
-
-export function formatClock(
-  value: string | Date | null | undefined,
-  timeZone?: string,
-): string {
-  const date = toDate(value)
-  return date
-    ? date.toLocaleTimeString('zh-CN', zoneOptions(timeZone, { hour12: false }))
-    : '—'
+  return date ? date.toLocaleTimeString('zh-CN', { hour12: false }) : '—'
 }
 
 export function formatDate(value: string | Date | null | undefined): string {

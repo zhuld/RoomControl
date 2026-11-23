@@ -132,7 +132,6 @@ export interface Room {
   name: string
   building: string
   floor: string
-  timeZoneId: string
   controller: ControllerInfo | null
 }
 
@@ -150,7 +149,6 @@ export interface Schedule {
   weekdayMask: number
   localTime: string
   nextRunAtUtc: string | null
-  timeZoneId: string
   joinMapping: Pick<JoinMapping, 'id' | 'name'> | null
 }
 

@@ -1,16 +1,15 @@
 namespace RoomControl.Api.Services;
 
-/// <summary>依据星期位掩码、当地时间和时区计算下一次任务执行时刻。</summary>
+/// <summary>依据星期位掩码和本地时间计算下一次任务执行时刻。</summary>
 public static class WeeklyScheduleCalculator
 {
     /// <summary>
-    /// 从给定 UTC 时刻之后搜索下一个匹配日期；夏令时跳过的当地时间顺延一小时。
+    /// 以服务器本地时间从给定时刻之后搜索下一个匹配日期。
     /// </summary>
     public static DateTimeOffset GetNextOccurrence(
-        DateTimeOffset afterUtc,
+        DateTimeOffset after,
         int weekdayMask,
-        TimeSpan localTime,
-        TimeZoneInfo timeZone)
+        TimeSpan localTime)
     {
         if (weekdayMask is < 1 or > 127)
         {
@@ -22,7 +21,7 @@ public static class WeeklyScheduleCalculator
             throw new ArgumentOutOfRangeException(nameof(localTime));
         }
 
-        var afterLocal = TimeZoneInfo.ConvertTime(afterUtc, timeZone);
+        var afterLocal = after.ToLocalTime();
         for (var daysAhead = 0; daysAhead < 8; daysAhead++)
         {
             var date = afterLocal.Date.AddDays(daysAhead);
@@ -33,15 +32,10 @@ public static class WeeklyScheduleCalculator
                 continue;
             }
 
-            if (timeZone.IsInvalidTime(localDateTime))
+            var next = new DateTimeOffset(localDateTime);
+            if (next > after)
             {
-                localDateTime = localDateTime.AddHours(1);
-            }
-
-            var nextUtc = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(localDateTime, timeZone), TimeSpan.Zero);
-            if (nextUtc > afterUtc)
-            {
-                return nextUtc;
+                return next.ToUniversalTime();
             }
         }
 

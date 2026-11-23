@@ -16,7 +16,6 @@ public sealed class ControlSchedule
     public DateTimeOffset? RunAtUtc { get; set; }
     public int WeekdayMask { get; set; }
     public TimeSpan LocalTime { get; set; }
-    public string TimeZoneId { get; set; } = "Asia/Shanghai";
     public DateTimeOffset? NextRunAtUtc { get; set; }
 }
 

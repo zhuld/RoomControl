@@ -42,7 +42,6 @@ interface ScheduleTask {
   name: string
   kind: ScheduleKind
   joinName: string
-  timeZoneId: string
   roomNames: string[]
   targets: Schedule[]
   enabled: boolean
@@ -160,11 +159,6 @@ const selectedTargets = computed(() =>
     .filter((join): join is JoinMapping => Boolean(join)),
 )
 
-const formTimeZone = computed(() => selectedRooms.value[0]?.timeZoneId ?? '')
-const mixedTimeZones = computed(
-  () => new Set(selectedRooms.value.map((room) => room.timeZoneId)).size > 1,
-)
-
 function groupTasks(list: Schedule[]): ScheduleTask[] {
   const map = new Map<string, ScheduleTask>()
   for (const schedule of list) {
@@ -177,7 +171,6 @@ function groupTasks(list: Schedule[]): ScheduleTask[] {
         name: schedule.name,
         kind: schedule.kind,
         joinName: schedule.joinName,
-        timeZoneId: schedule.timeZoneId,
         roomNames: [schedule.roomName],
         targets: [schedule],
         enabled: schedule.enabled,
@@ -207,25 +200,6 @@ function groupTasks(list: Schedule[]): ScheduleTask[] {
 
 function toLocalDateTimeInput(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
-}
-
-// 把 UTC 时间换算成任务时区的墙上时间，供 datetime-local 输入框回填。
-function toZonedDateTimeInput(value: string, timeZoneId: string) {
-  try {
-    return new Intl.DateTimeFormat('sv-SE', {
-      timeZone: timeZoneId,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    })
-      .format(new Date(value))
-      .replace(' ', 'T')
-  } catch {
-    return toLocalDateTimeInput(new Date(value))
-  }
 }
 
 function taskRoomsLabel(task: ScheduleTask) {
@@ -399,7 +373,6 @@ async function submitForm() {
     runAtLocal: form.kind === 'Once' ? form.runAtLocal : null,
     weekdayMask: form.kind === 'Weekly' ? weekdayMask : 0,
     localTime: form.kind === 'Weekly' ? `${form.localTime.slice(0, 5)}:00` : '00:00:00',
-    timeZoneId: formTimeZone.value,
   }
 
   const editing = form.mode === 'edit' && form.editingGroupId
@@ -438,7 +411,7 @@ function startEdit(task: ScheduleTask) {
   form.weekdays = [0, 1, 2, 3, 4, 5, 6].filter((day) => (task.weekdayMask & (1 << day)) !== 0)
   form.localTime = (task.localTime ?? '08:30:00').slice(0, 5)
   form.runAtLocal = task.runAtUtc
-    ? toZonedDateTimeInput(task.runAtUtc, task.timeZoneId)
+    ? toLocalDateTimeInput(new Date(task.runAtUtc))
     : toLocalDateTimeInput(new Date(Date.now() + 10 * 60_000))
   void nextTick(() => document.getElementById('auto-form')?.focus())
 }
@@ -617,12 +590,12 @@ watch(
                 </div>
                 <div class="auto-task-cell">
                   {{ taskRoomsLabel(task) }}
-                  <span>{{ task.roomNames.length }} 间教室 · {{ task.timeZoneId }}</span>
+                  <span>{{ task.roomNames.length }} 间教室</span>
                 </div>
                 <div class="auto-task-cell" :class="{ 'is-overdue': isOverdue(task.nextRunAtUtc) }">
                   {{ formatRelative(task.nextRunAtUtc, now.getTime()) }}
                   <span>
-                    {{ task.nextRunAtUtc ? formatDateTime(task.nextRunAtUtc, task.timeZoneId) : '无计划时间' }}
+                    {{ task.nextRunAtUtc ? formatDateTime(task.nextRunAtUtc) : '无计划时间' }}
                   </span>
                 </div>
                 <div>
@@ -696,7 +669,7 @@ watch(
                   >
                     <StatusPill :tone="executionTone(execution.status)" :label="executionLabel(execution.status)" />
                     <span class="tabular">
-                      {{ formatDateTime(execution.scheduledAtUtc, task.timeZoneId) }}
+                      {{ formatDateTime(execution.scheduledAtUtc) }}
                     </span>
                     <span>
                       <span v-if="execution.error" class="execution-error">
@@ -707,7 +680,7 @@ watch(
                     <span class="text-xs muted tabular">
                       {{
                         execution.completedAtUtc
-                          ? formatClock(execution.completedAtUtc, task.timeZoneId)
+                          ? formatClock(execution.completedAtUtc)
                           : '—'
                       }}
                     </span>
@@ -837,9 +810,8 @@ watch(
               </template>
 
               <p class="form-note">
-                按 {{ formTimeZone || '教室时区' }} 执行，覆盖 {{ selectedTargets.length }} 间教室。
-                <template v-if="mixedTimeZones">所选教室时区不同，统一使用第一间教室的时区。</template>
-                中控离线或使能未就绪时会记为失败，不会自动补发。
+                覆盖 {{ selectedTargets.length }} 间教室，按服务器本地时间执行。
+                中控离线时会记为失败，不会自动补发。
               </p>
               <div class="form-actions is-start">
                 <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">

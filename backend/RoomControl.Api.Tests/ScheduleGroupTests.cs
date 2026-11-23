@@ -58,7 +58,6 @@ public sealed class ScheduleGroupTests(QuartzSchedulerFixture quartz)
             null,
             0b0011111,
             new TimeSpan(8, 30, 0),
-            "Asia/Shanghai",
             CancellationToken.None);
 
         Assert.Equal(2, created.Count);
@@ -78,7 +77,6 @@ public sealed class ScheduleGroupTests(QuartzSchedulerFixture quartz)
             null,
             0b0000011,
             new TimeSpan(9, 0, 0),
-            "Asia/Shanghai",
             CancellationToken.None);
 
         Assert.Single(updated);

@@ -92,7 +92,7 @@ const sectionMeta: Record<SettingsSection, { eyebrow: string; title: string; des
   rooms: {
     eyebrow: '步骤 3 · 教室',
     title: '教室',
-    description: '维护教室名称、所在位置与执行时区。定时任务按教室时区执行。',
+    description: '维护教室名称与所在位置。定时任务按服务器本地时间执行。',
   },
   controllers: {
     eyebrow: '步骤 4 · 中控与设备',
@@ -122,8 +122,7 @@ const confirmationMessage = ref('')
 const confirmationActionLabel = ref('确认删除')
 let confirmationResolver: ((confirmed: boolean) => void) | null = null
 
-// 时区和 Logo 限制需与后端校验及存储上限保持一致。
-const timeZones = ['Asia/Shanghai', 'Asia/Urumqi', 'Asia/Hong_Kong', 'Asia/Taipei', 'Asia/Tokyo', 'UTC']
+// Logo 限制需与后端校验及存储上限保持一致。
 const maxLogoBytes = 200 * 1024
 const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
 
@@ -142,9 +141,9 @@ const floorDrafts = reactive<Record<string, string>>({})
 const editingFloorId = ref('')
 const floorEditName = ref('')
 
-const roomForm = reactive({ name: '', building: '', floor: '', timeZoneId: 'Asia/Shanghai' })
+const roomForm = reactive({ name: '', building: '', floor: '' })
 const editingRoomId = ref('')
-const roomEdit = reactive({ name: '', building: '', floor: '', timeZoneId: 'Asia/Shanghai' })
+const roomEdit = reactive({ name: '', building: '', floor: '' })
 
 const configuredRoomId = ref('')
 const controllerForm = reactive({
@@ -618,7 +617,6 @@ function startEditRoom(room: Room) {
   roomEdit.name = room.name
   roomEdit.building = room.building
   roomEdit.floor = room.floor
-  roomEdit.timeZoneId = room.timeZoneId
 }
 
 async function saveRoom(room: Room) {
@@ -1147,23 +1145,15 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                   </option>
                 </select>
               </label>
-              <label class="field">
-                站点时区
-                <input name="timeZoneId" v-model="roomForm.timeZoneId" class="input" list="settings-timezones"
-                  required />
-              </label>
               <button class="btn btn-primary" :disabled="busy || !createFloorOptions.length">添加教室</button>
             </form>
             <p v-if="!buildings.length" class="form-note is-warning">
               添加教室前，请先在「楼栋与楼层」中配置楼栋和楼层。
             </p>
-            <datalist id="settings-timezones">
-              <option v-for="timeZone in timeZones" :key="timeZone" :value="timeZone"></option>
-            </datalist>
 
             <div v-if="sortedRooms.length" class="room-table">
               <div class="room-table-head">
-                <span>教室</span><span>楼栋 / 楼层</span><span>时区</span><span>中控</span><span></span>
+                <span>教室</span><span>楼栋 / 楼层</span><span>中控</span><span></span>
               </div>
               <template v-for="room in sortedRooms" :key="room.id">
                 <div v-if="editingRoomId === room.id" class="room-row is-editing">
@@ -1188,8 +1178,6 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                       </option>
                     </select>
                   </div>
-                  <input name="timeZoneId" v-model="roomEdit.timeZoneId" class="input" list="settings-timezones"
-                    required />
                   <span class="text-xs muted">保存立即生效</span>
                   <div class="room-row-actions">
                     <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveRoom(room)">保存</button>
@@ -1199,7 +1187,6 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                 <div v-else class="room-row">
                   <strong>{{ room.name }}</strong>
                   <span>{{ room.building || '未分配楼栋' }} · {{ room.floor || '未分配楼层' }}</span>
-                  <span class="mono text-xs">{{ room.timeZoneId }}</span>
                   <StatusPill :tone="controllerStatus(room)" :label="controllerStatusLabel(room)" dot />
                   <div class="room-row-actions">
                     <button class="btn btn-quiet btn-sm" @click="startEditRoom(room)">编辑</button>
