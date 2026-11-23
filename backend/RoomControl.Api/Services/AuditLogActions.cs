@@ -14,6 +14,7 @@ public static partial class AuditLogActions
         ["PUT /api/users/{id}"] = "更新账号",
         ["DELETE /api/users/{id}"] = "删除账号",
         ["PUT /api/branding"] = "更新站点信息",
+        ["PUT /api/logs/settings"] = "更新日志保留设置",
         ["POST /api/buildings"] = "创建楼栋",
         ["PUT /api/buildings/{buildingId}"] = "重命名楼栋",
         ["DELETE /api/buildings/{buildingId}"] = "删除楼栋",

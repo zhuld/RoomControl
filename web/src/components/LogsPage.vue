@@ -26,6 +26,7 @@ const actionLabels: Record<string, string> = {
   'PUT /api/users/{id}': '更新账号',
   'DELETE /api/users/{id}': '删除账号',
   'PUT /api/branding': '更新站点信息',
+  'PUT /api/logs/settings': '更新日志保留设置',
   'POST /api/buildings': '创建楼栋',
   'PUT /api/buildings/{buildingId}': '重命名楼栋',
   'DELETE /api/buildings/{buildingId}': '删除楼栋',
@@ -67,6 +68,8 @@ const selectedCategory = ref('')
 const compactMode = inject(compactModeKey, ref(false))
 const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const searchText = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
 const logs = ref<AuditLog[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
@@ -74,9 +77,19 @@ const lastRefreshedAt = ref<Date | null>(null)
 const autoRefresh = ref(localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) !== '0')
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let requestInFlight = false
+let reloadPending = false
+
+const dateRangeInvalid = computed(
+  () => Boolean(dateFrom.value && dateTo.value && dateFrom.value > dateTo.value),
+)
 
 watch(autoRefresh, (enabled) => {
   localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, enabled ? '1' : '0')
+})
+
+// 日期区间由服务端筛选，变更后立即重新读取；分类与搜索仍在前端组合过滤。
+watch([dateFrom, dateTo], () => {
+  void loadLogs()
 })
 
 const categoryCounts = computed(() => {
@@ -102,9 +115,34 @@ const failureCount = computed(
   () => logs.value.filter((log) => log.statusCode >= 400).length,
 )
 
+function toDateBoundary(date: string, endOfDay: boolean) {
+  // 日期输入是浏览器本地日期，转换为 UTC 时间点交给服务端筛选。
+  return new Date(`${date}T${endOfDay ? '23:59:59.999' : '00:00:00'}`).toISOString()
+}
+
+function buildLogsUrl() {
+  const params = new URLSearchParams()
+  if (dateFrom.value) params.set('from', toDateBoundary(dateFrom.value, false))
+  if (dateTo.value) params.set('to', toDateBoundary(dateTo.value, true))
+  const query = params.toString()
+  return query ? `/api/logs?${query}` : '/api/logs'
+}
+
+function clearDateRange() {
+  dateFrom.value = ''
+  dateTo.value = ''
+}
+
 async function loadLogs(options: { silent?: boolean } = {}) {
-  // 手动刷新与自动刷新不并发；静默刷新失败时保留已有记录，不覆盖列表。
-  if (requestInFlight) return
+  if (dateRangeInvalid.value) {
+    errorMessage.value = '开始日期不能晚于结束日期，请调整筛选区间。'
+    return
+  }
+  // 手动刷新与自动刷新不并发；期间产生的刷新请求在本次完成后补读一次。
+  if (requestInFlight) {
+    reloadPending = true
+    return
+  }
   requestInFlight = true
   const silent = options.silent === true
   if (!silent) {
@@ -112,7 +150,7 @@ async function loadLogs(options: { silent?: boolean } = {}) {
     errorMessage.value = ''
   }
   try {
-    logs.value = await readJson<AuditLog[]>('/api/logs?limit=500')
+    logs.value = await readJson<AuditLog[]>(buildLogsUrl())
     errorMessage.value = ''
     lastRefreshedAt.value = new Date()
   } catch (error) {
@@ -122,6 +160,10 @@ async function loadLogs(options: { silent?: boolean } = {}) {
   } finally {
     requestInFlight = false
     if (!silent) loading.value = false
+    if (reloadPending) {
+      reloadPending = false
+      void loadLogs()
+    }
   }
 }
 
@@ -166,7 +208,7 @@ onBeforeUnmount(() => {
       <div class="workspace-header-copy">
         <p class="eyebrow">管理 · 审计</p>
         <h1>操作记录</h1>
-        <p>追踪认证、配置变更、控制指令、中控连接、状态变化与定时任务。最多读取最近 500 条。</p>
+        <p>追踪认证、配置变更、控制指令、中控连接、状态变化与定时任务。可按日期区间筛选；超过保留天数的记录会自动清理，保留天数在「配置与接入 · 站点与外观」中调整。</p>
       </div>
       <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
@@ -200,6 +242,15 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="audit-toolbar-right">
+          <div class="audit-date-range" role="group" aria-label="按日期区间筛选">
+            <UiIcon name="calendar" :size="15" />
+            <input v-model="dateFrom" name="dateFrom" class="input" type="date" aria-label="开始日期" />
+            <span class="muted">至</span>
+            <input v-model="dateTo" name="dateTo" class="input" type="date" aria-label="结束日期" />
+            <button v-if="dateFrom || dateTo" type="button" class="btn btn-quiet btn-sm" @click="clearDateRange">
+              清除
+            </button>
+          </div>
           <div class="search-field">
             <UiIcon name="search" :size="15" />
             <input name="searchText" v-model="searchText" class="input" type="search" placeholder="搜索对象、操作者或操作"
@@ -221,8 +272,10 @@ onBeforeUnmount(() => {
         <span class="loading-inline"><span class="spinner"></span>正在加载操作记录…</span>
       </div>
       <EmptyState v-else-if="!filteredLogs.length" icon="audit"
-        :title="searchText || selectedCategory ? '没有符合条件的记录' : '暂无操作记录'"
-        :description="searchText || selectedCategory ? '调整分类或搜索词后再试。' : '完成登录、配置或控制操作后会在此出现。'" />
+        :title="searchText || selectedCategory || dateFrom || dateTo ? '没有符合条件的记录' : '暂无操作记录'"
+        :description="searchText || selectedCategory || dateFrom || dateTo
+          ? '调整分类、搜索词或日期区间后再试。'
+          : '完成登录、配置或控制操作后会在此出现。'" />
       <div v-else class="table-wrap audit-table-wrap">
         <table class="table audit-table">
           <thead>

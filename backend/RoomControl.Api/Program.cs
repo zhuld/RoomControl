@@ -124,12 +124,22 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 // 注册后台基础设施及业务服务；控制器连接服务同时作为托管后台任务运行。
-builder.Services.AddQuartz();
+builder.Services.AddQuartz(quartz =>
+{
+    var auditLogCleanupJobKey = new JobKey("audit-log-cleanup");
+    quartz.AddJob<AuditLogCleanupJob>(options => options.WithIdentity(auditLogCleanupJobKey));
+    // 每日凌晨 3 点按站点保留天数清理过期日志，避免审计表无限增长。
+    quartz.AddTrigger(options => options
+        .ForJob(auditLogCleanupJobKey)
+        .WithIdentity("audit-log-cleanup-trigger")
+        .WithCronSchedule("0 0 3 * * ?"));
+});
 builder.Services.AddQuartzHostedService(options => options.WaitForJobsToComplete = true);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<LoginThrottle>();
 builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<AuditLogWriter>();
+builder.Services.AddSingleton<AuditLogRetentionService>();
 builder.Services.AddScoped<AuditLogTargetResolver>();
 builder.Services.AddSingleton<IControllerAdapterFactory, ControllerAdapterFactory>();
 builder.Services.AddSingleton<ControllerStateStore>();
@@ -190,6 +200,9 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.EnsureCreatedAsync();
     await SchemaUpgrader.UpgradeAsync(db, CancellationToken.None);
     await SeedLocationsAsync(db, CancellationToken.None);
+    // 启动时先按保留策略清理一次，避免停机期间积累的过期日志继续留在库中。
+    await scope.ServiceProvider.GetRequiredService<AuditLogRetentionService>()
+        .PurgeExpiredAsync(CancellationToken.None);
     await scope.ServiceProvider.GetRequiredService<ScheduleService>().RestoreAsync(CancellationToken.None);
 
     var adminUser = builder.Configuration["Authentication:AdminUser"];
@@ -287,6 +300,8 @@ api.MapPost("/auth/change-password", async (
 
 api.MapGet("/logs", async (
     string? category,
+    DateTimeOffset? from,
+    DateTimeOffset? to,
     int? limit,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
@@ -295,16 +310,33 @@ api.MapGet("/logs", async (
     {
         throw new ArgumentException("Unsupported log category.");
     }
+    if (from is not null && to is not null && from > to)
+    {
+        throw new ArgumentException("开始时间不能晚于结束时间。");
+    }
 
     var query = db.AuditLogs.AsNoTracking();
     if (!string.IsNullOrWhiteSpace(category))
     {
         query = query.Where(log => log.Category == category);
     }
+    if (from is { } fromValue)
+    {
+        query = query.Where(log => log.OccurredAtUtc >= fromValue);
+    }
+    if (to is { } toValue)
+    {
+        query = query.Where(log => log.OccurredAtUtc <= toValue);
+    }
 
-    var logs = await query
-        .OrderByDescending(log => log.OccurredAtUtc)
-        .Take(Math.Clamp(limit ?? 200, 1, 500))
+    IQueryable<AuditLog> page = query.OrderByDescending(log => log.OccurredAtUtc);
+    // 未指定 limit 时返回全部保留记录；limit 仅供调用方主动限制条数，不再有 500 条上限。
+    if (limit is { } pageSize)
+    {
+        page = page.Take(Math.Max(pageSize, 1));
+    }
+
+    var logs = await page
         .Select(log => new
         {
             log.Id,
@@ -317,6 +349,32 @@ api.MapGet("/logs", async (
         })
         .ToListAsync(cancellationToken);
     return Results.Ok(logs);
+}).RequireAuthorization("AdminOnly");
+
+api.MapGet("/logs/settings", async (
+    AuditLogRetentionService retentionService,
+    CancellationToken cancellationToken) =>
+{
+    var retentionDays = await retentionService.GetRetentionDaysAsync(cancellationToken);
+    return Results.Ok(new { RetentionDays = retentionDays });
+}).RequireAuthorization("AdminOnly");
+
+api.MapPut("/logs/settings", async (
+    UpdateLogSettingsRequest request,
+    AuditLogRetentionService retentionService,
+    CancellationToken cancellationToken) =>
+{
+    try
+    {
+        await retentionService.SetRetentionDaysAsync(request.RetentionDays, cancellationToken);
+        // 保存后立即按新策略清理，避免过期记录保留到下一次定时清理。
+        await retentionService.PurgeExpiredAsync(cancellationToken);
+        return Results.Ok(new { RetentionDays = request.RetentionDays });
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { detail = ex.Message });
+    }
 }).RequireAuthorization("AdminOnly");
 
 // 用户维护仅管理员可用；账号角色变更会由 Cookie 校验逻辑即时应用。

@@ -93,7 +93,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 `EnsureCreated` 仅用于首期原型初始化；生产环境升级前应补齐并应用 EF Core migrations、HTTPS 反向代理、数据保护密钥持久化、备份与访问策略。
 
-启动时会自动补齐已有数据库缺失的增量结构（教室的楼栋/楼层列、`SiteSettings`、`Buildings`/`Floors` 表），因此从初始化版本升级无需手工迁移；若数据库中已有带楼栋、楼层的教室且尚未配置楼栋，会按教室数据自动生成对应的楼栋与楼层。
+启动时会自动补齐已有数据库缺失的增量结构（教室的楼栋/楼层列、`SiteSettings` 及其日志保留天数、`Buildings`/`Floors` 表），因此从初始化版本升级无需手工迁移；若数据库中已有带楼栋、楼层的教室且尚未配置楼栋，会按教室数据自动生成对应的楼栋与楼层。
 
 ## 打包发布（离线部署包）
 
@@ -136,7 +136,7 @@ REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健
 | 数字控制点 | `POST /api/controllers/{controllerId}/joins`、`PUT/DELETE /api/joins/{mappingId}`、`PUT /api/controllers/{controllerId}/joins/order`、`POST /api/joins/{mappingId}/copy`、`POST /api/controllers/{controllerId}/joins/copy-all` | 管理员 |
 | 控制指令 | `POST /api/joins/{mappingId}/pulse`（返回 `202`） | 操作员或管理员 |
 | 定时任务 | `GET /api/schedules`、`GET /api/schedules/{scheduleId}/executions`；`POST /api/schedules`、`PUT/DELETE /api/schedules/groups/{groupId}`、`POST /api/schedules/groups/{groupId}/pause`、`POST /api/schedules/groups/{groupId}/resume`、`DELETE /api/schedules/{scheduleId}` | 读取任意登录用户 / 写操作需操作员或管理员 |
-| 操作日志 | `GET /api/logs`（按 `category` 筛选，`limit` 默认 200、最多 500） | 管理员 |
+| 操作日志 | `GET /api/logs`（按 `category`、`from`/`to` 筛选，不设固定条数上限）、`GET/PUT /api/logs/settings`（自动清理保留天数） | 管理员 |
 | 实时推送 | `/hubs/control`，客户端调用 `JoinRoom(roomId)` / `LeaveRoom(roomId)`；接收 `joinStateChanged`、`controllerStatusChanged` | 任意登录用户 |
 
 界面相关的关键约定：
@@ -151,7 +151,7 @@ REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健
 - 角色分为 `admin`（管理员）、`operator`（操作员）、`viewer`（观看员）。用户管理、站点配置、楼栋/楼层、教室、中控与控制点维护要求 `admin`；发送脉冲、创建、修改、暂停、恢复或删除定时任务要求 `operator` 或 `admin`；其余查询接口允许任何已登录用户。系统总览中的「去接入中控」仅对 `admin` 显示，点击后进入「配置与接入 · 中控与设备」并自动选中该教室；其他角色看到的是一句联系管理员提示。
 - `viewer` 登录后仅显示只读的「系统总览」：教室卡片显示楼栋/楼层、中控在线状态、中控连接信息与每个控制点的状态；控制点只有高/低两种状态，尚未收到上报的按低电平（关闭）显示。观看员不显示「需要处理」「即将自动执行」两栏及待处理计数，也不显示教室操作与配置入口，不能点击教室卡片进入操作台。
 - 自动任务属于「配置与接入」的第 5 步：`operator` 可以进入配置与接入，但只能看到「自动任务」这一步，其余接入步骤与接入检查仅 `admin` 可见；没有配置权限的账号进入配置与接入时会自动落到该步骤。
-- 操作记录页和日志 API 均仅允许 `admin`；日志按认证、配置、控制、状态和定时任务分类，保留可读操作（如「发送 Join 5」「删除控制点 Join 1」）、操作对象（控制点等对象会带上所属教室，如「教室「A楼 · 1F · R101」· 控制点「上课」」）、操作者、HTTP 结果与 UTC 时间。对象名称在写入时解析，删除操作的日志同样能显示被删除对象及其教室。设备上报引起的控制点状态变化使用「状态」分类记录（如「状态变更 Join 6：低电平 → 高电平」，操作者为「设备」），仅在电平真正变化时写入，避免周期回报刷满日志。操作记录页每 5 秒自动刷新，可在页面内暂停，页面隐藏时也会暂停，切回后立即刷新。认证类记录会把来源 IP 写入对象栏（经 `X-Forwarded-For` 解析真实客户端地址），登录成功时操作者为登录账号，登录失败时保持 `anonymous`。
+- 操作记录页和日志 API 均仅允许 `admin`；日志按认证、配置、控制、状态和定时任务分类，保留可读操作（如「发送 Join 5」「删除控制点 Join 1」）、操作对象（控制点等对象会带上所属教室，如「教室「A楼 · 1F · R101」· 控制点「上课」」）、操作者、HTTP 结果与 UTC 时间。对象名称在写入时解析，删除操作的日志同样能显示被删除对象及其教室。设备上报引起的控制点状态变化使用「状态」分类记录（如「状态变更 Join 6：低电平 → 高电平」，操作者为「设备」），仅在电平真正变化时写入，避免周期回报刷满日志。操作记录页每 5 秒自动刷新，可在页面内暂停，页面隐藏时也会暂停，切回后立即刷新。日志查看支持按日期区间筛选，不再限制 500 条；可在「配置与接入 · 站点与外观」设置自动清理的保留天数（默认 60 天，`0` 表示永久保留），保存后立即清理，之后每天凌晨 3 点自动执行。认证类记录会把来源 IP 写入对象栏（经 `X-Forwarded-For` 解析真实客户端地址），登录成功时操作者为登录账号，登录失败时保持 `anonymous`。
 - 登录页账号下拉框接口（`GET /api/auth/accounts`）按来源 IP 限流：每分钟最多 60 次；只返回启用账号的用户名与角色。
 - 登录接口按来源 IP 限流：每分钟最多 20 次尝试，超出返回 `429`。同一账号连续失败 5 次后锁定 5 分钟，锁定期间统一返回 `401`（与凭据错误一致，不暴露账号状态）。
 - 反向代理终止 TLS 时应转发 `X-Forwarded-For` 与 `X-Forwarded-Proto`（默认仅信任本机代理，远程代理需配置 `KnownProxies`）：限流按真实客户端 IP 统计，HTTPS 下会话 Cookie 带 `Secure`。

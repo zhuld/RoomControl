@@ -80,9 +80,9 @@ const themeOptions: { value: ThemeName; label: string; swatch: string }[] = [
 
 const sectionMeta: Record<SettingsSection, { eyebrow: string; title: string; description: string }> = {
   branding: {
-    eyebrow: '步骤 1 · 站点与外观',
-    title: '站点名称与主题',
-    description: '维护登录页与侧栏使用的名称、Logo、主题与显示密度；只影响呈现，不改变控制逻辑。',
+    eyebrow: '步骤 1 · 站点设置',
+    title: '站点与外观',
+    description: '维护登录页与侧栏使用的名称、Logo、主题、显示密度与操作日志保留策略。',
   },
   locations: {
     eyebrow: '步骤 2 · 教室层级',
@@ -131,6 +131,12 @@ const brandingForm = reactive({
   subtitle: props.branding.subtitle,
   logoDataUrl: props.branding.logoDataUrl as string | null,
 })
+
+// 日志保留天数与后端校验保持一致；0 表示永久保留。
+const MAX_LOG_RETENTION_DAYS = 3650
+const logRetentionDays = ref<number | null>(null)
+const logRetentionInput = ref<number>(60)
+const logRetentionError = ref('')
 
 const buildings = ref<BuildingOption[]>([])
 const controllerTypes = ref<ControllerTypeOption[]>([])
@@ -398,11 +404,14 @@ async function loadSetupData() {
   }
 }
 
-// 楼栋与中控类型接口仅管理员可读，操作员只维护自动任务时无需拉取。
+// 楼栋、中控类型与日志设置接口仅管理员可读，操作员只维护自动任务时无需拉取。
 watch(
   canManageSettings,
   (allowed) => {
-    if (allowed) void loadSetupData()
+    if (allowed) {
+      void loadSetupData()
+      void loadLogRetention()
+    }
   },
   { immediate: true },
 )
@@ -514,6 +523,35 @@ async function saveBranding() {
     }).then((response) => response.json() as Promise<Branding>)
     emit('brandingSaved', saved)
   }, '站点信息已保存')
+}
+
+async function loadLogRetention() {
+  try {
+    const settings = await readJson<{ retentionDays: number }>('/api/logs/settings')
+    logRetentionDays.value = settings.retentionDays
+    logRetentionInput.value = settings.retentionDays
+    logRetentionError.value = ''
+  } catch (error) {
+    logRetentionError.value = toErrorMessage(error)
+  }
+}
+
+async function saveLogRetention() {
+  const days = logRetentionInput.value
+  if (!Number.isInteger(days) || days < 0 || days > MAX_LOG_RETENTION_DAYS) {
+    logRetentionError.value = `保留天数需为 0–${MAX_LOG_RETENTION_DAYS} 之间的整数，0 表示永久保留。`
+    return
+  }
+
+  logRetentionError.value = ''
+  await run(async () => {
+    const saved = await request('/api/logs/settings', {
+      method: 'PUT',
+      body: JSON.stringify({ retentionDays: days }),
+    }).then((response) => response.json() as Promise<{ retentionDays: number }>)
+    logRetentionDays.value = saved.retentionDays
+    logRetentionInput.value = saved.retentionDays
+  }, days === 0 ? '已保存：永久保留日志' : `已保存：仅保留最近 ${days} 天的记录`)
 }
 
 function selectTheme(value: ThemeName) {
@@ -1060,6 +1098,30 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
               <input type="checkbox" name="debugEnabled" :checked="debugEnabled" @change="onDebugChange" />
               在操作台控制点卡片上显示 Join 编号（T / R / E）
             </label>
+
+            <hr class="divider" />
+
+            <div class="stack">
+              <div class="settings-section-head is-flush">
+                <div>
+                  <h3>操作日志</h3>
+                  <p class="panel-sub">
+                    超过保留天数的记录每天凌晨 3 点自动清理，保存设置后立即清理一次；0 表示永久保留。
+                  </p>
+                </div>
+              </div>
+              <form class="retention-form" @submit.prevent="saveLogRetention">
+                <label class="field">
+                  保留天数
+                  <input name="logRetentionDays" v-model.number="logRetentionInput" class="input" type="number"
+                    min="0" :max="MAX_LOG_RETENTION_DAYS" step="1" />
+                </label>
+                <button class="btn btn-primary" :disabled="busy || logRetentionInput === logRetentionDays">
+                  保存日志设置
+                </button>
+              </form>
+              <p v-if="logRetentionError" class="form-note is-warning">{{ logRetentionError }}</p>
+            </div>
           </div>
 
           <div v-if="section === 'locations'" class="panel-body">

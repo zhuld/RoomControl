@@ -75,5 +75,8 @@ public sealed record UpdateUserRequest(string? Password, string? Role, bool? IsA
 /// <summary>修改当前用户密码时提交的旧密码和新密码。</summary>
 public sealed record ChangePasswordRequest(string OldPassword, string NewPassword);
 
+/// <summary>修改操作日志的自动清理保留天数；0 表示永久保留。</summary>
+public sealed record UpdateLogSettingsRequest(int RetentionDays);
+
 /// <summary>控制点状态反馈；数字状态只有高低两种，未上报时按低电平返回。</summary>
 public sealed record JoinStateSnapshotResponse(bool DigitalValue, DateTimeOffset? LastReportedAtUtc);

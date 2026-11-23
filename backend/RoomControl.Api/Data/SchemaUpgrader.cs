@@ -94,10 +94,20 @@ public static class SchemaUpgrader
                     "Id" TEXT NOT NULL CONSTRAINT "PK_SiteSettings" PRIMARY KEY,
                     "DisplayName" TEXT NOT NULL,
                     "Subtitle" TEXT NOT NULL,
-                    "LogoDataUrl" TEXT NULL
+                    "LogoDataUrl" TEXT NULL,
+                    "LogRetentionDays" INTEGER NOT NULL DEFAULT 60
                 )
                 """,
                 cancellationToken);
+
+            // 旧版站点设置没有日志保留天数，补齐为默认的 60 天。
+            var siteSettingsColumns = await ReadSqliteColumnsAsync(db, "SiteSettings", cancellationToken);
+            if (siteSettingsColumns.Count > 0 && !siteSettingsColumns.Contains("LogRetentionDays"))
+            {
+                await db.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE \"SiteSettings\" ADD COLUMN \"LogRetentionDays\" INTEGER NOT NULL DEFAULT 60",
+                    cancellationToken);
+            }
 
             // 使用 IF NOT EXISTS 使启动升级可重复执行，不依赖单独维护迁移历史。
             await db.Database.ExecuteSqlRawAsync(
@@ -136,6 +146,8 @@ public static class SchemaUpgrader
                 );
                 CREATE INDEX IF NOT EXISTS "IX_AuditLogs_Category_OccurredAtUtc"
                     ON "AuditLogs" ("Category", "OccurredAtUtc");
+                CREATE INDEX IF NOT EXISTS "IX_AuditLogs_OccurredAtUtc"
+                    ON "AuditLogs" ("OccurredAtUtc");
                 """,
                 cancellationToken);
 
@@ -237,8 +249,11 @@ public static class SchemaUpgrader
                 "Id" uuid NOT NULL CONSTRAINT "PK_SiteSettings" PRIMARY KEY,
                 "DisplayName" character varying(60) NOT NULL,
                 "Subtitle" character varying(80) NOT NULL,
-                "LogoDataUrl" text NULL
+                "LogoDataUrl" text NULL,
+                "LogRetentionDays" integer NOT NULL DEFAULT 60
             );
+            ALTER TABLE IF EXISTS "SiteSettings"
+                ADD COLUMN IF NOT EXISTS "LogRetentionDays" integer NOT NULL DEFAULT 60;
             CREATE TABLE IF NOT EXISTS "Buildings" (
                 "Id" uuid NOT NULL CONSTRAINT "PK_Buildings" PRIMARY KEY,
                 "Name" character varying(60) NOT NULL
@@ -273,6 +288,8 @@ public static class SchemaUpgrader
             );
             CREATE INDEX IF NOT EXISTS "IX_AuditLogs_Category_OccurredAtUtc"
                 ON "AuditLogs" ("Category", "OccurredAtUtc");
+            CREATE INDEX IF NOT EXISTS "IX_AuditLogs_OccurredAtUtc"
+                ON "AuditLogs" ("OccurredAtUtc");
             ALTER TABLE IF EXISTS "AuditLogs" ADD COLUMN IF NOT EXISTS "Target" character varying(200) NOT NULL DEFAULT '';
             UPDATE "AuditLogs" SET "Category" = 'state' WHERE "Category" = 'control' AND "Action" LIKE '状态变更%';
             UPDATE "AuditLogs" SET "Category" = 'connection' WHERE "Category" = 'state' AND "Action" IN ('中控连接成功', '中控连接断开');

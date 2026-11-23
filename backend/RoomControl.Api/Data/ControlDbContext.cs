@@ -54,6 +54,8 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
         modelBuilder.Entity<Floor>().HasIndex(floor => new { floor.BuildingId, floor.Name }).IsUnique();
         modelBuilder.Entity<User>().HasIndex(user => user.Username).IsUnique();
         modelBuilder.Entity<AuditLog>().HasIndex(log => new { log.Category, log.OccurredAtUtc });
+        // 保留策略与日期区间查询按时间过滤，单独索引避免扫全表。
+        modelBuilder.Entity<AuditLog>().HasIndex(log => log.OccurredAtUtc);
 
         modelBuilder.Entity<JoinMapping>()
             .HasIndex(join => new { join.ControllerId, join.Kind, join.SendJoinNumber })

@@ -528,4 +528,48 @@ public sealed class SchemaUpgraderTests
         Assert.True(await reader.ReadAsync());
         Assert.Equal(1L, reader.GetInt64(0));
     }
+
+    [Fact]
+    public async Task UpgradeAddsDefaultLogRetentionDaysToExistingSiteSettings()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                CREATE TABLE "Rooms" ("Id" TEXT NOT NULL, "Building" TEXT NOT NULL, "Floor" TEXT NOT NULL);
+                CREATE TABLE "SiteSettings" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_SiteSettings" PRIMARY KEY,
+                    "DisplayName" TEXT NOT NULL,
+                    "Subtitle" TEXT NOT NULL,
+                    "LogoDataUrl" TEXT NULL
+                );
+                INSERT INTO "SiteSettings" ("Id", "DisplayName", "Subtitle")
+                VALUES ('2f6d6a2e-1c2b-4c3f-9d38-6b1f0a5e7c41', 'RoomControl', '教室中控平台');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<ControlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ControlDbContext(options);
+        await SchemaUpgrader.UpgradeAsync(db, CancellationToken.None);
+
+        await using var verify = connection.CreateCommand();
+        verify.CommandText = "SELECT \"LogRetentionDays\" FROM \"SiteSettings\"";
+        Assert.Equal(60L, (long)(await verify.ExecuteScalarAsync())!);
+
+        // 升级可重复执行，已保存的天数不会被重置。
+        await using (var update = connection.CreateCommand())
+        {
+            update.CommandText = "UPDATE \"SiteSettings\" SET \"LogRetentionDays\" = 15";
+            await update.ExecuteNonQueryAsync();
+        }
+        await SchemaUpgrader.UpgradeAsync(db, CancellationToken.None);
+        await using var confirm = connection.CreateCommand();
+        confirm.CommandText = "SELECT \"LogRetentionDays\" FROM \"SiteSettings\"";
+        Assert.Equal(15L, (long)(await confirm.ExecuteScalarAsync())!);
+    }
 }

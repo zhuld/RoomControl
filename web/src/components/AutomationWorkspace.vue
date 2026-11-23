@@ -69,6 +69,7 @@ const historyCache = reactive<Record<string, TaskExecution[]>>({})
 const historyLoadingKey = ref('')
 const historyError = ref('')
 
+const initialRunAt = new Date(Date.now() + 10 * 60_000)
 const form = reactive({
   mode: 'create' as 'create' | 'edit',
   editingGroupId: '',
@@ -76,9 +77,12 @@ const form = reactive({
   joinName: '',
   name: '',
   kind: 'Weekly' as ScheduleKind,
-  runAtLocal: toLocalDateTimeInput(new Date(Date.now() + 10 * 60_000)),
+  runDate: toLocalDateInput(initialRunAt),
+  runHour: initialRunAt.getHours(),
+  runMinute: initialRunAt.getMinutes(),
   weekdays: [1, 2, 3, 4, 5] as number[],
-  localTime: '08:30',
+  localHour: 8,
+  localMinute: 30,
 })
 
 const formBusy = ref(false)
@@ -95,6 +99,9 @@ const weekdayOptions = [
   { value: 6, label: '六' },
   { value: 0, label: '日' },
 ]
+
+const hourOptions = Array.from({ length: 24 }, (_, hour) => hour)
+const minuteOptions = Array.from({ length: 60 }, (_, minute) => minute)
 
 const canOperate = computed(() => props.currentUser?.role !== 'viewer')
 
@@ -198,8 +205,21 @@ function groupTasks(list: Schedule[]): ScheduleTask[] {
   return [...map.values()]
 }
 
-function toLocalDateTimeInput(date: Date) {
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
+function toLocalDateInput(date: Date) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, '0')
+}
+
+// 日期和时间分开存储；提交时再拼成后端需要的本地日期时间。
+function runAtLocalValue() {
+  return `${form.runDate}T${pad2(form.runHour)}:${pad2(form.runMinute)}`
+}
+
+function localTimeValue() {
+  return `${pad2(form.localHour)}:${pad2(form.localMinute)}:00`
 }
 
 function taskRoomsLabel(task: ScheduleTask) {
@@ -317,8 +337,12 @@ function resetForm() {
   form.name = ''
   form.kind = 'Weekly'
   form.weekdays = [1, 2, 3, 4, 5]
-  form.localTime = '08:30'
-  form.runAtLocal = toLocalDateTimeInput(new Date(Date.now() + 10 * 60_000))
+  form.localHour = 8
+  form.localMinute = 30
+  const defaultRunAt = new Date(Date.now() + 10 * 60_000)
+  form.runDate = toLocalDateInput(defaultRunAt)
+  form.runHour = defaultRunAt.getHours()
+  form.runMinute = defaultRunAt.getMinutes()
   form.joinName = commonJoinNames.value[0] ?? ''
 }
 
@@ -370,9 +394,9 @@ async function submitForm() {
     joinMappingIds: selectedTargets.value.map((join) => join.id),
     name: form.name.trim(),
     kind: form.kind,
-    runAtLocal: form.kind === 'Once' ? form.runAtLocal : null,
+    runAtLocal: form.kind === 'Once' ? runAtLocalValue() : null,
     weekdayMask: form.kind === 'Weekly' ? weekdayMask : 0,
-    localTime: form.kind === 'Weekly' ? `${form.localTime.slice(0, 5)}:00` : '00:00:00',
+    localTime: form.kind === 'Weekly' ? localTimeValue() : '00:00:00',
   }
 
   const editing = form.mode === 'edit' && form.editingGroupId
@@ -409,10 +433,13 @@ function startEdit(task: ScheduleTask) {
   form.name = task.name
   form.kind = task.kind
   form.weekdays = [0, 1, 2, 3, 4, 5, 6].filter((day) => (task.weekdayMask & (1 << day)) !== 0)
-  form.localTime = (task.localTime ?? '08:30:00').slice(0, 5)
-  form.runAtLocal = task.runAtUtc
-    ? toLocalDateTimeInput(new Date(task.runAtUtc))
-    : toLocalDateTimeInput(new Date(Date.now() + 10 * 60_000))
+  const [localHour = '08', localMinute = '30'] = (task.localTime ?? '08:30:00').split(':')
+  form.localHour = Number(localHour)
+  form.localMinute = Number(localMinute)
+  const runAt = task.runAtUtc ? new Date(task.runAtUtc) : new Date(Date.now() + 10 * 60_000)
+  form.runDate = toLocalDateInput(runAt)
+  form.runHour = runAt.getHours()
+  form.runMinute = runAt.getMinutes()
   void nextTick(() => document.getElementById('auto-form')?.focus())
 }
 
@@ -717,8 +744,7 @@ watch(
           >
             <header class="panel-head">
               <div class="panel-head-copy">
-                <p class="eyebrow">{{ form.mode === 'edit' ? '修改' : '新建' }}</p>
-                <h2 id="auto-form-title">{{ form.mode === 'edit' ? '调整执行计划' : '安排执行计划' }}</h2>
+                <h2 id="auto-form-title">{{ form.mode === 'edit' ? '修改执行计划' : '新建执行计划' }}</h2>
                 <p class="panel-sub">一处配置即可覆盖多间教室的同名控制点。</p>
               </div>
               <button
@@ -782,15 +808,35 @@ watch(
                 </div>
               </div>
 
-              <label v-if="form.kind === 'Once'" class="field">
+              <div v-if="form.kind === 'Once'" class="field">
                 执行日期与时间
-                <input name="runAtLocal" v-model="form.runAtLocal" class="input" type="datetime-local" required />
-              </label>
+                <div class="date-time-row">
+                  <input name="runDate" v-model="form.runDate" class="input" type="date" required
+                    aria-label="执行日期" />
+                  <div class="time-selects" role="group" aria-label="执行时间">
+                    <select name="runHour" v-model.number="form.runHour" class="select" aria-label="执行小时">
+                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ pad2(hour) }}</option>
+                    </select>
+                    <span class="time-separator">:</span>
+                    <select name="runMinute" v-model.number="form.runMinute" class="select" aria-label="执行分钟">
+                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ pad2(minute) }}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
               <template v-else>
-                <label class="field">
+                <div class="field">
                   本地执行时间
-                  <input name="localTime" v-model="form.localTime" class="input" type="time" required />
-                </label>
+                  <div class="time-selects" role="group" aria-label="本地执行时间">
+                    <select name="localHour" v-model.number="form.localHour" class="select" aria-label="执行小时">
+                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ pad2(hour) }}</option>
+                    </select>
+                    <span class="time-separator">:</span>
+                    <select name="localMinute" v-model.number="form.localMinute" class="select" aria-label="执行分钟">
+                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ pad2(minute) }}</option>
+                    </select>
+                  </div>
+                </div>
                 <div class="field">
                   重复日
                   <div class="weekday-picker" role="group" aria-label="重复日">
