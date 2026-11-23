@@ -1,0 +1,11 @@
+﻿/*
+ * 样式入口：设计系统分层加载。
+ * tokens  语义令牌与主题
+ * base    重置、排版、外壳与布局
+ * components  可复用组件原语
+ * pages   任务流页面布局
+ */
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/components.css';
+@import './styles/pages.css';

@@ -1,0 +1,459 @@
+/*
+ * RoomControl 设计令牌
+ * 1. 主题只覆写语义色板，组件不得直接引用十六进制颜色。
+ * 2. 间距、字号、圆角、密度在此集中定义，页面不自定义魔法数字。
+ * 3. 状态色只有 success / warning / danger / info / neutral 五类语义。
+ */
+
+:root {
+  color-scheme: light;
+
+  --font-sans: 'Manrope', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'Cascadia Code', 'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+
+  --text-2xs: 10.5px;
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-md: 13.5px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 11px;
+  --radius-lg: 15px;
+  --radius-xl: 20px;
+  --radius-full: 999px;
+
+  --rail-width: 248px;
+  --rail-compact-width: 64px;
+  --topbar-height: 62px;
+  --content-max: 1600px;
+
+  --control-h: 38px;
+  --row-h: 42px;
+  --card-pad: 20px;
+  --gap: 16px;
+  --text-body: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 20, 0.06);
+  --shadow-md: 0 2px 4px rgba(16, 24, 20, 0.05), 0 10px 24px rgba(16, 24, 20, 0.06);
+  --shadow-lg: 0 24px 64px rgba(16, 24, 20, 0.18);
+
+  --motion-fast: 120ms ease;
+  --motion-base: 180ms ease;
+
+  /* 松绿（默认主题） */
+  --canvas: #f2f5f3;
+  --surface: #ffffff;
+  --surface-subtle: #f7f9f7;
+  --surface-raised: #ffffff;
+  --surface-inset: #edf1ee;
+  --surface-hover: #f3f6f4;
+
+  --text: #131b18;
+  --text-secondary: #3f4a45;
+  --text-muted: #68736e;
+  --text-faint: #95a09a;
+  --text-inverse: #ffffff;
+
+  --border: #e2e8e4;
+  --border-strong: #ccd5d0;
+  --border-focus: #2f6f55;
+
+  --accent: #2f6f55;
+  --accent-strong: #235743;
+  --accent-soft: #e9f2ed;
+  --accent-border: #c7dcd3;
+  --accent-contrast: #ffffff;
+
+  --success: #2f7d57;
+  --success-soft: #e7f3ec;
+  --success-text: #286a4b;
+  --success-border: #bfdccb;
+
+  --warning: #a9752b;
+  --warning-soft: #f8f0e2;
+  --warning-text: #8a5f21;
+  --warning-border: #e8d3ae;
+
+  --danger: #a7493d;
+  --danger-soft: #f8ebe8;
+  --danger-text: #8f3d33;
+  --danger-border: #e8c6c0;
+
+  --info: #3f7099;
+  --info-soft: #e9f0f6;
+  --info-text: #346080;
+  --info-border: #c5d8e6;
+
+  --neutral: #5f6a65;
+  --neutral-soft: #eef1ef;
+  --neutral-text: #4d5752;
+  --neutral-border: #d7ded9;
+
+  --overlay: rgba(12, 19, 16, 0.45);
+
+  --rail: #12241e;
+  --rail-2: #182e26;
+  --rail-text: #e9f1ec;
+  --rail-muted: #8fa49a;
+  --rail-line: #2a4239;
+  --rail-hover: #1d342b;
+  --rail-active: #28483b;
+
+  --focus-outline: 2px solid var(--accent);
+
+  /* 主题选择器的预览色，仅用于展示，不参与组件着色。 */
+  --swatch-pine: #2f6f55;
+  --swatch-sand: #b87a24;
+  --swatch-ocean: #2f6c8c;
+  --swatch-iris: #6a55a0;
+  --swatch-rose: #a64a5c;
+  --swatch-graphite: #1a1f21;
+}
+
+[data-theme='sand'] {
+  --canvas: #f6f2ea;
+  --surface: #fffdf9;
+  --surface-subtle: #faf6ef;
+  --surface-raised: #fffdf9;
+  --surface-inset: #f1ebe1;
+  --surface-hover: #f7f1e7;
+
+  --text: #332b22;
+  --text-secondary: #5c5044;
+  --text-muted: #827364;
+  --text-faint: #a89a88;
+
+  --border: #e7ded1;
+  --border-strong: #d6c8b7;
+  --border-focus: #a86f22;
+
+  --accent: #b87a24;
+  --accent-strong: #96601a;
+  --accent-soft: #faf1e3;
+  --accent-border: #e7cfab;
+  --accent-contrast: #ffffff;
+
+  --success: #517647;
+  --success-soft: #edf1e6;
+  --success-text: #476740;
+  --success-border: #d2ddc7;
+
+  --warning: #a86a26;
+  --warning-soft: #f8eee0;
+  --warning-text: #8c5a20;
+  --warning-border: #e8d0ac;
+
+  --danger: #a04a3c;
+  --danger-soft: #f7eae5;
+  --danger-text: #893f33;
+  --danger-border: #e5c5bd;
+
+  --info: #4b6f91;
+  --info-soft: #ecf1f5;
+  --info-text: #42627f;
+  --info-border: #cfdce7;
+
+  --neutral: #6b5f51;
+  --neutral-soft: #f2eee8;
+  --neutral-text: #5c5145;
+  --neutral-border: #ded4c7;
+
+  --overlay: rgba(30, 23, 15, 0.46);
+
+  --rail: #241d16;
+  --rail-2: #2c241b;
+  --rail-text: #f2e8d9;
+  --rail-muted: #b4a48e;
+  --rail-line: #3c3125;
+  --rail-hover: #33291e;
+  --rail-active: #453828;
+
+  --focus-outline: 2px solid var(--accent);
+  --shadow-md: 0 2px 4px rgba(46, 36, 24, 0.05), 0 10px 24px rgba(46, 36, 24, 0.07);
+  --shadow-lg: 0 24px 64px rgba(46, 36, 24, 0.2);
+}
+
+[data-theme='ocean'] {
+  --canvas: #f1f5f8;
+  --surface: #ffffff;
+  --surface-subtle: #f7fafc;
+  --surface-raised: #ffffff;
+  --surface-inset: #e9eff5;
+  --surface-hover: #f2f7fa;
+
+  --text: #162126;
+  --text-secondary: #3f525c;
+  --text-muted: #6c7e88;
+  --text-faint: #98a9b2;
+
+  --border: #dfe8ee;
+  --border-strong: #c8d6e0;
+  --border-focus: #2f6c8c;
+
+  --accent: #2f6c8c;
+  --accent-strong: #235570;
+  --accent-soft: #e8f1f7;
+  --accent-border: #c3d9e7;
+  --accent-contrast: #ffffff;
+
+  --success: #2f7d64;
+  --success-soft: #e6f2ee;
+  --success-text: #296b56;
+  --success-border: #bcdccf;
+
+  --warning: #a5752b;
+  --warning-soft: #f8f0e2;
+  --warning-text: #8a6022;
+  --warning-border: #e8d3ae;
+
+  --danger: #a44b45;
+  --danger-soft: #f8ebe9;
+  --danger-text: #8d403a;
+  --danger-border: #e7c6c2;
+
+  --info: #356f9e;
+  --info-soft: #e8f0f7;
+  --info-text: #2d5e86;
+  --info-border: #c4d8e8;
+
+  --neutral: #5d6c74;
+  --neutral-soft: #eef2f4;
+  --neutral-text: #4c5960;
+  --neutral-border: #d6dfe4;
+
+  --overlay: rgba(10, 20, 26, 0.46);
+
+  --rail: #112029;
+  --rail-2: #182b36;
+  --rail-text: #e6f0f5;
+  --rail-muted: #8fa4b0;
+  --rail-line: #293e4a;
+  --rail-hover: #1c313d;
+  --rail-active: #254352;
+
+  --focus-outline: 2px solid var(--accent);
+}
+
+[data-theme='iris'] {
+  --canvas: #f4f2f8;
+  --surface: #ffffff;
+  --surface-subtle: #faf9fc;
+  --surface-raised: #ffffff;
+  --surface-inset: #efecf4;
+  --surface-hover: #f6f4fa;
+
+  --text: #1e1927;
+  --text-secondary: #4c4557;
+  --text-muted: #786f86;
+  --text-faint: #a69fb0;
+
+  --border: #e7e3ee;
+  --border-strong: #d4cedf;
+  --border-focus: #6a55a0;
+
+  --accent: #6a55a0;
+  --accent-strong: #554286;
+  --accent-soft: #f0ecf7;
+  --accent-border: #d6cce8;
+  --accent-contrast: #ffffff;
+
+  --success: #457c5e;
+  --success-soft: #e9f2ed;
+  --success-text: #3e6d53;
+  --success-border: #c6ddcf;
+
+  --warning: #a3762c;
+  --warning-soft: #f8f0e2;
+  --warning-text: #89611f;
+  --warning-border: #e8d3ae;
+
+  --danger: #a34a4a;
+  --danger-soft: #f8eaea;
+  --danger-text: #8c3e3e;
+  --danger-border: #e6c6c6;
+
+  --info: #4d6c9a;
+  --info-soft: #ecf0f7;
+  --info-text: #435f88;
+  --info-border: #ccd7e8;
+
+  --neutral: #655f70;
+  --neutral-soft: #f0eef3;
+  --neutral-text: #554f60;
+  --neutral-border: #ddd9e4;
+
+  --overlay: rgba(22, 17, 32, 0.46);
+
+  --rail: #1e1929;
+  --rail-2: #282136;
+  --rail-text: #f0ecf7;
+  --rail-muted: #a49bb6;
+  --rail-line: #3a3350;
+  --rail-hover: #2d2640;
+  --rail-active: #3a3152;
+
+  --focus-outline: 2px solid var(--accent);
+}
+
+[data-theme='rose'] {
+  --canvas: #f9f2f3;
+  --surface: #ffffff;
+  --surface-subtle: #fcf8f9;
+  --surface-raised: #ffffff;
+  --surface-inset: #f4eaec;
+  --surface-hover: #fbf4f5;
+
+  --text: #281a1d;
+  --text-secondary: #5a454a;
+  --text-muted: #857077;
+  --text-faint: #b19da3;
+
+  --border: #eee1e4;
+  --border-strong: #ddc8cd;
+  --border-focus: #a64a5c;
+
+  --accent: #a64a5c;
+  --accent-strong: #883a4a;
+  --accent-soft: #f8ebee;
+  --accent-border: #ecd0d6;
+  --accent-contrast: #ffffff;
+
+  --success: #477c5f;
+  --success-soft: #eaf2ed;
+  --success-text: #3f6d54;
+  --success-border: #c7ddcf;
+
+  --warning: #a5762b;
+  --warning-soft: #f8f0e2;
+  --warning-text: #8a6122;
+  --warning-border: #e8d3ae;
+
+  --danger: #a8443f;
+  --danger-soft: #f8eae9;
+  --danger-text: #8f3a36;
+  --danger-border: #e6c4c2;
+
+  --info: #4d6b95;
+  --info-soft: #edf0f6;
+  --info-text: #445f85;
+  --info-border: #d0d9e6;
+
+  --neutral: #6d5f63;
+  --neutral-soft: #f2eef0;
+  --neutral-text: #5c4f53;
+  --neutral-border: #ded5d8;
+
+  --overlay: rgba(32, 16, 20, 0.46);
+
+  --rail: #2a181e;
+  --rail-2: #372128;
+  --rail-text: #f8ecef;
+  --rail-muted: #bda4ab;
+  --rail-line: #4a3039;
+  --rail-hover: #3d252d;
+  --rail-active: #4e3039;
+
+  --focus-outline: 2px solid var(--accent);
+}
+
+[data-theme='graphite'] {
+  color-scheme: dark;
+
+  --canvas: #121617;
+  --surface: #1a1f21;
+  --surface-subtle: #1f2528;
+  --surface-raised: #232a2d;
+  --surface-inset: #2a3134;
+  --surface-hover: #252d30;
+
+  --text: #e8edeb;
+  --text-secondary: #b7c0bd;
+  --text-muted: #8c9793;
+  --text-faint: #6e7975;
+  --text-inverse: #0c1412;
+
+  --border: #2b3336;
+  --border-strong: #3a4447;
+  --border-focus: #7bcfa4;
+
+  --accent: #58b98b;
+  --accent-strong: #7bcfa4;
+  --accent-soft: #1f2e28;
+  --accent-border: #315043;
+  --accent-contrast: #0c1512;
+
+  --success: #5cbd8b;
+  --success-soft: #1e2d26;
+  --success-text: #8ad5ad;
+  --success-border: #305040;
+
+  --warning: #d3a45c;
+  --warning-soft: #2e2719;
+  --warning-text: #e2bb85;
+  --warning-border: #4c3e23;
+
+  --danger: #d97a6b;
+  --danger-soft: #32211f;
+  --danger-text: #eda597;
+  --danger-border: #573732;
+
+  --info: #71a9d4;
+  --info-soft: #1b2832;
+  --info-text: #9dc6e4;
+  --info-border: #2f4557;
+
+  --neutral: #9aa4a1;
+  --neutral-soft: #262c2e;
+  --neutral-text: #c2cbc8;
+  --neutral-border: #3a4245;
+
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --rail: #0e1213;
+  --rail-2: #14191b;
+  --rail-text: #e6ecea;
+  --rail-muted: #8b9692;
+  --rail-line: #283133;
+  --rail-hover: #1b2224;
+  --rail-active: #24302c;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.3), 0 10px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
+
+  --focus-outline: 2px solid var(--accent-strong);
+}
+
+/* 密度：仅影响数据密集界面的行高、内边距与正文尺寸。 */
+:root,
+[data-density='comfortable'] {
+  --control-h: 38px;
+  --row-h: 42px;
+  --card-pad: 20px;
+  --gap: 16px;
+  --text-body: 14px;
+}
+
+[data-density='compact'] {
+  --control-h: 32px;
+  --row-h: 32px;
+  --card-pad: 16px;
+  --gap: 10px;
+  --text-body: 13px;
+}

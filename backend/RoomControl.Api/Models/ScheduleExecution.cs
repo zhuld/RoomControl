@@ -1,0 +1,13 @@
+namespace RoomControl.Api.Models;
+
+/// <summary>单次定时任务执行结果；即使任务归档仍保留此记录。</summary>
+public sealed class ScheduleExecution
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ScheduleId { get; set; }
+    public ControlSchedule Schedule { get; set; } = null!;
+    public DateTimeOffset ScheduledAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
+    public string Status { get; set; } = "Pending";
+    public string? Error { get; set; }
+}

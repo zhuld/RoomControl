@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "RoomControl API (LAN)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build: api",
+      "program": "${workspaceFolder}/backend/RoomControl.Api/bin/Debug/net10.0/RoomControl.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/backend/RoomControl.Api",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://0.0.0.0:5000"
+      },
+      "stopAtEntry": false,
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "RoomControl Web (LAN)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:host"],
+      "cwd": "${workspaceFolder}/web",
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "Network:\\s+(https?://\\S+)",
+        "uriFormat": "%s",
+        "action": "openExternally"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "RoomControl Full Stack (LAN)",
+      "configurations": ["RoomControl API (LAN)", "RoomControl Web (LAN)"],
+      "stopAll": true
+    }
+  ]
+}
