@@ -13,6 +13,10 @@ public sealed class ControllerStateStore(
     IHubContext<ControlHub> hubContext,
     ILogger<ControllerStateStore> logger)
 {
+    /// <summary>
+    /// 更新中控在线状态与最近错误；重连成功时先重置使能快照，
+    /// 再在同一事务中写入连接审计并向该教室推送 <c>controllerStatusChanged</c>。
+    /// </summary>
     public async Task SetConnectionAsync(Guid controllerId, bool isOnline, string? error, CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -53,6 +57,10 @@ public sealed class ControllerStateStore(
             }, cancellationToken);
     }
 
+    /// <summary>
+    /// 保存设备上报的 Join 快照；仅在电平真正变化时写入状态审计，
+    /// 并向该教室推送 <c>joinStateChanged</c>。
+    /// </summary>
     public async Task SaveJoinUpdateAsync(Guid controllerId, AdapterJoinUpdate update, CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -212,6 +220,7 @@ public sealed class ControllerStateStore(
         }
     }
 
+    /// <summary>进程启动时清除残留的在线标记，并把所有数字快照重置为低电平。</summary>
     public async Task MarkAllOfflineAsync(CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);

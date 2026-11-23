@@ -9,6 +9,7 @@ namespace RoomControl.Api.Data;
 /// </summary>
 public static class SchemaUpgrader
 {
+    /// <summary>补齐旧库缺失的列并清理已移除的字段；可在每次启动时重复执行。</summary>
     public static async Task UpgradeAsync(ControlDbContext db, CancellationToken cancellationToken)
     {
         if (db.Database.IsSqlite())

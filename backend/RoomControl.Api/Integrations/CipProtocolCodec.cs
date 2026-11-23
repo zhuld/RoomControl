@@ -14,6 +14,7 @@ internal static class CipProtocolCodec
     private const byte UpdateJoin = 0x03;
     private const byte UpdateEnded = 0x16;
 
+    /// <summary>构造 Sign On 报文；IPID 写入负载第 2 字节。</summary>
     public static byte[] BuildSignOn(int ipid)
     {
         if (ipid is < 0 or > 255)
@@ -26,8 +27,10 @@ internal static class CipProtocolCodec
         return BuildMessage(0x0A, payload);
     }
 
+    /// <summary>构造全量状态回放请求（Update Join 事件，数据为 00）。</summary>
     public static byte[] BuildUpdateRequest() => BuildJoinEvent(0x03, [0x00]);
 
+    /// <summary>按 3 字节头 + 负载封装一条 Raw CIP 消息。</summary>
     public static byte[] BuildMessage(byte type, ReadOnlySpan<byte> payload)
     {
         if (payload.Length > byte.MaxValue)
@@ -43,6 +46,7 @@ internal static class CipProtocolCodec
         return message;
     }
 
+    /// <summary>构造数字按钮脉冲：按下帧后紧跟释放帧，Join 编号在报文中从 0 开始。</summary>
     public static byte[] BuildDigitalPulseCommand(int joinNumber)
     {
         if (joinNumber is < 1 or > 32768)
@@ -62,6 +66,7 @@ internal static class CipProtocolCodec
         return pulse;
     }
 
+    /// <summary>解析数字 Join 上报；非 Join 事件或非数字类型返回 <c>null</c>。</summary>
     public static AdapterJoinUpdate? ParseJoinUpdate(CipMessage message)
     {
         if (message.Type != JoinEvent || message.Payload.Length < 4)
@@ -83,12 +88,14 @@ internal static class CipProtocolCodec
         return null;
     }
 
+    /// <summary>判断是否为一次状态回放的结束标记。</summary>
     public static bool IsUpdateEnded(CipMessage message) =>
         message.Type == JoinEvent &&
         message.Payload.Length >= 5 &&
         message.Payload[3] == UpdateJoin &&
         message.Payload[4] == UpdateEnded;
 
+    /// <summary>注册被接受（Type 0x02，负载 00 00 00 1F）。</summary>
     public static bool IsAccepted(CipMessage message) =>
         message.Type == 0x02 &&
         message.Payload.Length == 4 &&
@@ -97,6 +104,7 @@ internal static class CipProtocolCodec
         message.Payload[2] == 0 &&
         message.Payload[3] == 0x1F;
 
+    /// <summary>注册被拒绝（Type 0x02，负载 FF FF 02）。</summary>
     public static bool IsRefused(CipMessage message) =>
         message.Type == 0x02 &&
         message.Payload.Length == 3 &&

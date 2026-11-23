@@ -15,6 +15,7 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
     private readonly HashSet<int> reportedJoinNumbers = [];
     private readonly Lock reportedLock = new();
 
+    /// <summary>建立 TCP 连接，完成设备查询/注册握手，并请求首次状态回放。</summary>
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
         if (controller.Framing != CipFraming.Raw)
@@ -49,6 +50,7 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
         await RequestStateAsync(cancellationToken);
     }
 
+    /// <summary>持续读取报文直到连接结束：应答心跳、转发 Join 更新，并在回放结束时上报本次窗口。</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         // 长连接循环负责心跳应答、Join 更新转发和状态回放结束通知。
@@ -91,9 +93,11 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
         }
     }
 
+    /// <summary>向发送 Join 写入按下和释放两帧，形成一次脉冲。</summary>
     public Task SendDigitalPulseAsync(int joinNumber, CancellationToken cancellationToken) =>
         WriteRawAsync(CipProtocolCodec.BuildDigitalPulseCommand(joinNumber), cancellationToken);
 
+    /// <summary>开始新一轮全量状态回放，并清空上一轮的上报记录。</summary>
     public Task RequestStateAsync(CancellationToken cancellationToken)
     {
         // 每轮回放单独记录上报过的 Join，结束时用于清除过期高电平快照。

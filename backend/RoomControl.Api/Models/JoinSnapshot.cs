@@ -7,5 +7,6 @@ public sealed class JoinSnapshot
     public JoinKind Kind { get; set; }
     public int JoinNumber { get; set; }
     public bool DigitalValue { get; set; }
+    // 最近一次收到设备上报的时间，界面据此显示状态新鲜度。
     public DateTimeOffset LastReportedAtUtc { get; set; }
 }

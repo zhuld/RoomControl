@@ -11,6 +11,7 @@ public sealed class ScheduleService(
     ISchedulerFactory schedulerFactory,
     ILogger<ScheduleService> logger)
 {
+    /// <summary>启动时删除已不支持的映射任务，并为仍启用的任务重建 Quartz Job。</summary>
     public async Task RestoreAsync(CancellationToken cancellationToken)
     {
         // 应用启动时恢复已启用任务；已错过的一次性任务记为失败，不自动补发。
@@ -46,6 +47,7 @@ public sealed class ScheduleService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>为一组控制点创建共享 GroupId 的任务目标，每个目标拥有独立 Job 与执行记录。</summary>
     public async Task<IReadOnlyList<ControlSchedule>> CreateGroupAsync(
         IReadOnlyList<Guid> mappingIds,
         string name,
@@ -74,6 +76,7 @@ public sealed class ScheduleService(
         return schedules;
     }
 
+    /// <summary>用请求中的控制点集合覆盖整组目标：保留交集、删除被移除目标及其执行记录、补齐新增目标。</summary>
     public async Task<IReadOnlyList<ControlSchedule>> UpdateGroupAsync(
         Guid groupId,
         IReadOnlyList<Guid> mappingIds,
@@ -153,6 +156,7 @@ public sealed class ScheduleService(
         return kept.Concat(created).ToList();
     }
 
+    /// <summary>读取全部任务目标，携带控制点与所属教室，供接口组装响应。</summary>
     public async Task<IReadOnlyList<ControlSchedule>> GetAllAsync(CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -192,6 +196,7 @@ public sealed class ScheduleService(
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>删除整组任务及其全部执行记录；组不存在时抛出 <see cref="KeyNotFoundException"/>。</summary>
     public async Task DeleteGroupAsync(Guid groupId, CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -204,6 +209,7 @@ public sealed class ScheduleService(
         await DeleteAsync(db, schedules, cancellationToken);
     }
 
+    /// <summary>删除单个任务目标（某间教室）及其执行记录。</summary>
     public async Task DeleteAsync(Guid scheduleId, CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -218,6 +224,7 @@ public sealed class ScheduleService(
         await DeleteAsync(db, schedules, cancellationToken);
     }
 
+    /// <summary>控制点被删除时清理指向它的任务，避免留下无法执行的孤儿目标。</summary>
     public async Task DeleteForJoinMappingAsync(Guid mappingId, CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -227,6 +234,7 @@ public sealed class ScheduleService(
         await DeleteAsync(db, schedules, cancellationToken);
     }
 
+    /// <summary>中控或教室被删除时清理其全部控制点上的任务。</summary>
     public async Task DeleteForControllerAsync(Guid controllerId, CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);

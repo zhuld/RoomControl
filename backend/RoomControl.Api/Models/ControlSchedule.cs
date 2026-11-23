@@ -13,9 +13,13 @@ public sealed class ControlSchedule
     public string Name { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
     public ScheduleKind Kind { get; set; }
+    // 一次性任务的执行时刻；每周任务为 null。
     public DateTimeOffset? RunAtUtc { get; set; }
+    // 星期位掩码，位号与 DayOfWeek 一致（周日为最低位）。
     public int WeekdayMask { get; set; }
+    // 每周任务在服务器本地时区的执行时刻。
     public TimeSpan LocalTime { get; set; }
+    // 下一次执行时间；暂停或执行完毕的一次性任务为 null。
     public DateTimeOffset? NextRunAtUtc { get; set; }
 }
 

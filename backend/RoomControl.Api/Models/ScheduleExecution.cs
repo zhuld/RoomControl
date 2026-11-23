@@ -8,6 +8,7 @@ public sealed class ScheduleExecution
     public ControlSchedule Schedule { get; set; } = null!;
     public DateTimeOffset ScheduledAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
+    // Pending（执行中）、Succeeded 或 Failed。
     public string Status { get; set; } = "Pending";
     public string? Error { get; set; }
 }

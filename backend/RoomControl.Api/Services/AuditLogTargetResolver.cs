@@ -72,7 +72,8 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
     }
 
     private async Task<AuditTarget?> ResolveAsync(string resource, Guid id)
-    {        await using var db = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
+    {
+        await using var db = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
         switch (resource)
         {
             case "joins":

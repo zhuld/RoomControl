@@ -20,6 +20,7 @@ public sealed class UserService
         _db = db;
     }
 
+    /// <summary>校验凭据；成功返回当前角色与规范化用户名，失败或账号停用返回 <c>null</c>。</summary>
     public (UserRole Role, string Username)? Authenticate(string? username, string? password)
     {
         if (!VerifyPassword(username, password))
@@ -38,6 +39,7 @@ public sealed class UserService
             .Select(u => (UserRole?)u.Role)
             .SingleOrDefault();
 
+    /// <summary>按用户名升序返回账号的安全字段，不包含密码哈希或盐。</summary>
     public IEnumerable<UserDto> GetUsers()
     {
         return _db.Users.AsNoTracking()
@@ -61,6 +63,7 @@ public sealed class UserService
             .ToList();
     }
 
+    /// <summary>创建账号；用户名全局唯一，密码至少 6 个字符，角色必须是受支持值。</summary>
     public UserDto CreateUser(CreateUserRequest request)
     {
         var username = NormalizeUsername(request.Username);
@@ -99,6 +102,10 @@ public sealed class UserService
             user.CreatedAt);
     }
 
+    /// <summary>
+    /// 部分更新账号：<c>null</c> 字段保持原值。拒绝修改自己的角色或禁用自己，
+    /// 并保证至少保留一名启用的管理员。账号不存在时返回 <c>null</c>。
+    /// </summary>
     public UserDto? UpdateUser(Guid id, UpdateUserRequest request, string currentUsername)
     {
         var user = _db.Users.SingleOrDefault(u => u.Id == id);
@@ -164,6 +171,7 @@ public sealed class UserService
             user.CreatedAt);
     }
 
+    /// <summary>删除账号；拒绝删除自己或最后一名启用的管理员。账号不存在时返回 <c>false</c>。</summary>
     public bool DeleteUser(Guid id, string currentUsername)
     {
         var user = _db.Users.SingleOrDefault(u => u.Id == id);
@@ -189,6 +197,7 @@ public sealed class UserService
         return true;
     }
 
+    /// <summary>当前用户修改密码：旧密码不正确或账号停用时返回 <c>false</c>，新密码至少 6 个字符。</summary>
     public bool ChangePassword(string username, string? oldPassword, string? newPassword)
     {
         if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6)
@@ -210,6 +219,7 @@ public sealed class UserService
         return true;
     }
 
+    /// <summary>仅在数据库没有任何账号时创建初始管理员，后续启动不会覆盖已有密码。</summary>
     public void EnsureDefaultAdmin(string adminUsername, string adminPassword)
     {
         // 只在完全没有账号时创建初始管理员，不在后续启动时覆盖管理员改过的密码。

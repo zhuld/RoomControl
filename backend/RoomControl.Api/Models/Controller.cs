@@ -13,7 +13,9 @@ public sealed class Controller
     public CipFraming Framing { get; set; } = CipFraming.Raw;
     public int Ipid { get; set; } = 3;
     public bool Enabled { get; set; } = true;
+    // 由后台连接管理器维护；服务启动时统一重置为离线。
     public bool IsOnline { get; set; }
+    // 最近一次连接失败的原因，连接成功后清空。
     public string? LastError { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
     public ICollection<JoinMapping> JoinMappings { get; set; } = new List<JoinMapping>();

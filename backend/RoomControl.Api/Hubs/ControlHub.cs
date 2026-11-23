@@ -15,9 +15,11 @@ public sealed class ControlHub : Hub
         _userService = userService;
     }
 
+    /// <summary>加入 <c>room:{roomId}</c> 分组，之后接收该教室的控制点状态与中控连接推送。</summary>
     public Task JoinRoom(Guid roomId) =>
         WithActiveUserAsync(() => Groups.AddToGroupAsync(Context.ConnectionId, $"room:{roomId}"));
 
+    /// <summary>离开教室分组；离开后不再接收该教室的推送。</summary>
     public Task LeaveRoom(Guid roomId) =>
         WithActiveUserAsync(() => Groups.RemoveFromGroupAsync(Context.ConnectionId, $"room:{roomId}"));
 

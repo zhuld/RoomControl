@@ -1,3 +1,5 @@
+// RoomControl API 入口：配置数据库、认证、限流与后台服务，并注册全部 REST 端点与 SignalR Hub。
+// 端点按 品牌 → 位置 → 教室 → 中控 → 控制点 → 定时任务 → 日志 排列；字段约束与响应示例见 docs/api.md。
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -209,6 +211,7 @@ app.MapGet("/api/branding", async (ControlDbContext db, CancellationToken cancel
     });
 }).AllowAnonymous();
 
+// 健康检查用于安装脚本与反向代理探活，同时验证数据库连接。
 app.MapGet("/health", async (ControlDbContext db, CancellationToken cancellationToken) =>
     await db.Database.CanConnectAsync(cancellationToken)
         ? Results.Ok(new { status = "ok", database = "ok" })
@@ -1194,6 +1197,7 @@ api.MapPost("/schedules/groups/{groupId:guid}/resume", async (
     return Results.NoContent();
 }).RequireAuthorization("OperatorOrAdmin");
 
+// 执行记录只读，保留最近 100 条供自动任务页展开查看；任务删除后记录一同清除。
 api.MapGet("/schedules/{scheduleId:guid}/executions", async (
     Guid scheduleId,
     ControlDbContext db,
@@ -1207,6 +1211,7 @@ api.MapGet("/schedules/{scheduleId:guid}/executions", async (
     return Results.Ok(executions);
 });
 
+// SignalR 与 REST 共用 Cookie 会话；其余未匹配的 GET 交给单页应用入口。
 app.MapHub<ControlHub>("/hubs/control").RequireAuthorization();
 app.MapFallbackToFile("index.html");
 

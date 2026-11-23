@@ -12,7 +12,7 @@ RoomControl 是面向单站点内网部署的教室/会议室集中控制平台�
 - **状态持久化**：数据库保存 Join 最新快照、最后上报时间、定时任务和执行记录；在线连接保存在后端进程内。中控断开后状态会标记离线，界面保留最近一次状态及时间。
 - **数据库**：SQLite，适合单站点内网部署，无需单独安装数据库服务。添加其他品牌时实现独立控制器适配器，不改动教室/API/前端模型。
 - **CIP 首期**：TCP 客户端仅支持 CIP Raw，对接现有 CIP 模拟器。协议实现以模拟器代码为互操作性依据，不代表通过真实设备认证。
-- **协议文档**：各中控协议说明集中维护在 [docs/controller-protocols/](./docs/controller-protocols/)，新增协议时请同时登记索引并添加对应 Markdown 文件。
+- **协议与接口文档**：中控协议说明集中维护在 [docs/controller-protocols/](./docs/controller-protocols/)，新增协议时请同时登记索引并添加对应 Markdown 文件；REST 与 SignalR 契约、字段约束和错误码见 [docs/api.md](./docs/api.md)。
 
 ## 本机开发（Windows）
 
@@ -121,20 +121,30 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ## 功能与 API
 
-- 站点品牌：`GET /api/branding`（免登录，供登录页使用）；`PUT /api/branding` 保存左上角名称、副标题与 Logo（图片以 Data URL 存储，限制 200 KB）
-- 楼栋与楼层：`GET/POST /api/buildings`、`PUT/DELETE /api/buildings/{buildingId}`、`POST /api/buildings/{buildingId}/floors`、`PUT/DELETE /api/floors/{floorId}`。楼栋与楼层需预先配置，教室只能从已配置的楼栋、楼层中选择；重命名会同步更新教室，仍有教室时禁止删除
-- 教室：`GET/POST /api/rooms`；`PUT/DELETE /api/rooms/{roomId}`。教室包含名称、楼栋和楼层；操作台与配置页均按楼栋、楼层分组，并提供「楼栋 → 楼层 → 教室」三级下拉选择；顶栏支持输入教室快速跳转
-- 中控类型：`GET /api/controller-types` 返回支持的适配器（当前为 Crestron CIP · CIP Raw）；接入中控时只能选择类型，界面上的中控名称由类型确定
-- 中控连接：`POST /api/rooms/{roomId}/controller`；`PUT/DELETE /api/controllers/{controllerId}`
-- 数字控制点：`POST /api/controllers/{controllerId}/joins`；`PUT/DELETE /api/joins/{mappingId}`。创建和更新请求可带 `showConfirmationPopup`（默认 `true`），控制发送指令与删除前是否弹窗确认；`GET /api/rooms` 会返回该开关
-- 控制点排序：`PUT /api/controllers/{controllerId}/joins/order`（仅管理员）提交该中控全部控制点的新顺序（`mappingIds` 数组），控制台按钮按此顺序显示
-- 脉冲：`POST /api/joins/{mappingId}/pulse`
-- 定时任务：`GET/POST /api/schedules`（`joinMappingIds` 可一次覆盖多间教室的同名控制点，同一任务的目标共享 `groupId`）；`PUT /api/schedules/groups/{groupId}` 修改整组任务，`POST /api/schedules/groups/{groupId}/pause` 与 `/resume` 暂停或恢复整组任务，`DELETE /api/schedules/groups/{groupId}` 删除整组、`DELETE /api/schedules/{id}` 删除单个目标，删除时执行记录一并清除；执行记录见 `/api/schedules/{id}/executions`
-- 登录与会话：`GET /api/auth/accounts`（免登录，供登录页账号下拉框使用，仅返回启用账号的用户名与角色）、`POST /api/auth/login`、`POST /api/auth/logout`、`GET /api/auth/me`、`POST /api/auth/change-password`
-- 用户管理：`GET/POST /api/users`；`PUT/DELETE /api/users/{userId}`（仅管理员）
-- 操作日志：`GET /api/logs`（仅管理员，可用 `category` 筛选、`limit` 限制最近记录）；认证尝试、配置变更、控制指令和定时任务变更会分类写入数据库，并记录可读的操作对象，不记录请求正文或密码。
-- 实时推送：`/hubs/control`（需要登录；客户端加入对应教室组）
-- 健康检查：`GET /health`
+REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健康检查为 `/health`。所有接口共用同源 HttpOnly Cookie 会话，JSON 属性名为 camelCase、枚举序列化为字符串，错误统一返回 ProblemDetails。完整的请求/响应示例、字段约束、权限矩阵、限流规则、SignalR 事件与业务规则见 **[docs/api.md](./docs/api.md)**。
+
+| 分类 | 端点 | 权限 |
+| --- | --- | --- |
+| 健康检查 | `GET /health` | 匿名 |
+| 站点品牌 | `GET /api/branding`、`PUT /api/branding` | 读取免登录 / 保存需管理员 |
+| 登录与会话 | `GET /api/auth/accounts`、`POST /api/auth/login`、`POST /api/auth/logout`、`GET /api/auth/me`、`POST /api/auth/change-password` | 前两项匿名并限流，其余需登录 |
+| 用户管理 | `GET/POST /api/users`、`PUT/DELETE /api/users/{id}` | 管理员 |
+| 楼栋与楼层 | `GET /api/buildings`；`POST /api/buildings`、`PUT/DELETE /api/buildings/{buildingId}`、`POST /api/buildings/{buildingId}/floors`、`PUT/DELETE /api/floors/{floorId}` | 读取任意登录用户 / 写操作需管理员 |
+| 教室 | `GET/POST /api/rooms`、`PUT/DELETE /api/rooms/{roomId}` | 读取任意登录用户 / 写操作需管理员 |
+| 中控类型 | `GET /api/controller-types` | 任意登录用户 |
+| 中控连接 | `POST /api/rooms/{roomId}/controller`、`PUT/DELETE /api/controllers/{controllerId}` | 管理员 |
+| 数字控制点 | `POST /api/controllers/{controllerId}/joins`、`PUT/DELETE /api/joins/{mappingId}`、`PUT /api/controllers/{controllerId}/joins/order`、`POST /api/joins/{mappingId}/copy`、`POST /api/controllers/{controllerId}/joins/copy-all` | 管理员 |
+| 控制指令 | `POST /api/joins/{mappingId}/pulse`（返回 `202`） | 操作员或管理员 |
+| 定时任务 | `GET /api/schedules`、`GET /api/schedules/{scheduleId}/executions`；`POST /api/schedules`、`PUT/DELETE /api/schedules/groups/{groupId}`、`POST /api/schedules/groups/{groupId}/pause`、`POST /api/schedules/groups/{groupId}/resume`、`DELETE /api/schedules/{scheduleId}` | 读取任意登录用户 / 写操作需操作员或管理员 |
+| 操作日志 | `GET /api/logs`（按 `category` 筛选，`limit` 默认 200、最多 500） | 管理员 |
+| 实时推送 | `/hubs/control`，客户端调用 `JoinRoom(roomId)` / `LeaveRoom(roomId)`；接收 `joinStateChanged`、`controllerStatusChanged` | 任意登录用户 |
+
+界面相关的关键约定：
+
+- 控制点创建与更新可带 `showConfirmationPopup`（默认 `true`），决定控制台发送指令与删除控制点前是否弹窗确认，`GET /api/rooms` 会返回该开关。按 `PUT /api/controllers/{controllerId}/joins/order` 提交的完整顺序渲染控制台按钮；单点复制会替换目标上相同发送 Join 的既有控制点，整组复制会先清空目标控制点再按源顺序写入。
+- 定时任务的 `joinMappingIds` 可一次覆盖多间教室的同名控制点，同一任务的目标共享 `groupId`；修改整组会保留仍在列表中的目标、删除被移除目标及其执行记录。任务按服务器本地时间执行，支持一次性与按周重复，可暂停与恢复。
+- 中控上报的状态变化通过 `joinStateChanged` 增量推送，连接上下线通过 `controllerStatusChanged` 推送；`GET /api/rooms` 返回当前快照，刷新页面后应重新拉取。
+- 操作日志按 `authentication`、`configuration`、`control`、`schedule`、`state`、`connection` 分类，记录可读操作对象，不保存请求正文或密码；认证类记录的对象栏为来源 IP。
 
 ### 权限与会话安全
 
@@ -168,3 +178,5 @@ dotnet test backend\RoomControl.Api.Tests\RoomControl.Api.Tests.csproj
 Set-Location web
 npm run build
 ```
+## 说明
+代码由AI辅助编写

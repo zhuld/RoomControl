@@ -9,6 +9,7 @@ public sealed class AuditLogWriter(
     IDbContextFactory<ControlDbContext> dbContextFactory,
     TimeProvider timeProvider)
 {
+    /// <summary>写入一条审计记录；使用独立上下文且不随请求取消，避免响应已发出时丢失日志。</summary>
     public async Task WriteAsync(
         string category,
         string action,
