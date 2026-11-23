@@ -40,7 +40,11 @@ public sealed class ScheduledControlJob(
 
         try
         {
-            await connectionService.SendDigitalPulseAsync(schedule.JoinMapping.Id, context.CancellationToken);
+            // 定时任务属于自动执行，不因使能 Join 为低而被拒绝。
+            await connectionService.SendDigitalPulseAsync(
+                schedule.JoinMapping.Id,
+                enforceEnableJoin: false,
+                context.CancellationToken);
             execution.Status = "Succeeded";
         }
         catch (Exception exception) when (exception is not OperationCanceledException)

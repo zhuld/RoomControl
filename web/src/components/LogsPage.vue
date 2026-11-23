@@ -43,7 +43,7 @@ const actionLabels: Record<string, string> = {
   'DELETE /api/joins/{mappingId}': '删除控制点',
   'POST /api/joins/{mappingId}/copy': '复制控制点到教室',
   'POST /api/controllers/{controllerId}/joins/copy-all': '复制全部控制点到教室',
-  'POST /api/joins/{mappingId}/pulse': '发送脉冲',
+  'POST /api/joins/{mappingId}/pulse': '发送数字控制指令',
   'POST /api/schedules': '创建定时任务',
   'DELETE /api/schedules/{scheduleId}': '归档定时任务',
 }
@@ -170,17 +170,13 @@ onBeforeUnmount(() => {
       </div>
       <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
-          <span class="audit-refresh">
+          <!-- <span class="audit-refresh">
             <span class="dot" :class="autoRefresh ? 'is-online' : 'is-unknown'"></span>
             {{ autoRefresh ? '自动刷新 · 每 5 秒' : '自动刷新已暂停' }}
             <span class="muted">最近 {{ lastRefreshedAt ? formatClock(lastRefreshedAt) : '—' }}</span>
-          </span>
-          <button
-            type="button"
-            class="btn btn-quiet btn-sm"
-            :aria-pressed="autoRefresh"
-            @click="autoRefresh = !autoRefresh"
-          >
+          </span> -->
+          <button type="button" class="btn btn-quiet btn-sm" :aria-pressed="autoRefresh"
+            @click="autoRefresh = !autoRefresh">
             <UiIcon :name="autoRefresh ? 'pause' : 'play'" :size="14" />
             {{ autoRefresh ? '暂停' : '继续' }}
           </button>
@@ -195,15 +191,9 @@ onBeforeUnmount(() => {
       <header class="panel-toolbar audit-toolbar">
         <div class="audit-toolbar-left">
           <div class="chip-row" role="group" aria-label="按分类筛选">
-            <button
-              v-for="category in categories"
-              :key="category.value"
-              type="button"
-              class="chip"
+            <button v-for="category in categories" :key="category.value" type="button" class="chip"
               :class="{ active: selectedCategory === category.value }"
-              :aria-pressed="selectedCategory === category.value"
-              @click="selectedCategory = category.value"
-            >
+              :aria-pressed="selectedCategory === category.value" @click="selectedCategory = category.value">
               {{ category.label }}
               <span class="chip-count">{{ countForCategory(category.value) }}</span>
             </button>
@@ -212,14 +202,8 @@ onBeforeUnmount(() => {
         <div class="audit-toolbar-right">
           <div class="search-field">
             <UiIcon name="search" :size="15" />
-            <input
-              name="searchText"
-              v-model="searchText"
-              class="input"
-              type="search"
-              placeholder="搜索对象、操作者或操作"
-              aria-label="搜索对象、操作者或操作"
-            />
+            <input name="searchText" v-model="searchText" class="input" type="search" placeholder="搜索对象、操作者或操作"
+              aria-label="搜索对象、操作者或操作" />
           </div>
         </div>
       </header>
@@ -236,12 +220,9 @@ onBeforeUnmount(() => {
       <div v-if="loading && !logs.length" class="audit-message" role="status">
         <span class="loading-inline"><span class="spinner"></span>正在加载操作记录…</span>
       </div>
-      <EmptyState
-        v-else-if="!filteredLogs.length"
-        icon="audit"
+      <EmptyState v-else-if="!filteredLogs.length" icon="audit"
         :title="searchText || selectedCategory ? '没有符合条件的记录' : '暂无操作记录'"
-        :description="searchText || selectedCategory ? '调整分类或搜索词后再试。' : '完成登录、配置或控制操作后会在此出现。'"
-      />
+        :description="searchText || selectedCategory ? '调整分类或搜索词后再试。' : '完成登录、配置或控制操作后会在此出现。'" />
       <div v-else class="table-wrap audit-table-wrap">
         <table class="table audit-table">
           <thead>
@@ -267,11 +248,7 @@ onBeforeUnmount(() => {
               <td class="log-action" :title="log.action">{{ actionLabel(log.action) }}</td>
               <td>{{ log.actor }}</td>
               <td>
-                <span
-                  v-if="log.statusCode > 0"
-                  class="log-status"
-                  :class="{ 'is-failed': log.statusCode >= 400 }"
-                >
+                <span v-if="log.statusCode > 0" class="log-status" :class="{ 'is-failed': log.statusCode >= 400 }">
                   <span class="dot" :class="log.statusCode >= 400 ? 'is-danger' : 'is-success'"></span>
                   {{ statusLabel(log) }}
                 </span>

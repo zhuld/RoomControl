@@ -17,7 +17,13 @@ public sealed class ControllerConnectionService(
     private readonly ConcurrentDictionary<Guid, IControllerAdapter> _connectedAdapters = new();
     private readonly Dictionary<Guid, WorkerHandle> _workers = [];
 
-    public async Task SendDigitalPulseAsync(Guid mappingId, CancellationToken cancellationToken)
+    /// <summary>
+    /// 发送一次数字脉冲。手动操作受使能 Join 限制；自动任务忽略使能，只要求中控在线。
+    /// </summary>
+    public async Task SendDigitalPulseAsync(
+        Guid mappingId,
+        bool enforceEnableJoin,
+        CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var mapping = await db.JoinMappings.AsNoTracking()
@@ -34,8 +40,8 @@ public sealed class ControllerConnectionService(
             throw new ControllerUnavailableException("The room controller is offline.");
         }
 
-        // 配置了使能 Join 时只有高电平才允许操作；未上报按低电平处理，直接拒绝。
-        if (mapping.EnableJoinNumber > 0)
+        // 配置了使能 Join 时只有高电平才允许手动操作；未上报按低电平处理，直接拒绝。
+        if (enforceEnableJoin && mapping.EnableJoinNumber > 0)
         {
             var isEnabled = await db.JoinSnapshots.AsNoTracking()
                 .AnyAsync(snapshot =>

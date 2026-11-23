@@ -702,7 +702,7 @@ watch(
                       <span v-if="execution.error" class="execution-error">
                         {{ execution.roomName }} · {{ execution.error }}
                       </span>
-                      <template v-else>{{ execution.roomName }} · 数字脉冲已下发</template>
+                      <template v-else>{{ execution.roomName }} · 数字控制指令已下发</template>
                     </span>
                     <span class="text-xs muted tabular">
                       {{

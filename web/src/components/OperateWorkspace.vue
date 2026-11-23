@@ -222,7 +222,7 @@ function receiptLabel(status: CommandReceipt['status']) {
         <h1>教室操作</h1>
         <p>定位教室、确认中控与使能状态，再下发指令。每次下发都会在本会话留下回执。</p>
       </div>
-      <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
+      <!-- <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
           <span class="text-xs muted tabular">
             {{ lastRefreshAt ? `快照 ${formatClock(lastRefreshAt)}` : '尚未刷新' }}
@@ -232,7 +232,7 @@ function receiptLabel(status: CommandReceipt['status']) {
             <UiIcon name="refresh" :size="16" />刷新快照
           </button>
         </div>
-      </Teleport>
+      </Teleport> -->
     </header>
 
     <div class="operate-layout" :class="{ 'is-rail-open': receiptRailOpen }">
@@ -422,13 +422,8 @@ function receiptLabel(status: CommandReceipt['status']) {
               <div class="section-lead is-flat">
                 <div>
                   <h2>设备控制</h2>
-                  <p>{{ joins.length }} 个控制点 · 点击卡片下发数字脉冲</p>
+                  <p>{{ joins.length }} 个控制点 · 点击卡片下发控制指令</p>
                 </div>
-              </div>
-              <div class="legend-row">
-                <span class="legend-item"><span class="dot is-online"></span>已开启</span>
-                <span class="legend-item"><span class="dot is-idle"></span>已关闭</span>
-                <span class="legend-item"><span class="dot is-warning"></span>不可操作</span>
               </div>
             </header>
 
@@ -513,7 +508,6 @@ function receiptLabel(status: CommandReceipt['status']) {
           <div class="panel-head-copy">
             <p class="eyebrow">可追踪反馈</p>
             <h2>操作回执</h2>
-            <p class="panel-sub">本次浏览会话内的下发结果，按时间倒序。</p>
           </div>
           <div class="receipt-rail-actions">
             <button
@@ -559,7 +553,7 @@ function receiptLabel(status: CommandReceipt['status']) {
         />
 
         <footer class="receipt-rail-foot">
-          回执仅保存在当前浏览器会话，用于即时核对。服务端审计记录可在「操作记录」中查询。
+          本次浏览会话内的下发结果，按时间倒序，用于即时核对。服务端审计记录可在「操作记录」中查询。
         </footer>
       </aside>
     </div>

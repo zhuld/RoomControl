@@ -813,12 +813,12 @@ onBeforeUnmount(() => {
 
       <div class="topbar-actions">
         <div class="status-cluster">
-          <span class="status-item is-realtime" :class="`is-${realtimeTone}`"
+          <!-- <span class="status-item is-realtime" :class="`is-${realtimeTone}`"
             :title="`最后实时事件：${formatRelative(lastHubEventAt)}`">
             <span class="dot" :class="[`is-${realtimeTone}`, { 'is-pulse': hubState === 'connected' }]"></span>
             {{ realtimeLabel }}
             <span v-if="lastHubEventAt" class="text-2xs muted">{{ formatRelative(lastHubEventAt) }}</span>
-          </span>
+          </span> -->
           <span class="status-item" :class="`is-${onlineTone}`"
             :title="`${offlineRoomCount} 间离线，${unconfiguredRoomCount} 间未接入`">
             <UiIcon name="connection" :size="13" />

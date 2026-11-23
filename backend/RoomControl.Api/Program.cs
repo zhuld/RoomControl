@@ -1081,7 +1081,7 @@ api.MapPost("/joins/{mappingId:guid}/pulse", async (
     ControllerConnectionService connectionService,
     CancellationToken cancellationToken) =>
 {
-    await connectionService.SendDigitalPulseAsync(mappingId, cancellationToken);
+    await connectionService.SendDigitalPulseAsync(mappingId, enforceEnableJoin: true, cancellationToken);
     return Results.Accepted();
 }).RequireAuthorization("OperatorOrAdmin");
 

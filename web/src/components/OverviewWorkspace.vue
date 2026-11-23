@@ -286,7 +286,7 @@ function handleAttention(item: AttentionItem) {
         <p v-if="canOperate">先处理异常，再进入教室操作。控制点状态以中控回报为准，尚未回报时按低电平（关闭）显示。</p>
         <p v-else>只读查看各教室的中控在线状态与控制点状态；尚未回报的控制点按低电平（关闭）显示。</p>
       </div>
-      <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
+      <!-- <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
           <span class="text-xs muted tabular">
             {{ lastRefreshAt ? `数据刷新于 ${formatClock(lastRefreshAt)}` : '尚未刷新数据' }}
@@ -295,7 +295,7 @@ function handleAttention(item: AttentionItem) {
             <UiIcon name="refresh" :size="16" />刷新
           </button>
         </div>
-      </Teleport>
+      </Teleport> -->
     </header>
 
     <section class="kpi-grid overview-summary" aria-label="站点概况">

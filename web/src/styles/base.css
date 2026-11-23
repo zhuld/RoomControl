@@ -262,7 +262,7 @@ a:hover {
 }
 
 .topbar-context strong {
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;

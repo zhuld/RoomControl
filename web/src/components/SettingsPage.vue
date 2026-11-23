@@ -1376,7 +1376,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                     <form class="add-join-card" @submit.prevent="createJoin">
                       <div>
                         <strong>添加数字控制点</strong>
-                        <p>分别配置发送、状态接收和使能接收 Join；使能 Join 默认为 0，表示不设置并默认允许。</p>
+                        <p>分别配置发送、状态接收和使能接收 Join；使能 Join 默认为 0，表示不设置并默认允许。使能只限制手动操作，定时任务仍会按时下发。</p>
                       </div>
                       <div class="join-number-fields">
                         <label class="field">
