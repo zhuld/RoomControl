@@ -4,6 +4,14 @@ import type { FeedbackTone, Room } from '../types'
 export type RoomStatus = 'online' | 'offline' | 'unconfigured'
 export type StatusFilter = 'all' | RoomStatus
 
+// 状态筛选按钮的统一定义，总览与教室操作页共用。
+export const roomStatusFilters = [
+  { value: 'all', label: '全部' },
+  { value: 'online', label: '在线' },
+  { value: 'offline', label: '离线' },
+  { value: 'unconfigured', label: '未接入' },
+] as const satisfies readonly { value: StatusFilter; label: string }[]
+
 const UNASSIGNED_BUILDING = '未分配楼栋'
 const UNASSIGNED_FLOOR = '未分配楼层'
 

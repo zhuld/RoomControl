@@ -11,6 +11,11 @@ import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 import UiIcon from './components/ui/UiIcon.vue'
 import { useConfirmDialog } from './lib/confirm'
 import { actionSlotKey, compactModeKey } from './lib/layout'
+import {
+  canAccessSettingsSection,
+  defaultSettingsSection,
+  settingsNavLabel,
+} from './lib/settings'
 import BrandLogo from './components/BrandLogo.vue'
 import {
   defaultBranding,
@@ -53,17 +58,11 @@ const settingsFocusRoomId = ref('')
 const automationTarget = ref<AutomationTarget | null>(null)
 const branding = ref<Branding>({ ...defaultBranding })
 const railOpen = ref(false)
-const storedRailCollapsed = localStorage.getItem('roomcontrol.rail.collapsed')
-const railCollapsed = ref(
-  storedRailCollapsed === null
-    ? localStorage.getItem('roomcontrol.rail.pinned') === '0'
-    : storedRailCollapsed === '1',
-)
+const railCollapsed = ref(localStorage.getItem('roomcontrol.rail.collapsed') === '1')
 const workspaceScroll = ref<HTMLElement | null>(null)
 const roomJumpQuery = ref('')
 let automationToken = 0
 
-const canManageSettings = computed(() => currentUser.value?.role === 'admin')
 const canOperate = computed(() => currentUser.value?.role !== 'viewer')
 
 const workspaceMeta: Record<Workspace, string> = {
@@ -73,7 +72,11 @@ const workspaceMeta: Record<Workspace, string> = {
   audit: '操作记录',
 }
 
-const activeWorkspaceLabel = computed(() => workspaceMeta[workspace.value])
+const activeWorkspaceLabel = computed(() =>
+  workspace.value === 'settings'
+    ? settingsNavLabel(currentUser.value?.role)
+    : workspaceMeta[workspace.value],
+)
 
 const theme = ref<ThemeName>('pine')
 const density = ref<Density>('comfortable')
@@ -210,26 +213,29 @@ watch(
 
 watch(currentUser, (user) => {
   if (!user) return
-  // 配置与接入对操作员只开放「自动任务」步骤，其余步骤仅管理员可见。
-  if (user.role === 'viewer' && (workspace.value === 'operate' || workspace.value === 'settings')) {
+  // 观看员可进入配置页调整外观，但不能访问操作台。
+  if (user.role === 'viewer' && workspace.value === 'operate') {
     workspace.value = 'overview'
   }
-  if (user.role === 'operator' && settingsSection.value !== 'automation') {
-    settingsSection.value = 'automation'
+  // 角色变化后把当前配置步骤收敛到该角色可访问的步骤。
+  if (!canAccessSettingsSection(settingsSection.value, user.role)) {
+    settingsSection.value = defaultSettingsSection(user.role)
   }
 })
 
 function canAccess(target: Workspace, role: UserRole | undefined) {
   if (!role) return target === 'overview'
-  // 操作记录对所有已登录角色开放；配置与教室操作为只读角色不可用。
-  if (target === 'settings' || target === 'operate') return role !== 'viewer'
+  // 操作记录与配置页对所有已登录角色开放（配置页内部再按步骤限制）；教室操作仅非只读角色可用。
+  if (target === 'operate') return role !== 'viewer'
   return true
 }
 
 function navigate(target: Workspace) {
   if (!canAccess(target, currentUser.value?.role)) return
   if (target === 'settings' || target === 'audit') settingsFocusRoomId.value = ''
-  if (target === 'settings' && !canManageSettings.value) settingsSection.value = 'automation'
+  if (target === 'settings' && !canAccessSettingsSection(settingsSection.value, currentUser.value?.role)) {
+    settingsSection.value = defaultSettingsSection(currentUser.value?.role)
+  }
   workspace.value = target
   void nextTick(() => workspaceScroll.value?.scrollTo({ top: 0 }))
 }
@@ -241,7 +247,7 @@ function openRoom(roomId: string) {
 }
 
 function openSettings(section: SettingsSection, roomId = '') {
-  if (!canManageSettings.value) return
+  if (!canAccessSettingsSection(section, currentUser.value?.role)) return
   settingsSection.value = section
   settingsFocusRoomId.value = roomId
   workspace.value = 'settings'
@@ -266,7 +272,9 @@ function handleAutomationChanged() {
 }
 
 function handleSettingsSection(section: SettingsSection) {
-  settingsSection.value = canManageSettings.value ? section : 'automation'
+  settingsSection.value = canAccessSettingsSection(section, currentUser.value?.role)
+    ? section
+    : defaultSettingsSection(currentUser.value?.role)
   void nextTick(() => workspaceScroll.value?.scrollTo({ top: 0 }))
 }
 
@@ -432,7 +440,7 @@ async function bootstrap() {
         showError(error)
       }
       const stored = localStorage.getItem('roomcontrol.workspace')
-      // 旧版本保存的 'automation' 等工作区可能已不存在，只恢复仍然有效的值。
+      // 只恢复当前存在且有权访问的工作区，避免使用过期或无效的存储值。
       if (stored && stored in workspaceMeta && canAccess(stored as Workspace, currentUser.value?.role)) {
         workspace.value = stored as Workspace
       }

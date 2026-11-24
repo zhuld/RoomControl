@@ -9,11 +9,6 @@ public sealed class AuditLogWriter(
     IDbContextFactory<ControlDbContext> dbContextFactory,
     TimeProvider timeProvider)
 {
-    // 与 ControlDbContext 中的列长度保持一致；超长文本截断，避免 PostgreSQL 拒绝整条审计记录。
-    private const int MaxActionLength = 300;
-    private const int MaxTargetLength = 512;
-    private const int MaxActorLength = 60;
-
     /// <summary>写入一条审计记录；使用独立上下文且不随请求取消，避免响应已发出时丢失日志。</summary>
     public async Task WriteAsync(
         string category,
@@ -27,9 +22,9 @@ public sealed class AuditLogWriter(
         db.AuditLogs.Add(new AuditLog
         {
             Category = category,
-            Action = Truncate(action, MaxActionLength),
-            Target = Truncate(target, MaxTargetLength),
-            Actor = Truncate(actor, MaxActorLength),
+            Action = Truncate(action, AuditLog.ActionMaxLength),
+            Target = Truncate(target, AuditLog.TargetMaxLength),
+            Actor = Truncate(actor, AuditLog.ActorMaxLength),
             StatusCode = statusCode,
             OccurredAtUtc = timeProvider.GetUtcNow(),
         });

@@ -3,6 +3,7 @@ import { computed, inject, reactive, ref, watch } from 'vue'
 import { readJson, request, toErrorMessage } from '../api'
 import { useConfirmDialog } from '../lib/confirm'
 import { compactModeKey, actionSlotKey } from '../lib/layout'
+import { canAccessSettingsSection, settingsNavLabel } from '../lib/settings'
 import {
   buildingOf,
   floorOf,
@@ -11,20 +12,21 @@ import {
   roomStatusTone,
   sortRoomsByLocation,
 } from '../lib/rooms'
-import type {
-  AutomationTarget,
-  Branding,
-  BuildingOption,
-  ControllerTypeOption,
-  CurrentUser,
-  Density,
-  FeedbackTone,
-  FloorOption,
-  JoinMapping,
-  Room,
-  Schedule,
-  SettingsSection,
-  ThemeName,
+import {
+  themeOptions,
+  type AutomationTarget,
+  type Branding,
+  type BuildingOption,
+  type ControllerTypeOption,
+  type CurrentUser,
+  type Density,
+  type FeedbackTone,
+  type FloorOption,
+  type JoinMapping,
+  type Room,
+  type Schedule,
+  type SettingsSection,
+  type ThemeName,
 } from '../types'
 import AutomationWorkspace from './AutomationWorkspace.vue'
 import BrandLogo from './BrandLogo.vue'
@@ -78,49 +80,44 @@ interface HealthItem {
   roomId?: string
 }
 
-const themeOptions: { value: ThemeName; label: string; swatch: string }[] = [
-  { value: 'pine', label: '松绿', swatch: 'var(--swatch-pine)' },
-  { value: 'sand', label: '暖砂', swatch: 'var(--swatch-sand)' },
-  { value: 'ocean', label: '海蓝', swatch: 'var(--swatch-ocean)' },
-  { value: 'iris', label: '紫藤', swatch: 'var(--swatch-iris)' },
-  { value: 'rose', label: '玫瑰', swatch: 'var(--swatch-rose)' },
-  { value: 'graphite', label: '石墨（深色）', swatch: 'var(--swatch-graphite)' },
-]
-
 const sectionMeta: Record<SettingsSection, { eyebrow: string; title: string; description: string }> = {
+  appearance: {
+    eyebrow: '显示偏好',
+    title: '外观与显示',
+    description: '调整主题与显示密度；仅保存在当前浏览器，管理员、操作员和观看员均可修改。',
+  },
   branding: {
-    eyebrow: '步骤 1 · 站点设置',
-    title: '站点与外观',
-    description: '维护登录页与侧栏使用的名称、Logo、主题、显示密度与操作日志保留策略。',
+    eyebrow: '站点设置',
+    title: '站点设置',
+    description: '维护登录页与侧栏使用的名称、Logo、操作日志保留策略与浏览器技术信息显示。',
   },
   locations: {
-    eyebrow: '步骤 2 · 教室层级',
+    eyebrow: '教室层级',
     title: '楼栋与楼层',
     description: '先定义楼栋与楼层，教室只能从已配置项中选择；重命名会同步更新已有教室。',
   },
   rooms: {
-    eyebrow: '步骤 3 · 教室',
+    eyebrow: '教室',
     title: '教室',
     description: '维护教室名称与所在位置。定时任务按服务器本地时间执行。',
   },
   controllers: {
-    eyebrow: '步骤 4 · 中控与设备',
+    eyebrow: '中控与设备',
     title: '中控与设备',
     description: '为教室接入中控并配置数字 Join 映射；保存后后台会自动重连并同步状态。',
   },
   automation: {
-    eyebrow: '步骤 5 · 自动任务',
+    eyebrow: '自动任务',
     title: '自动任务',
     description: '一次任务可覆盖多间教室的同名控制点，也可随时修改时间、范围与目标。',
   },
   users: {
-    eyebrow: '步骤 6 · 用户与权限',
+    eyebrow: '用户与权限',
     title: '用户与权限',
     description: '管理员可管理配置与账号，操作员可下发指令，观看员仅可查看状态。',
   },
 }
 
-const meta = computed(() => sectionMeta[props.section])
 const canManageSettings = computed(() => props.currentUser?.role === 'admin')
 const compactMode = inject(compactModeKey, ref(false))
 const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
@@ -207,10 +204,14 @@ const activeAutomationCount = computed(() => {
   return groups.size
 })
 
+const currentThemeLabel = computed(
+  () => themeOptions.find((option) => option.value === props.theme)?.label ?? props.theme,
+)
+
 const setupSteps = computed<SetupStep[]>(() => [
   {
     value: 'branding',
-    title: '站点与外观',
+    title: '站点设置',
     summary: props.branding.displayName || '未命名站点',
     done: Boolean(props.branding.displayName.trim()),
   },
@@ -244,12 +245,41 @@ const setupSteps = computed<SetupStep[]>(() => [
     summary: '管理员 / 操作员 / 观看员',
     done: true,
   },
+  {
+    value: 'appearance',
+    title: '外观与显示',
+    summary: `主题：${currentThemeLabel.value}`,
+    done: currentThemeLabel.value !== null && currentThemeLabel.value !== undefined,
+  },
 ])
 
-// 操作员只能看到「自动任务」步骤，其余接入步骤仅管理员可维护。
 const visibleSteps = computed(() =>
-  canManageSettings.value ? setupSteps.value : setupSteps.value.filter((step) => step.value === 'automation'),
+  setupSteps.value.filter((step) => canAccessSettingsSection(step.value, props.currentUser?.role)),
 )
+
+// 当前步骤若不在角色可访问范围内，回退到第一个可见步骤，避免越权渲染配置内容。
+const activeSection = computed<SettingsSection>(() =>
+  visibleSteps.value.some((step) => step.value === props.section)
+    ? props.section
+    : (visibleSteps.value[0]?.value ?? 'appearance'),
+)
+
+const meta = computed(() => {
+  const section = sectionMeta[activeSection.value]
+  return { ...section, eyebrow: `${section.eyebrow}` }
+})
+
+const pageTitle = computed(() => settingsNavLabel(props.currentUser?.role))
+
+const headerDescription = computed(() => {
+  if (canManageSettings.value) {
+    return '按接入顺序补齐站点、位置、教室、中控、自动任务与用户权限，并按需调整外观与显示。'
+  }
+  if (props.currentUser?.role === 'operator') {
+    return '维护外观与显示，以及教室的定时任务；其余接入步骤由管理员维护。'
+  }
+  return '调整主题与显示密度；配置与操作权限由管理员分配。'
+})
 
 const healthItems = computed<HealthItem[]>(() => {
   const items: HealthItem[] = []
@@ -867,26 +897,24 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
     <header class="workspace-header">
       <div class="workspace-header-copy">
         <p class="eyebrow">管理 · 配置</p>
-        <h1>配置与接入</h1>
-        <p v-if="canManageSettings">按接入顺序补齐站点、位置、教室、中控、自动任务与权限。每一步的完成状态与阻塞项都会明确显示。</p>
-        <p v-else>维护教室的定时任务：创建、修改、暂停、恢复与删除，并查看每次执行结果。其余接入步骤由管理员维护。</p>
+        <h1>{{ pageTitle }}</h1>
+        <p>{{ headerDescription }}</p>
       </div>
       <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
           <StatusPill v-if="canManageSettings" :tone="healthOk ? 'success' : 'warning'"
             :label="healthOk ? '接入检查通过' : `${healthItems.length} 项待补齐`" dot />
-          <StatusPill :tone="activeAutomationCount ? 'info' : 'neutral'"
+          <StatusPill v-if="currentUser?.role !== 'viewer'" :tone="activeAutomationCount ? 'info' : 'neutral'"
             :label="activeAutomationCount ? `${activeAutomationCount} 个启用任务` : '暂无启用任务'" dot />
         </div>
       </Teleport>
     </header>
 
     <div class="settings-layout">
-      <nav class="panel setup-nav" aria-label="接入步骤">
-        <p class="setup-nav-title">接入步骤</p>
+      <nav class="panel setup-nav" aria-label="设置步骤">
         <button v-for="(step, index) in visibleSteps" :key="step.value" type="button" class="setup-step"
-          :class="{ active: section === step.value }" :aria-current="section === step.value ? 'step' : undefined"
-          @click="jumpTo(step.value)">
+          :class="{ active: activeSection === step.value }"
+          :aria-current="activeSection === step.value ? 'step' : undefined" @click="jumpTo(step.value)">
           <span class="step-no">
             <UiIcon v-if="step.done" name="check" :size="12" />
             <template v-else>{{ index + 1 }}</template>
@@ -932,68 +960,32 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           </div>
         </section>
 
-        <section v-else-if="canManageSettings" class="banner is-success" role="status">
+        <!-- <section v-else-if="canManageSettings" class="banner is-success" role="status">
           <UiIcon name="check" :size="16" />
           <div>
             <strong>接入检查通过</strong>
             <p>所有教室均已接入中控并配置控制点，操作台状态可信。</p>
           </div>
-        </section>
+        </section> -->
 
         <section class="panel">
           <header class="panel-head">
             <div class="settings-section-head is-flush">
               <div>
-                <p class="eyebrow">{{ meta.eyebrow }}</p>
                 <h2>{{ meta.title }}</h2>
                 <p>{{ meta.description }}</p>
               </div>
             </div>
           </header>
 
-          <UsersPage v-if="section === 'users' && currentUser" :current-user="currentUser"
+          <UsersPage v-if="activeSection === 'users' && currentUser" :current-user="currentUser"
             @notify="emit('notify', $event)" />
 
-          <AutomationWorkspace v-if="section === 'automation'" embedded :rooms="rooms" :schedules="schedules"
+          <AutomationWorkspace v-if="activeSection === 'automation'" embedded :rooms="rooms" :schedules="schedules"
             :current-user="currentUser" :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
             @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
 
-          <div v-if="section === 'branding'" class="panel-body stack">
-            <form class="branding-grid" @submit.prevent="saveBranding">
-              <div class="logo-preview">
-                <BrandLogo :logo-data-url="brandingForm.logoDataUrl"
-                  :label="brandingForm.displayName || 'RoomControl'" />
-                <div class="logo-actions">
-                  <label class="btn btn-outline btn-sm">
-                    上传 Logo
-                    <input name="logo" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden
-                      @change="onLogoSelected" />
-                  </label>
-                  <button v-if="brandingForm.logoDataUrl" type="button" class="btn btn-danger-quiet btn-sm"
-                    @click="brandingForm.logoDataUrl = null">
-                    清除 Logo
-                  </button>
-                </div>
-                <p class="form-note">正方形图片，不超过 200 KB。</p>
-              </div>
-              <div class="branding-fields">
-                <label class="field">
-                  显示名称
-                  <input name="displayName" v-model="brandingForm.displayName" class="input" maxlength="60" required />
-                </label>
-                <label class="field">
-                  副标题
-                  <input name="subtitle" v-model="brandingForm.subtitle" class="input" maxlength="80"
-                    placeholder="例如：教室中控平台" />
-                </label>
-                <div class="form-actions is-start">
-                  <button class="btn btn-primary" :disabled="busy">保存站点信息</button>
-                </div>
-              </div>
-            </form>
-
-            <hr class="divider" />
-
+          <div v-if="activeSection === 'appearance'" class="panel-body stack">
             <div class="stack">
               <div class="settings-section-head is-flush">
                 <div>
@@ -1034,6 +1026,41 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                 </button>
               </div>
             </div>
+          </div>
+
+          <div v-if="activeSection === 'branding'" class="panel-body stack">
+            <form class="branding-grid" @submit.prevent="saveBranding">
+              <div class="logo-preview">
+                <BrandLogo :logo-data-url="brandingForm.logoDataUrl"
+                  :label="brandingForm.displayName || 'RoomControl'" />
+                <div class="logo-actions">
+                  <label class="btn btn-outline btn-sm">
+                    上传 Logo
+                    <input name="logo" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" hidden
+                      @change="onLogoSelected" />
+                  </label>
+                  <button v-if="brandingForm.logoDataUrl" type="button" class="btn btn-danger-quiet btn-sm"
+                    @click="brandingForm.logoDataUrl = null">
+                    清除 Logo
+                  </button>
+                </div>
+                <p class="form-note">正方形图片，不超过 200 KB。</p>
+              </div>
+              <div class="branding-fields">
+                <label class="field">
+                  显示名称
+                  <input name="displayName" v-model="brandingForm.displayName" class="input" maxlength="60" required />
+                </label>
+                <label class="field">
+                  副标题
+                  <input name="subtitle" v-model="brandingForm.subtitle" class="input" maxlength="80"
+                    placeholder="例如：教室中控平台" />
+                </label>
+                <div class="form-actions is-start">
+                  <button class="btn btn-primary" :disabled="busy">保存站点信息</button>
+                </div>
+              </div>
+            </form>
 
             <hr class="divider" />
 
@@ -1073,7 +1100,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             </div>
           </div>
 
-          <div v-if="section === 'locations'" class="panel-body">
+          <div v-if="activeSection === 'locations'" class="panel-body">
             <form class="location-add" @submit.prevent="createBuilding">
               <input name="buildingName" v-model="buildingForm.name" class="input" placeholder="新增楼栋，如：A 栋"
                 maxlength="60" required />
@@ -1129,7 +1156,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <EmptyState v-else icon="room" title="尚未配置楼栋" description="添加楼栋后即可为其添加楼层，之后创建教室时选择。" />
           </div>
 
-          <div v-if="section === 'rooms'" class="panel-body">
+          <div v-if="activeSection === 'rooms'" class="panel-body">
             <form class="room-create-form" @submit.prevent="createRoom">
               <label class="field">
                 教室名称
@@ -1209,7 +1236,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <EmptyState v-else icon="room" title="还没有教室" description="先配置楼栋与楼层，再创建教室。" />
           </div>
 
-          <div v-if="section === 'controllers'" class="panel-body">
+          <div v-if="activeSection === 'controllers'" class="panel-body">
             <div class="controller-layout">
               <div class="controller-room-list">
                 <div v-if="sortedRooms.length" class="controller-search">

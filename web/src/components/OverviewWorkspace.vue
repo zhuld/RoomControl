@@ -7,6 +7,7 @@ import {
   countRooms,
   floorOf,
   roomStatus,
+  roomStatusFilters,
   roomStatusLabel,
   roomStatusTone,
   type RoomStatus,
@@ -367,12 +368,7 @@ function handleAttention(item: AttentionItem) {
           <RoomCascader v-model="selectedRoomFilter" :rooms="rooms" allow-all class="room-toolbar-cascader"
             @levels-change="handleLevelsChange" />
           <div class="chip-row" role="group" aria-label="按状态筛选">
-            <button v-for="option in ([
-              { value: 'all', label: '全部' },
-              { value: 'online', label: '在线' },
-              { value: 'offline', label: '离线' },
-              { value: 'unconfigured', label: '未接入' },
-            ] as const)" :key="option.value" type="button" class="chip"
+            <button v-for="option in roomStatusFilters" :key="option.value" type="button" class="chip"
               :class="{ active: statusFilter === option.value }" :aria-pressed="statusFilter === option.value"
               @click="statusFilter = option.value">
               {{ option.label }}<span class="chip-count">{{ filterCount(option.value) }}</span>

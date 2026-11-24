@@ -101,10 +101,10 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
         modelBuilder.Entity<JoinMapping>().Property(join => join.StateJoinNumber).HasDefaultValue(1);
         modelBuilder.Entity<ControlSchedule>().Property(schedule => schedule.Name).HasMaxLength(120);
         modelBuilder.Entity<ScheduleExecution>().Property(execution => execution.Error).HasMaxLength(2000);
-        modelBuilder.Entity<AuditLog>().Property(log => log.Category).HasMaxLength(32);
-        modelBuilder.Entity<AuditLog>().Property(log => log.Action).HasMaxLength(300);
+        modelBuilder.Entity<AuditLog>().Property(log => log.Category).HasMaxLength(AuditLog.CategoryMaxLength);
+        modelBuilder.Entity<AuditLog>().Property(log => log.Action).HasMaxLength(AuditLog.ActionMaxLength);
         // 对象名称包含楼栋、楼层、教室与多个控制点名称，需为长名称留出空间。
-        modelBuilder.Entity<AuditLog>().Property(log => log.Target).HasMaxLength(512);
-        modelBuilder.Entity<AuditLog>().Property(log => log.Actor).HasMaxLength(60);
+        modelBuilder.Entity<AuditLog>().Property(log => log.Target).HasMaxLength(AuditLog.TargetMaxLength);
+        modelBuilder.Entity<AuditLog>().Property(log => log.Actor).HasMaxLength(AuditLog.ActorMaxLength);
     }
 }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { settingsNavLabel } from '../lib/settings'
 import type { CurrentUser, Workspace } from '../types'
 import { userRoles } from '../types'
 import UiIcon from './ui/UiIcon.vue'
@@ -75,11 +76,12 @@ function toggleCollapse(event: MouseEvent) {
         </button>
       </section>
 
-      <section v-if="canOperate" class="rail-section">
-        <button type="button" class="rail-link" :class="{ active: workspace === 'settings' }" title="配置与接入"
-          aria-label="配置与接入" @click="openWorkspace('settings', $event)">
+      <section class="rail-section">
+        <button type="button" class="rail-link" :class="{ active: workspace === 'settings' }"
+          :title="settingsNavLabel(currentUser?.role)" :aria-label="settingsNavLabel(currentUser?.role)"
+          @click="openWorkspace('settings', $event)">
           <UiIcon class="rail-icon" name="settings" />
-          <span class="rail-label">配置与接入</span>
+          <span class="rail-label">{{ settingsNavLabel(currentUser?.role) }}</span>
         </button>
       </section>
 

@@ -8,6 +8,7 @@ import {
   floorOf,
   groupRoomsByBuilding,
   roomStatus,
+  roomStatusFilters,
   type StatusFilter,
 } from '../lib/rooms'
 import type {
@@ -201,12 +202,7 @@ function receiptLabel(status: CommandReceipt['status']) {
           />
           <div class="room-finder-filters" role="group" aria-label="按状态筛选">
             <button
-              v-for="option in ([
-                { value: 'all', label: '全部' },
-                { value: 'online', label: '在线' },
-                { value: 'offline', label: '离线' },
-                { value: 'unconfigured', label: '未接入' },
-              ] as const)"
+              v-for="option in roomStatusFilters"
               :key="option.value"
               type="button"
               class="chip"

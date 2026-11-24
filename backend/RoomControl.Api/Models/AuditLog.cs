@@ -3,6 +3,12 @@ namespace RoomControl.Api.Models;
 /// <summary>不可变的操作审计记录。</summary>
 public sealed class AuditLog
 {
+    // 列长度统一定义在这里，数据库映射与写入截断共用同一组上限。
+    public const int CategoryMaxLength = 32;
+    public const int ActionMaxLength = 300;
+    public const int TargetMaxLength = 512;
+    public const int ActorMaxLength = 60;
+
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Category { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty;

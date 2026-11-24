@@ -5,7 +5,14 @@ export type Workspace = 'overview' | 'operate' | 'settings' | 'audit'
 export type Density = 'comfortable' | 'compact'
 export type FeedbackTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 export type UserRole = 'admin' | 'operator' | 'viewer'
-export type SettingsSection = 'branding' | 'locations' | 'rooms' | 'controllers' | 'automation' | 'users'
+export type SettingsSection =
+  | 'appearance'
+  | 'branding'
+  | 'locations'
+  | 'rooms'
+  | 'controllers'
+  | 'automation'
+  | 'users'
 
 // 从操作台或总览跳转自动任务时携带的上下文，token 用于重复触发同一目标。
 export interface AutomationTarget {
@@ -76,26 +83,25 @@ export const userRoles: { value: UserRole; label: string; description: string }[
   },
 ]
 
-export const themeNames = ['pine', 'sand', 'ocean', 'iris', 'rose', 'graphite'] as const
-export type ThemeName = (typeof themeNames)[number]
+// 主题的唯一定义来源：新增或调整主题只需修改这里。
+export const themeOptions = [
+  { value: 'pine', label: '松绿', swatch: 'var(--swatch-pine)' },
+  { value: 'sand', label: '暖砂', swatch: 'var(--swatch-sand)' },
+  { value: 'ocean', label: '海蓝', swatch: 'var(--swatch-ocean)' },
+  { value: 'iris', label: '紫藤', swatch: 'var(--swatch-iris)' },
+  { value: 'rose', label: '玫瑰', swatch: 'var(--swatch-rose)' },
+  { value: 'graphite', label: '石墨（深色）', swatch: 'var(--swatch-graphite)' },
+] as const
 
-const legacyThemeNames: Record<string, ThemeName> = {
-  light: 'pine',
-  warm: 'sand',
-  cool: 'ocean',
-}
+export type ThemeName = (typeof themeOptions)[number]['value']
 
-// 将旧版主题名兼容映射到当前主题；未知值回退到默认主题。
+// 未知或缺失的主题名回退到默认主题。
 function isThemeName(value: string | null): value is ThemeName {
-  return value !== null && (themeNames as readonly string[]).includes(value)
+  return value !== null && themeOptions.some((option) => option.value === value)
 }
 
 export function resolveThemeName(value: string | null): ThemeName {
-  if (isThemeName(value)) {
-    return value
-  }
-  const legacy = value ? legacyThemeNames[value] : undefined
-  return legacy ?? 'pine'
+  return isThemeName(value) ? value : 'pine'
 }
 
 export interface JoinSnapshot {
