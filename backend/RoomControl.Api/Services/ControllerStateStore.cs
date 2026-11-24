@@ -160,15 +160,17 @@ public sealed class ControllerStateStore(
         }
 
         // 回放刚结束，本次上报的 Join 已按序写入；仍为高电平且本次没有上报的才需要纠正为低电平。
-        var reportedJoins = reportedJoinNumbers.ToArray();
-        var staleSnapshots = await db.JoinSnapshots
-            .Where(snapshot =>
-                snapshot.ControllerId == controllerId &&
-                snapshot.Kind == JoinKind.Digital &&
-                stateJoinNumbers.Contains(snapshot.JoinNumber) &&
-                !reportedJoins.Contains(snapshot.JoinNumber) &&
-                snapshot.DigitalValue)
-            .ToListAsync(cancellationToken);
+        // 先按状态 Join 编号取回快照，再在内存中比较上报集合，避免把设备上报的全部编号展开成 SQL IN 参数。
+        var reportedJoins = reportedJoinNumbers.ToHashSet();
+        var staleSnapshots = (await db.JoinSnapshots
+                .Where(snapshot =>
+                    snapshot.ControllerId == controllerId &&
+                    snapshot.Kind == JoinKind.Digital &&
+                    stateJoinNumbers.Contains(snapshot.JoinNumber) &&
+                    snapshot.DigitalValue)
+                .ToListAsync(cancellationToken))
+            .Where(snapshot => !reportedJoins.Contains(snapshot.JoinNumber))
+            .ToList();
         if (staleSnapshots.Count == 0)
         {
             return;

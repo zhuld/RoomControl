@@ -16,16 +16,6 @@ export function formatClock(value: string | Date | null | undefined): string {
   return date ? date.toLocaleTimeString('zh-CN', { hour12: false }) : '—'
 }
 
-export function formatDate(value: string | Date | null | undefined): string {
-  const date = toDate(value)
-  return date ? date.toLocaleDateString('zh-CN') : '—'
-}
-
-export function secondsSince(value: string | Date | null | undefined, now = Date.now()): number | null {
-  const date = toDate(value)
-  return date ? Math.max(0, Math.round((now - date.getTime()) / 1000)) : null
-}
-
 // 相对时间同时支持过去与未来，用于计划执行时间与回执。
 export function formatRelative(value: string | Date | null | undefined, now = Date.now()): string {
   const date = toDate(value)
@@ -49,14 +39,5 @@ export function formatRelative(value: string | Date | null | undefined, now = Da
     return future ? `${days} 天后` : `${days} 天前`
   }
   return formatDateTime(date)
-}
-
-export function isStale(
-  value: string | Date | null | undefined,
-  thresholdSeconds = 300,
-  now = Date.now(),
-): boolean {
-  const age = secondsSince(value, now)
-  return age !== null && age > thresholdSeconds
 }
 

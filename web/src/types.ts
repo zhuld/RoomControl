@@ -86,7 +86,7 @@ const legacyThemeNames: Record<string, ThemeName> = {
 }
 
 // 将旧版主题名兼容映射到当前主题；未知值回退到默认主题。
-export function isThemeName(value: string | null): value is ThemeName {
+function isThemeName(value: string | null): value is ThemeName {
   return value !== null && (themeNames as readonly string[]).includes(value)
 }
 

@@ -110,6 +110,8 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
                     : new AuditTarget(
                         $"{AuditLogFormatting.FormatRoom(controller.Room)}· 中控「{controller.Name}」");
             }
+            case "groups":
+                return await ResolveScheduleGroupAsync(id);
             case "rooms":
             {
                 var room = await db.Rooms.AsNoTracking()
@@ -155,7 +157,7 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(CancellationToken.None);
         var schedules = await db.Schedules.AsNoTracking()
-            .Where(item => item.GroupId == groupId || (item.GroupId == null && item.Id == groupId))
+            .WhereGroup(groupId)
             .Select(item => new { item.Name, item.RoomName })
             .ToListAsync();
         if (schedules.Count == 0)

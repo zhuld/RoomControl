@@ -91,6 +91,37 @@ public sealed class AuditLogTargetResolverTests
         Assert.Null(await resolver.ResolveLocationAsync("/api/rooms"));
     }
 
+    [Fact]
+    public async Task ResolveLocationAsync_ReturnsScheduleGroupTarget()
+    {
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ControlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var groupId = Guid.NewGuid();
+        await using (var db = new ControlDbContext(options))
+        {
+            await db.Database.EnsureCreatedAsync();
+            db.Schedules.Add(new ControlSchedule
+            {
+                GroupId = groupId,
+                Name = "上课铃",
+                RoomName = "A101",
+                Kind = ScheduleKind.Weekly,
+                WeekdayMask = 127,
+                LocalTime = TimeSpan.FromHours(8),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var resolver = new AuditLogTargetResolver(new TestDbContextFactory(options));
+
+        Assert.Equal(
+            "教室「A101」 · 定时任务「上课铃」",
+            (await resolver.ResolveLocationAsync($"/api/schedules/groups/{groupId}"))?.Label);
+    }
+
     [Theory]
     [InlineData("POST", "/api/joins/{mappingId:guid}/pulse", "Join 5", "发送 Join 5")]
     [InlineData("POST", "/api/joins/{mappingId:guid}/copy", "Join 3", "复制控制点到教室 Join 3")]

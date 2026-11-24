@@ -1,5 +1,3 @@
-using RoomControl.Api.Models;
-
 namespace RoomControl.Api.Integrations;
 
 /// <summary>已拆出的 CIP Raw 消息类型与负载；TCP 帧头在拆包时已移除。</summary>

@@ -155,12 +155,6 @@ a:hover {
   color: var(--text-faint);
 }
 
-.truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .divider {
   height: 1px;
   background: var(--border);
@@ -386,17 +380,6 @@ a:hover {
   padding: var(--space-3) var(--space-3) 0;
 }
 
-.rail-head-title {
-  padding-left: 10px;
-  font-size: var(--text-2xs);
-  font-weight: 650;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--rail-muted);
-  opacity: 0.78;
-  white-space: nowrap;
-}
-
 .rail-collapse {
   flex: 0 0 auto;
   display: grid;
@@ -426,17 +409,6 @@ a:hover {
 
 .rail-section:last-child {
   margin-bottom: 0;
-}
-
-.rail-section-title {
-  padding: 0 10px;
-  margin-bottom: var(--space-2);
-  font-size: var(--text-2xs);
-  font-weight: 650;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--rail-muted);
-  opacity: 0.78;
 }
 
 .rail-link {
@@ -585,17 +557,6 @@ a:hover {
   background: var(--rail-hover);
 }
 
-.rail-connection {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--rail-line);
-  font-size: var(--text-2xs);
-  color: var(--rail-muted);
-}
-
 /* 桌面端可手动收起：收起后只保留图标，图标按钮仍可直接点击。 */
 @media (min-width: 901px) {
   .app-shell.is-rail-collapsed {
@@ -613,10 +574,6 @@ a:hover {
     padding: var(--space-3) 0 0;
   }
 
-  .app-shell.is-rail-collapsed .rail-head-title {
-    display: none;
-  }
-
   .app-shell.is-rail-collapsed .rail-scroll {
     padding-left: 6px;
     padding-right: 6px;
@@ -631,11 +588,9 @@ a:hover {
     padding: 0;
   }
 
-  .app-shell.is-rail-collapsed .rail-section-title,
   .app-shell.is-rail-collapsed .rail-label,
   .app-shell.is-rail-collapsed .rail-note,
-  .app-shell.is-rail-collapsed .rail-user-copy,
-  .app-shell.is-rail-collapsed .rail-connection-label {
+  .app-shell.is-rail-collapsed .rail-user-copy {
     display: none;
   }
 
@@ -652,10 +607,6 @@ a:hover {
   .app-shell.is-rail-collapsed .rail-user {
     flex-direction: column;
     gap: var(--space-2);
-  }
-
-  .app-shell.is-rail-collapsed .rail-connection {
-    justify-content: center;
   }
 
   .app-shell.is-rail-collapsed .rail-section + .rail-section {
@@ -820,10 +771,6 @@ a:hover {
   }
 }
 
-.is-spinning {
-  animation: spin 0.9s linear infinite;
-}
-
 @media (max-width: 1240px) {
   .topbar-search {
     display: none;
@@ -903,7 +850,7 @@ a:hover {
 }
 
 @media (max-width: 720px) {
-  .status-cluster .status-item:not(.is-realtime) {
+  .status-cluster .status-item {
     display: none;
   }
 

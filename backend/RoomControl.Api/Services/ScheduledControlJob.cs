@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Quartz;
 using RoomControl.Api.Data;
-using RoomControl.Api.Integrations;
 using RoomControl.Api.Models;
 
 namespace RoomControl.Api.Services;

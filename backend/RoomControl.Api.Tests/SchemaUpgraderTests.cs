@@ -297,6 +297,19 @@ public sealed class SchemaUpgraderTests
         Assert.Contains("Target", columns);
         Assert.Contains("StatusCode", columns);
         Assert.Contains("OccurredAtUtc", columns);
+
+        // Users 表与 EF 模型保持一致：DateTimeOffset 以 UTC ticks（INTEGER）存储。
+        await using var usersCommand = connection.CreateCommand();
+        usersCommand.CommandText = "PRAGMA table_info(\"Users\")";
+        var userColumns = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        await using var usersReader = await usersCommand.ExecuteReaderAsync();
+        while (await usersReader.ReadAsync())
+        {
+            userColumns[usersReader.GetString(1)] = usersReader.GetString(2);
+        }
+
+        Assert.Equal("INTEGER", userColumns["CreatedAt"]);
+        Assert.Equal("INTEGER", userColumns["UpdatedAt"]);
     }
 
     [Fact]

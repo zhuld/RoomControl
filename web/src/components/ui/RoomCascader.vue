@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { buildingOf, collator, floorOf } from '../../lib/rooms'
 import type { Room } from '../../types'
 
 // 统一的教室选择方式：楼栋 → 楼层 → 教室三级联动。
@@ -18,21 +19,9 @@ const emit = defineEmits<{
   'levels-change': [levels: { building: string; floor: string }]
 }>()
 
-const UNASSIGNED_BUILDING = '未分配楼栋'
-const UNASSIGNED_FLOOR = '未分配楼层'
-const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
-
 const selectedBuilding = ref('')
 const selectedFloor = ref('')
 const selectedRoom = ref('')
-
-function buildingOf(room: Room) {
-  return room.building?.trim() || UNASSIGNED_BUILDING
-}
-
-function floorOf(room: Room) {
-  return room.floor?.trim() || UNASSIGNED_FLOOR
-}
 
 const buildingOptions = computed(() =>
   [...new Set(props.rooms.map(buildingOf))].sort(collator.compare),

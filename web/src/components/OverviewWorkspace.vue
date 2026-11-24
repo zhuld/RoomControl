@@ -1,8 +1,19 @@
 <script setup lang="ts">
-import { computed, inject, ref, watch } from 'vue'
-import { formatClock, formatRelative } from '../lib/format'
-import { actionSlotKey, compactModeKey } from '../lib/layout'
-import type { CurrentUser, FeedbackTone, Room, Schedule, SettingsSection } from '../types'
+import { computed, ref, watch } from 'vue'
+import { formatRelative } from '../lib/format'
+import {
+  buildingOf,
+  collator,
+  countRooms,
+  floorOf,
+  roomStatus,
+  roomStatusLabel,
+  roomStatusTone,
+  type RoomStatus,
+  type StatusFilter,
+} from '../lib/rooms'
+import { groupSchedules, type ScheduleGroup } from '../lib/schedules'
+import type { CurrentUser, Room, Schedule, SettingsSection } from '../types'
 import EmptyState from './ui/EmptyState.vue'
 import RoomCascader from './ui/RoomCascader.vue'
 import StatusPill from './ui/StatusPill.vue'
@@ -14,33 +25,17 @@ const props = defineProps<{
   schedules: Schedule[]
   currentUser: CurrentUser | null
   now: Date
-  lastRefreshAt: Date | null
 }>()
 
 const emit = defineEmits<{
   selectRoom: [roomId: string]
   openAutomation: [target?: { roomId?: string; scheduleId?: string }]
   openSettings: [section: SettingsSection, roomId?: string]
-  refresh: []
 }>()
 
-type RoomStatus = 'online' | 'offline' | 'unconfigured'
-type StatusFilter = 'all' | RoomStatus
-
-const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
-const compactMode = inject(compactModeKey, ref(false))
-const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const selectedRoomFilter = ref('')
 const levelFilters = ref<{ building: string; floor: string }>({ building: '', floor: '' })
 const statusFilter = ref<StatusFilter>('all')
-
-function buildingOf(room: Room) {
-  return room.building?.trim() || '未分配楼栋'
-}
-
-function floorOf(room: Room) {
-  return room.floor?.trim() || '未分配楼层'
-}
 
 const canOperate = computed(() => props.currentUser?.role !== 'viewer')
 const canManage = computed(() => props.currentUser?.role === 'admin')
@@ -58,41 +53,12 @@ const activeTaskCount = computed(
   () => new Set(activeSchedules.value.map((schedule) => schedule.groupId ?? schedule.id)).size,
 )
 
-interface ScheduleGroup {
-  key: string
-  name: string
-  joinName: string
-  roomNames: string[]
-  targetIds: string[]
-  nextRunAtUtc: string
-}
-
-// 多教室任务按 GroupId 合并，避免总览对同一计划重复计数。
-const scheduleGroups = computed<ScheduleGroup[]>(() => {
-  const map = new Map<string, ScheduleGroup>()
-  for (const schedule of activeSchedules.value) {
-    if (!schedule.nextRunAtUtc) continue
-    const key = schedule.groupId ?? schedule.id
-    const existing = map.get(key)
-    if (!existing) {
-      map.set(key, {
-        key,
-        name: schedule.name,
-        joinName: schedule.joinName,
-        roomNames: [schedule.roomName],
-        targetIds: [schedule.id],
-        nextRunAtUtc: schedule.nextRunAtUtc,
-      })
-      continue
-    }
-    if (!existing.roomNames.includes(schedule.roomName)) existing.roomNames.push(schedule.roomName)
-    existing.targetIds.push(schedule.id)
-    if (new Date(schedule.nextRunAtUtc).getTime() < new Date(existing.nextRunAtUtc).getTime()) {
-      existing.nextRunAtUtc = schedule.nextRunAtUtc
-    }
-  }
-  return [...map.values()]
-})
+// 多教室任务按 GroupId 合并；总览只展示已有下次执行时间的目标。
+const scheduleGroups = computed(() =>
+  groupSchedules(activeSchedules.value).filter(
+    (group): group is ScheduleGroup & { nextRunAtUtc: string } => group.nextRunAtUtc !== null,
+  ),
+)
 
 const overdueGroups = computed(() =>
   scheduleGroups.value.filter(
@@ -135,7 +101,7 @@ const attentionItems = computed<AttentionItem[]>(() => {
       id: `offline-${room.id}`,
       tone: 'danger',
       icon: 'alert',
-      title: `${room.building || '未分配楼栋'} · ${room.name} 中控离线`,
+      title: `${buildingOf(room)} · ${room.name} 中控离线`,
       detail: controller.lastError
         ? controller.lastError
         : '连接已断开，等待自动重连。',
@@ -150,7 +116,7 @@ const attentionItems = computed<AttentionItem[]>(() => {
       id: `unconfigured-${room.id}`,
       tone: 'warning',
       icon: 'connection',
-      title: `${room.building || '未分配楼栋'} · ${room.name} 尚未接入中控`,
+      title: `${buildingOf(room)} · ${room.name} 尚未接入中控`,
       detail: canManage.value ? '补齐地址、端口与 IPID 后即可开始同步状态。' : '请联系管理员完成接入。',
       actionLabel: canManage.value ? '去接入中控' : '查看教室',
       target: canManage.value ? 'settings' : 'room',
@@ -160,7 +126,7 @@ const attentionItems = computed<AttentionItem[]>(() => {
 
   for (const group of overdueGroups.value) {
     items.push({
-      id: `overdue-${group.targetIds[0]}`,
+      id: `overdue-${group.targets[0].id}`,
       tone: 'danger',
       icon: 'clock',
       title: `任务「${group.name}」未按计划执行`,
@@ -176,40 +142,18 @@ const attentionItems = computed<AttentionItem[]>(() => {
 
 const attentionCount = computed(() => attentionItems.value.length)
 
-const buildingCount = computed(
-  () => new Set(props.rooms.map((room) => room.building?.trim() || '未分配楼栋')).size,
-)
+const buildingCount = computed(() => new Set(props.rooms.map(buildingOf)).size)
 const floorCount = computed(
-  () =>
-    new Set(
-      props.rooms.map(
-        (room) => `${room.building?.trim() || '未分配楼栋'}/${room.floor?.trim() || '未分配楼层'}`,
-      ),
-    ).size,
+  () => new Set(props.rooms.map((room) => `${buildingOf(room)}/${floorOf(room)}`)).size,
 )
-
-function roomStatus(room: Room): RoomStatus {
-  if (!room.controller) return 'unconfigured'
-  return room.controller.isOnline ? 'online' : 'offline'
-}
-
-function statusLabel(room: Room) {
-  if (roomStatus(room) === 'unconfigured') return '未接入'
-  return roomStatus(room) === 'online' ? '在线' : '离线'
-}
-
-function statusTone(room: Room): FeedbackTone {
-  if (roomStatus(room) === 'unconfigured') return 'warning'
-  return roomStatus(room) === 'online' ? 'success' : 'danger'
-}
 
 const sortedRooms = computed(() => {
   const priority: Record<RoomStatus, number> = { offline: 0, unconfigured: 1, online: 2 }
   return [...props.rooms].sort(
     (left, right) =>
       priority[roomStatus(left)] - priority[roomStatus(right)] ||
-      collator.compare(left.building || '未分配楼栋', right.building || '未分配楼栋') ||
-      collator.compare(left.floor || '未分配楼层', right.floor || '未分配楼层') ||
+      collator.compare(buildingOf(left), buildingOf(right)) ||
+      collator.compare(floorOf(left), floorOf(right)) ||
       collator.compare(left.name, right.name),
   )
 })
@@ -232,8 +176,7 @@ const filteredRooms = computed(() =>
 )
 
 function filterCount(status: StatusFilter) {
-  if (status === 'all') return locationRooms.value.length
-  return locationRooms.value.filter((room) => roomStatus(room) === status).length
+  return countRooms(locationRooms.value, status)
 }
 
 function handleLevelsChange(levels: { building: string; floor: string }) {
@@ -286,16 +229,6 @@ function handleAttention(item: AttentionItem) {
         <p v-if="canOperate">先处理异常，再进入教室操作。控制点状态以中控回报为准，尚未回报时按低电平（关闭）显示。</p>
         <p v-else>只读查看各教室的中控在线状态与控制点状态；尚未回报的控制点按低电平（关闭）显示。</p>
       </div>
-      <!-- <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
-        <div class="workspace-actions">
-          <span class="text-xs muted tabular">
-            {{ lastRefreshAt ? `数据刷新于 ${formatClock(lastRefreshAt)}` : '尚未刷新数据' }}
-          </span>
-          <button type="button" class="btn btn-quiet" @click="emit('refresh')">
-            <UiIcon name="refresh" :size="16" />刷新
-          </button>
-        </div>
-      </Teleport> -->
     </header>
 
     <section class="kpi-grid overview-summary" aria-label="站点概况">
@@ -456,10 +389,10 @@ function handleAttention(item: AttentionItem) {
             @click="emit('selectRoom', room.id)">
             <div class="room-card-head">
               <div class="room-card-title">
-                <p class="eyebrow">{{ room.building || '未分配楼栋' }} · {{ room.floor || '未分配楼层' }}</p>
+                <p class="eyebrow">{{ buildingOf(room) }} · {{ floorOf(room) }}</p>
                 <h3>{{ room.name }}</h3>
               </div>
-              <StatusPill :tone="statusTone(room)" :label="statusLabel(room)" dot />
+              <StatusPill :tone="roomStatusTone(room)" :label="roomStatusLabel(room)" dot />
             </div>
             <p class="room-card-meta">
               <template v-if="room.controller">

@@ -1,6 +1,6 @@
 namespace RoomControl.Api.Models;
 
-/// <summary>单次定时任务执行结果；即使任务归档仍保留此记录。</summary>
+/// <summary>单次定时任务执行结果；随所属任务目标一起删除。</summary>
 public sealed class ScheduleExecution
 {
     public Guid Id { get; set; } = Guid.NewGuid();

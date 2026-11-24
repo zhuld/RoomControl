@@ -3,6 +3,8 @@ import { computed, inject, nextTick, onBeforeUnmount, reactive, ref, watch } fro
 import { readJson, request, toErrorMessage } from '../api'
 import { formatClock, formatDateTime, formatRelative } from '../lib/format'
 import { actionSlotKey, compactModeKey } from '../lib/layout'
+import { collator } from '../lib/rooms'
+import { groupSchedules, type ScheduleGroup } from '../lib/schedules'
 import type {
   AutomationTarget,
   CurrentUser,
@@ -35,27 +37,10 @@ const emit = defineEmits<{
 
 type StatusFilter = 'all' | 'enabled' | 'disabled'
 
-// 同一任务在多间教室各生成一个目标，界面上按 GroupId 合并成一行。
-interface ScheduleTask {
-  key: string
-  groupId: string | null
-  name: string
-  kind: ScheduleKind
-  joinName: string
-  roomNames: string[]
-  targets: Schedule[]
-  enabled: boolean
-  nextRunAtUtc: string | null
-  weekdayMask: number
-  localTime: string
-  runAtUtc: string | null
-}
-
 interface TaskExecution extends ScheduleExecution {
   roomName: string
 }
 
-const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
 const compactMode = inject(compactModeKey, ref(false))
 const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const taskQuery = ref('')
@@ -86,7 +71,7 @@ const form = reactive({
 })
 
 const formBusy = ref(false)
-const pendingDelete = ref<ScheduleTask | null>(null)
+const pendingDelete = ref<ScheduleGroup | null>(null)
 const deleteBusy = ref(false)
 const stateBusyKey = ref('')
 
@@ -109,7 +94,7 @@ const schedulableRooms = computed(() =>
   props.rooms.filter((room) => room.controller && room.controller.joins.length > 0),
 )
 
-const tasks = computed(() => groupTasks(props.schedules))
+const tasks = computed(() => groupSchedules(props.schedules))
 
 const roomOptions = computed(() =>
   [...new Set(tasks.value.flatMap((task) => task.roomNames))].sort(collator.compare),
@@ -166,45 +151,6 @@ const selectedTargets = computed(() =>
     .filter((join): join is JoinMapping => Boolean(join)),
 )
 
-function groupTasks(list: Schedule[]): ScheduleTask[] {
-  const map = new Map<string, ScheduleTask>()
-  for (const schedule of list) {
-    const key = schedule.groupId ?? schedule.id
-    const existing = map.get(key)
-    if (!existing) {
-      map.set(key, {
-        key,
-        groupId: schedule.groupId,
-        name: schedule.name,
-        kind: schedule.kind,
-        joinName: schedule.joinName,
-        roomNames: [schedule.roomName],
-        targets: [schedule],
-        enabled: schedule.enabled,
-        nextRunAtUtc: schedule.nextRunAtUtc,
-        weekdayMask: schedule.weekdayMask,
-        localTime: schedule.localTime,
-        runAtUtc: schedule.runAtUtc,
-      })
-      continue
-    }
-
-    if (!existing.roomNames.includes(schedule.roomName)) existing.roomNames.push(schedule.roomName)
-    existing.targets.push(schedule)
-    existing.enabled = existing.enabled || schedule.enabled
-    if (
-      schedule.nextRunAtUtc &&
-      (!existing.nextRunAtUtc ||
-        new Date(schedule.nextRunAtUtc).getTime() < new Date(existing.nextRunAtUtc).getTime())
-    ) {
-      existing.nextRunAtUtc = schedule.nextRunAtUtc
-    }
-    if (schedule.kind === 'Once' && schedule.runAtUtc) existing.runAtUtc = schedule.runAtUtc
-    existing.weekdayMask |= schedule.weekdayMask
-  }
-  return [...map.values()]
-}
-
 function toLocalDateInput(date: Date) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
 }
@@ -222,7 +168,7 @@ function localTimeValue() {
   return `${pad2(form.localHour)}:${pad2(form.localMinute)}:00`
 }
 
-function taskRoomsLabel(task: ScheduleTask) {
+function taskRoomsLabel(task: ScheduleGroup) {
   if (task.roomNames.length <= 2) return task.roomNames.join('、')
   return `${task.roomNames.slice(0, 2).join('、')} 等 ${task.roomNames.length} 间`
 }
@@ -289,7 +235,7 @@ function isOverdue(value: string | null) {
   return value !== null && new Date(value).getTime() < props.now.getTime() - 60_000
 }
 
-async function loadHistory(task: ScheduleTask, force = false) {
+async function loadHistory(task: ScheduleGroup, force = false) {
   if (!force && historyCache[task.key]) return
   historyLoadingKey.value = task.key
   historyError.value = ''
@@ -310,7 +256,7 @@ async function loadHistory(task: ScheduleTask, force = false) {
   }
 }
 
-async function toggleHistory(task: ScheduleTask) {
+async function toggleHistory(task: ScheduleGroup) {
   if (openTaskKey.value === task.key) {
     openTaskKey.value = ''
     return
@@ -422,7 +368,7 @@ async function submitForm() {
   }
 }
 
-function startEdit(task: ScheduleTask) {
+function startEdit(task: ScheduleGroup) {
   formOpen.value = true
   form.mode = 'edit'
   form.editingGroupId = task.groupId ?? task.targets[0]?.id ?? ''
@@ -443,7 +389,7 @@ function startEdit(task: ScheduleTask) {
   void nextTick(() => document.getElementById('auto-form')?.focus())
 }
 
-function requestDelete(task: ScheduleTask) {
+function requestDelete(task: ScheduleGroup) {
   pendingDelete.value = task
 }
 
@@ -469,7 +415,7 @@ async function confirmDelete() {
 }
 
 // 暂停与恢复共用同一组端点，恢复时由后端按当前时间重算下一次执行。
-async function toggleTaskState(task: ScheduleTask) {
+async function toggleTaskState(task: ScheduleGroup) {
   const groupId = task.groupId ?? task.targets[0]?.id
   if (!groupId) return
   stateBusyKey.value = task.key

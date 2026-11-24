@@ -33,7 +33,7 @@ npm run build  # 类型检查并生成 dist/
 - 组件只使用语义令牌（如 `--success-text`、`--surface`、`--gap`），不写死颜色或魔法间距。
 - 新增主题只需覆写 `[data-theme]` 中的色板；组件样式不随主题变化。
 - 状态色限定为 success / warning / danger / info / neutral 五类语义。
-- 显示密度（「配置与接入 · 站点与外观」）主要改变密度令牌；紧凑模式会隐藏整个工作区页头（`.workspace-header`），各工作区通过 `Teleport` 把 `.workspace-actions` 放进顶部栏槽位（`lib/layout.ts` 的 `compactModeKey` / `actionSlotKey`）。顶部栏不提供全局刷新按钮，刷新统一由各工作区自己的入口完成。偏好保存在当前浏览器。
+- 显示密度（「配置与接入 · 站点与外观」）主要改变密度令牌；紧凑模式会隐藏整个工作区页头（`.workspace-header`），自动任务、站点配置与操作记录页通过 `Teleport` 把 `.workspace-actions` 放进顶部栏槽位（`lib/layout.ts` 的 `compactModeKey` / `actionSlotKey`）。总览与教室操作页不提供独立页头操作，数据随实时推送与轮询更新。偏好保存在当前浏览器。
 - 总览、操作台与配置页的教室定位统一使用 `RoomCascader`（楼栋 → 楼层 → 教室）；筛选场景通过 `allow-all` 暴露「全部楼栋/楼层/教室」。
 - 顶栏保留自由文本快速搜索，输入楼栋/楼层/教室或完整路径后回车跳转，适合已知目标时的快速定位。
 - 左侧任务栏默认自动收起为 64px 图标栏，悬停或键盘聚焦时展开为 248px 浮层；底部固定按钮可常驻展开，偏好保存在当前浏览器。窄屏（≤900px）使用抽屉式导航。

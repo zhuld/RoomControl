@@ -131,8 +131,9 @@ public static class SchemaUpgrader
                     "PasswordSalt" BLOB NOT NULL,
                     "Role" INTEGER NOT NULL DEFAULT 2,
                     "IsActive" INTEGER NOT NULL DEFAULT 1,
-                    "CreatedAt" TEXT NOT NULL,
-                    "UpdatedAt" TEXT NULL
+                    -- DateTimeOffset 在 SQLite 中由 ValueConverter 存为 UTC ticks。
+                    "CreatedAt" INTEGER NOT NULL,
+                    "UpdatedAt" INTEGER NULL
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Username" ON "Users" ("Username");
                 CREATE TABLE IF NOT EXISTS "AuditLogs" (
@@ -281,7 +282,7 @@ public static class SchemaUpgrader
                 "Id" uuid NOT NULL CONSTRAINT "PK_AuditLogs" PRIMARY KEY,
                 "Category" character varying(32) NOT NULL,
                 "Action" character varying(300) NOT NULL,
-                "Target" character varying(200) NOT NULL DEFAULT '',
+                "Target" character varying(512) NOT NULL DEFAULT '',
                 "Actor" character varying(60) NOT NULL,
                 "StatusCode" integer NOT NULL,
                 "OccurredAtUtc" timestamp with time zone NOT NULL
@@ -290,7 +291,18 @@ public static class SchemaUpgrader
                 ON "AuditLogs" ("Category", "OccurredAtUtc");
             CREATE INDEX IF NOT EXISTS "IX_AuditLogs_OccurredAtUtc"
                 ON "AuditLogs" ("OccurredAtUtc");
-            ALTER TABLE IF EXISTS "AuditLogs" ADD COLUMN IF NOT EXISTS "Target" character varying(200) NOT NULL DEFAULT '';
+            ALTER TABLE IF EXISTS "AuditLogs" ADD COLUMN IF NOT EXISTS "Target" character varying(512) NOT NULL DEFAULT '';
+            DO $$
+            DECLARE current_length integer;
+            BEGIN
+                SELECT character_maximum_length INTO current_length
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                    AND table_name = 'AuditLogs' AND column_name = 'Target';
+                IF current_length IS NOT NULL AND current_length < 512 THEN
+                    ALTER TABLE "AuditLogs" ALTER COLUMN "Target" TYPE character varying(512);
+                END IF;
+            END $$;
             UPDATE "AuditLogs" SET "Category" = 'state' WHERE "Category" = 'control' AND "Action" LIKE '状态变更%';
             UPDATE "AuditLogs" SET "Category" = 'connection' WHERE "Category" = 'state' AND "Action" IN ('中控连接成功', '中控连接断开');
             UPDATE "JoinSnapshots" SET "DigitalValue" = false WHERE "DigitalValue" IS NULL;

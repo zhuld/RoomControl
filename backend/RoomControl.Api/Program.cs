@@ -18,6 +18,8 @@ using RoomControl.Api.Models;
 using RoomControl.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+// 所有接口均为小体积 JSON；限制请求体大小，避免超长正文占用内存和 CPU。
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 1024 * 1024);
 var connectionString = builder.Configuration.GetConnectionString("RoomControl")
     ?? throw new InvalidOperationException("Set ConnectionStrings__RoomControl before starting the API.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? "PostgreSQL";
@@ -158,6 +160,26 @@ var app = builder.Build();
 
 // 先解析可信代理头，后续限流和 Cookie 安全策略才能读取原始客户端信息。
 app.UseForwardedHeaders();
+
+// 统一附加基础安全响应头；页面不嵌入 iframe，也不依赖外部引荐来源。
+// 通过 OnStarting 写入，确保异常处理清空响应后仍会带上这些头。
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        var headers = context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "no-referrer";
+        // API 返回账号、状态与日志数据，禁止中间缓存保存。
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            headers["Cache-Control"] = "no-store";
+        }
+        return Task.CompletedTask;
+    });
+    await next();
+});
 
 app.UseRateLimiter();
 
@@ -349,7 +371,7 @@ api.MapGet("/logs", async (
         })
         .ToListAsync(cancellationToken);
     return Results.Ok(logs);
-}).RequireAuthorization();
+});
 
 api.MapGet("/logs/settings", async (
     AuditLogRetentionService retentionService,
@@ -474,7 +496,7 @@ api.MapPut("/branding", async (
     return Results.Ok(new { settings.DisplayName, settings.Subtitle, settings.LogoDataUrl });
 }).RequireAuthorization("AdminOnly");
 
-// 位置、教室、中控和 Join 配置接口；删除上游对象时同步归档相关任务。
+// 位置、教室、中控和 Join 配置接口；删除上游对象时同步删除相关任务。
 api.MapGet("/controller-types", () => Results.Ok(ControllerAdapterTypes.All));
 
 api.MapGet("/buildings", async (ControlDbContext db, CancellationToken cancellationToken) =>
@@ -494,7 +516,7 @@ api.MapGet("/buildings", async (ControlDbContext db, CancellationToken cancellat
 });
 
 api.MapPost("/buildings", async (
-    CreateBuildingRequest request,
+    LocationNameRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
@@ -512,7 +534,7 @@ api.MapPost("/buildings", async (
 
 api.MapPut("/buildings/{buildingId:guid}", async (
     Guid buildingId,
-    CreateBuildingRequest request,
+    LocationNameRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
@@ -560,7 +582,7 @@ api.MapDelete("/buildings/{buildingId:guid}", async (
 
 api.MapPost("/buildings/{buildingId:guid}/floors", async (
     Guid buildingId,
-    CreateFloorRequest request,
+    LocationNameRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
@@ -582,7 +604,7 @@ api.MapPost("/buildings/{buildingId:guid}/floors", async (
 
 api.MapPut("/floors/{floorId:guid}", async (
     Guid floorId,
-    CreateFloorRequest request,
+    LocationNameRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
@@ -760,16 +782,7 @@ api.MapPost("/rooms/{roomId:guid}/controller", async (
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
-    var adapterType = ControllerAdapterTypes.Find(request.AdapterType)
-        ?? throw new ArgumentException("请选择支持的中控类型。");
-    if (string.IsNullOrWhiteSpace(request.Host))
-    {
-        throw new ArgumentException("Controller host is required.");
-    }
-    if (request.Port is < 1 or > 65535 || request.Ipid is < 0 or > 255)
-    {
-        throw new ArgumentException("Port must be 1-65535 and IPID must be 0-255.");
-    }
+    var adapterType = ValidateControllerDefinition(request.AdapterType, request.Host, request.Port, request.Ipid);
     var room = await db.Rooms.Include(item => item.Controller)
         .SingleOrDefaultAsync(item => item.Id == roomId, cancellationToken)
         ?? throw new KeyNotFoundException("Room was not found.");
@@ -809,16 +822,7 @@ api.MapPut("/controllers/{controllerId:guid}", async (
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
-    var adapterType = ControllerAdapterTypes.Find(request.AdapterType)
-        ?? throw new ArgumentException("请选择支持的中控类型。");
-    if (string.IsNullOrWhiteSpace(request.Host))
-    {
-        throw new ArgumentException("Controller host is required.");
-    }
-    if (request.Port is < 1 or > 65535 || request.Ipid is < 0 or > 255)
-    {
-        throw new ArgumentException("Invalid controller port or IPID.");
-    }
+    var adapterType = ValidateControllerDefinition(request.AdapterType, request.Host, request.Port, request.Ipid);
 
     var controller = await db.Controllers.SingleOrDefaultAsync(item => item.Id == controllerId, cancellationToken)
         ?? throw new KeyNotFoundException("Controller was not found.");
@@ -852,20 +856,11 @@ api.MapDelete("/controllers/{controllerId:guid}", async (
 // Join 映射支持脉冲发送与状态/使能反馈；定时任务复用同一发送服务。
 api.MapPost("/controllers/{controllerId:guid}/joins", async (
     Guid controllerId,
-    CreateJoinMappingRequest request,
+    JoinMappingDefinitionRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
-    if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 120)
-    {
-        throw new ArgumentException("Join name is required and must be at most 120 characters.");
-    }
-    if (request.SendJoinNumber is < 1 or > 32768 ||
-        request.StateJoinNumber is < 1 or > 32768 ||
-        request.EnableJoinNumber is < 0 or > 32768)
-    {
-        throw new ArgumentException("Send and state Join numbers must be between 1 and 32768; enable Join must be 0 or between 1 and 32768.");
-    }
+    ValidateJoinDefinition(request);
 
     if (!await db.Controllers.AnyAsync(item => item.Id == controllerId, cancellationToken))
     {
@@ -910,20 +905,11 @@ api.MapPost("/controllers/{controllerId:guid}/joins", async (
 
 api.MapPut("/joins/{mappingId:guid}", async (
     Guid mappingId,
-    UpdateJoinMappingRequest request,
+    JoinMappingDefinitionRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
-    if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 120)
-    {
-        throw new ArgumentException("Join name is required and must be at most 120 characters.");
-    }
-    if (request.SendJoinNumber is < 1 or > 32768 ||
-        request.StateJoinNumber is < 1 or > 32768 ||
-        request.EnableJoinNumber is < 0 or > 32768)
-    {
-        throw new ArgumentException("Send and state Join numbers must be between 1 and 32768; enable Join must be 0 or between 1 and 32768.");
-    }
+    ValidateJoinDefinition(request);
 
     var mapping = await db.JoinMappings.SingleOrDefaultAsync(item => item.Id == mappingId, cancellationToken)
         ?? throw new KeyNotFoundException("Join mapping was not found.");
@@ -953,7 +939,7 @@ api.MapPut("/joins/{mappingId:guid}", async (
 
 api.MapPost("/joins/{mappingId:guid}/copy", async (
     Guid mappingId,
-    CopyJoinMappingRequest request,
+    CopyJoinMappingsRequest request,
     ControlDbContext db,
     ScheduleService scheduleService,
     CancellationToken cancellationToken) =>
@@ -966,23 +952,8 @@ api.MapPost("/joins/{mappingId:guid}/copy", async (
         throw new InvalidOperationException("Analog and serial control points are no longer supported.");
     }
 
-    var targetIds = (request.ControllerIds ?? [])
-        .Distinct()
-        .Where(id => id != source.ControllerId)
-        .ToList();
-    if (targetIds.Count == 0)
-    {
-        throw new ArgumentException("Please select at least one other room.");
-    }
-
-    var targets = await db.Controllers
-        .Include(controller => controller.Room)
-        .Where(controller => targetIds.Contains(controller.Id))
-        .ToListAsync(cancellationToken);
-    if (targets.Count != targetIds.Count)
-    {
-        throw new KeyNotFoundException("A target controller was not found.");
-    }
+    var targets = await LoadCopyTargetControllersAsync(
+        db, request.ControllerIds, source.ControllerId, cancellationToken);
 
     foreach (var target in targets)
     {
@@ -1001,17 +972,7 @@ api.MapPost("/joins/{mappingId:guid}/copy", async (
         var sortOrder = (await db.JoinMappings
             .Where(item => item.ControllerId == target.Id)
             .MaxAsync(item => (int?)item.SortOrder, cancellationToken) ?? -1) + 1;
-        db.JoinMappings.Add(new JoinMapping
-        {
-            ControllerId = target.Id,
-            Name = source.Name,
-            Kind = JoinKind.Digital,
-            SendJoinNumber = source.SendJoinNumber,
-            StateJoinNumber = source.StateJoinNumber,
-            EnableJoinNumber = source.EnableJoinNumber,
-            ShowConfirmationPopup = source.ShowConfirmationPopup,
-            SortOrder = sortOrder
-        });
+        db.JoinMappings.Add(CloneMapping(source, target.Id, sortOrder));
     }
 
     await db.SaveChangesAsync(cancellationToken);
@@ -1020,7 +981,7 @@ api.MapPost("/joins/{mappingId:guid}/copy", async (
 
 api.MapPost("/controllers/{controllerId:guid}/joins/copy-all", async (
     Guid controllerId,
-    CopyAllJoinMappingsRequest request,
+    CopyJoinMappingsRequest request,
     ControlDbContext db,
     ScheduleService scheduleService,
     CancellationToken cancellationToken) =>
@@ -1035,23 +996,8 @@ api.MapPost("/controllers/{controllerId:guid}/joins/copy-all", async (
         throw new InvalidOperationException("当前教室没有可复制的控制点。");
     }
 
-    var targetIds = (request.ControllerIds ?? [])
-        .Distinct()
-        .Where(id => id != controllerId)
-        .ToList();
-    if (targetIds.Count == 0)
-    {
-        throw new ArgumentException("Please select at least one other room.");
-    }
-
-    var targets = await db.Controllers
-        .Include(controller => controller.Room)
-        .Where(controller => targetIds.Contains(controller.Id))
-        .ToListAsync(cancellationToken);
-    if (targets.Count != targetIds.Count)
-    {
-        throw new KeyNotFoundException("A target controller was not found.");
-    }
+    var targets = await LoadCopyTargetControllersAsync(
+        db, request.ControllerIds, controllerId, cancellationToken);
 
     foreach (var target in targets)
     {
@@ -1066,18 +1012,7 @@ api.MapPost("/controllers/{controllerId:guid}/joins/copy-all", async (
 
         for (var index = 0; index < sourceMappings.Count; index++)
         {
-            var source = sourceMappings[index];
-            db.JoinMappings.Add(new JoinMapping
-            {
-                ControllerId = target.Id,
-                Name = source.Name,
-                Kind = JoinKind.Digital,
-                SendJoinNumber = source.SendJoinNumber,
-                StateJoinNumber = source.StateJoinNumber,
-                EnableJoinNumber = source.EnableJoinNumber,
-                ShowConfirmationPopup = source.ShowConfirmationPopup,
-                SortOrder = index
-            });
+            db.JoinMappings.Add(CloneMapping(sourceMappings[index], target.Id, index));
         }
     }
 
@@ -1181,15 +1116,10 @@ api.MapPost("/schedules", async (
         request.WeekdayMask,
         request.LocalTime,
         cancellationToken);
-    var groupId = schedules[0].GroupId;
-    return Results.Created($"/api/schedules/groups/{groupId}", new
-    {
-        GroupId = groupId,
-        TargetIds = schedules.Select(schedule => schedule.Id).ToArray(),
-        schedules[0].Name,
-        schedules[0].Kind,
-        schedules[0].NextRunAtUtc
-    });
+    var groupId = schedules[0].GroupId!.Value;
+    return Results.Created(
+        $"/api/schedules/groups/{groupId}",
+        ScheduleGroupPayload(groupId, schedules));
 }).RequireAuthorization("OperatorOrAdmin");
 
 api.MapPut("/schedules/groups/{groupId:guid}", async (
@@ -1208,14 +1138,7 @@ api.MapPut("/schedules/groups/{groupId:guid}", async (
         request.WeekdayMask,
         request.LocalTime,
         cancellationToken);
-    return Results.Ok(new
-    {
-        GroupId = groupId,
-        TargetIds = schedules.Select(schedule => schedule.Id).ToArray(),
-        schedules[0].Name,
-        schedules[0].Kind,
-        schedules[0].NextRunAtUtc
-    });
+    return Results.Ok(ScheduleGroupPayload(groupId, schedules));
 }).RequireAuthorization("OperatorOrAdmin");
 
 api.MapDelete("/schedules/groups/{groupId:guid}", async (
@@ -1269,8 +1192,9 @@ api.MapGet("/schedules/{scheduleId:guid}/executions", async (
     return Results.Ok(executions);
 });
 
-// SignalR 与 REST 共用 Cookie 会话；其余未匹配的 GET 交给单页应用入口。
+// SignalR 与 REST 共用 Cookie 会话；未知 API 路径返回 404，其余未匹配请求交给单页应用入口。
 app.MapHub<ControlHub>("/hubs/control").RequireAuthorization();
+app.Map("/api/{**path}", () => Results.NotFound());
 app.MapFallbackToFile("index.html");
 
 // 创建与修改共用同一套校验，保证一次性/每周任务的字段一致性。
@@ -1284,7 +1208,7 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
     {
         throw new ArgumentException("Unsupported schedule kind.");
     }
-    if (request.JoinMappingIds.Count == 0)
+    if (request.JoinMappingIds is null || request.JoinMappingIds.Count == 0)
     {
         throw new ArgumentException("At least one control point is required.");
     }
@@ -1363,6 +1287,95 @@ static string NormalizeLocationName(string? name, string label)
 
     return trimmed;
 }
+
+// 创建与更新中控共用同一套地址、端口和 IPID 校验。
+static ControllerAdapterOption ValidateControllerDefinition(
+    string adapterTypeKey,
+    string? host,
+    int port,
+    int ipid)
+{
+    var adapterType = ControllerAdapterTypes.Find(adapterTypeKey)
+        ?? throw new ArgumentException("请选择支持的中控类型。");
+    if (string.IsNullOrWhiteSpace(host))
+    {
+        throw new ArgumentException("Controller host is required.");
+    }
+    if (host.Trim().Length > 255)
+    {
+        throw new ArgumentException("Controller host must be at most 255 characters.");
+    }
+    if (port is < 1 or > 65535 || ipid is < 0 or > 255)
+    {
+        throw new ArgumentException("Port must be 1-65535 and IPID must be 0-255.");
+    }
+
+    return adapterType;
+}
+
+// 创建与更新控制点共用同一套名称和 Join 编号校验。
+static void ValidateJoinDefinition(JoinMappingDefinitionRequest request)
+{
+    if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 120)
+    {
+        throw new ArgumentException("Join name is required and must be at most 120 characters.");
+    }
+    if (request.SendJoinNumber is < 1 or > 32768 ||
+        request.StateJoinNumber is < 1 or > 32768 ||
+        request.EnableJoinNumber is < 0 or > 32768)
+    {
+        throw new ArgumentException("Send and state Join numbers must be between 1 and 32768; enable Join must be 0 or between 1 and 32768.");
+    }
+}
+
+static JoinMapping CloneMapping(JoinMapping source, Guid targetControllerId, int sortOrder) =>
+    new()
+    {
+        ControllerId = targetControllerId,
+        Name = source.Name,
+        Kind = JoinKind.Digital,
+        SendJoinNumber = source.SendJoinNumber,
+        StateJoinNumber = source.StateJoinNumber,
+        EnableJoinNumber = source.EnableJoinNumber,
+        ShowConfirmationPopup = source.ShowConfirmationPopup,
+        SortOrder = sortOrder
+    };
+
+// 单点复制与整组复制共用目标校验：排除来源、去重，并要求全部目标存在。
+static async Task<IReadOnlyList<Controller>> LoadCopyTargetControllersAsync(
+    ControlDbContext db,
+    IReadOnlyList<Guid>? controllerIds,
+    Guid sourceControllerId,
+    CancellationToken cancellationToken)
+{
+    var targetIds = (controllerIds ?? [])
+        .Distinct()
+        .Where(id => id != sourceControllerId)
+        .ToList();
+    if (targetIds.Count == 0)
+    {
+        throw new ArgumentException("Please select at least one other room.");
+    }
+
+    var targets = await db.Controllers
+        .Where(controller => targetIds.Contains(controller.Id))
+        .ToListAsync(cancellationToken);
+    if (targets.Count != targetIds.Count)
+    {
+        throw new KeyNotFoundException("A target controller was not found.");
+    }
+
+    return targets;
+}
+
+static object ScheduleGroupPayload(Guid groupId, IReadOnlyList<ControlSchedule> schedules) => new
+{
+    GroupId = groupId,
+    TargetIds = schedules.Select(schedule => schedule.Id).ToArray(),
+    schedules[0].Name,
+    schedules[0].Kind,
+    schedules[0].NextRunAtUtc
+};
 
 static async Task SeedLocationsAsync(ControlDbContext db, CancellationToken cancellationToken)
 {

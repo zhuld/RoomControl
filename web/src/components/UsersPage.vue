@@ -300,7 +300,7 @@ onMounted(() => {
                 v-model="editingUsername"
                 class="input"
                 placeholder="例如：operator01"
-                maxlength="50"
+                maxlength="60"
                 :disabled="Boolean(editingId)"
                 required
               />
@@ -314,6 +314,7 @@ onMounted(() => {
                 type="password"
                 :placeholder="editingId ? '留空表示不修改密码' : '设置初始密码'"
                 minlength="6"
+                maxlength="128"
               />
             </label>
             <label class="field">

@@ -65,6 +65,25 @@ public sealed class UserServiceTests
     }
 
     [Fact]
+    public async Task PasswordLength_IsCappedAt128Characters()
+    {
+        await using var fixture = await UserServiceFixture.CreateAsync();
+        var maxPassword = new string('a', 128);
+        var overlong = new string('a', 129);
+
+        Assert.Throws<ArgumentException>(
+            () => fixture.Service.CreateUser(new CreateUserRequest("ops", overlong, UserRoleExtensions.OperatorName, true)));
+
+        fixture.Service.CreateUser(new CreateUserRequest("ops", maxPassword, UserRoleExtensions.OperatorName, true));
+        Assert.NotNull(fixture.Service.Authenticate("ops", maxPassword));
+
+        // 登录与修改密码都拒绝超长输入，避免无效凭据触发代价高昂的 KDF。
+        Assert.Null(fixture.Service.Authenticate("ops", overlong));
+        Assert.Throws<ArgumentException>(() => fixture.Service.ChangePassword("ops", maxPassword, overlong));
+        Assert.NotNull(fixture.Service.Authenticate("ops", maxPassword));
+    }
+
+    [Fact]
     public async Task GetActiveRole_ReturnsNullForDisabledUser()
     {
         await using var fixture = await UserServiceFixture.CreateAsync();

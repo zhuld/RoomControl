@@ -69,16 +69,6 @@
   color: var(--text);
 }
 
-.btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #ffffff;
-}
-
-.btn-danger:hover:not(:disabled) {
-  filter: brightness(0.94);
-}
-
 .btn-danger-quiet {
   background: var(--danger-soft);
   border-color: var(--danger-border);
@@ -151,8 +141,7 @@
 }
 
 .input,
-.select,
-.textarea {
+.select {
   width: 100%;
   height: var(--control-h);
   padding: 0 10px;
@@ -165,37 +154,26 @@
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 
-.textarea {
-  height: auto;
-  min-height: 88px;
-  padding: 8px 10px;
-  resize: vertical;
-}
-
 .input:hover:not(:disabled),
-.select:hover:not(:disabled),
-.textarea:hover:not(:disabled) {
+.select:hover:not(:disabled) {
   border-color: var(--text-faint);
 }
 
 .input:focus,
-.select:focus,
-.textarea:focus {
+.select:focus {
   outline: none;
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .input:disabled,
-.select:disabled,
-.textarea:disabled {
+.select:disabled {
   background: var(--surface-inset);
   color: var(--text-muted);
   cursor: not-allowed;
 }
 
-.input::placeholder,
-.textarea::placeholder {
+.input::placeholder {
   color: var(--text-faint);
 }
 
@@ -225,11 +203,6 @@
 
 .form-note.is-warning {
   color: var(--warning-text);
-}
-
-.fieldset {
-  display: grid;
-  gap: var(--space-3);
 }
 
 .form-grid {
@@ -362,11 +335,6 @@
   background: currentColor;
 }
 
-.dot.is-lg {
-  width: 9px;
-  height: 9px;
-}
-
 .dot.is-pulse {
   animation: dot-pulse 1.8s ease-in-out infinite;
 }
@@ -381,8 +349,7 @@
   color: var(--danger);
 }
 
-.dot.is-unknown,
-.dot.is-idle {
+.dot.is-unknown {
   background: var(--text-faint);
   color: var(--text-faint);
 }
@@ -405,11 +372,6 @@
 .dot.is-info {
   background: var(--info);
   color: var(--info);
-}
-
-.dot.is-neutral {
-  background: var(--neutral);
-  color: var(--neutral);
 }
 
 @keyframes dot-pulse {
@@ -896,97 +858,12 @@
   font-weight: 600;
 }
 
-.table .is-numeric {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .table-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
-}
-
-/* 标签页 */
-.tabs {
-  display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-}
-
-.tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-}
-
-.tab:hover {
-  color: var(--text);
-}
-
-.tab.active {
-  border-bottom-color: var(--accent);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.tab-count {
-  min-width: 18px;
-  height: 17px;
-  padding: 0 5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  background: var(--surface-inset);
-  color: var(--text-muted);
-  font-size: var(--text-2xs);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 步骤条 */
-.stepper {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-}
-
-.step {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 0 auto;
-  min-height: 38px;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text-muted);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.step:hover {
-  border-color: var(--border-strong);
-  color: var(--text-secondary);
-}
-
-.step.active {
-  border-color: var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
 }
 
 .step-no {
@@ -1001,32 +878,6 @@
   font-size: var(--text-2xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-}
-
-.step.done .step-no {
-  background: var(--success);
-  color: #ffffff;
-}
-
-.step.active .step-no {
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
-.step-copy {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.25;
-}
-
-.step-copy strong {
-  font-size: var(--text-xs);
-  font-weight: 600;
-}
-
-.step-copy span {
-  font-size: var(--text-2xs);
-  opacity: 0.75;
 }
 
 /* 内联加载与键位提示 */

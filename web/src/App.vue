@@ -9,7 +9,7 @@ import SettingsPage from './components/SettingsPage.vue'
 import TaskRail from './components/TaskRail.vue'
 import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 import UiIcon from './components/ui/UiIcon.vue'
-import { formatRelative } from './lib/format'
+import { useConfirmDialog } from './lib/confirm'
 import { actionSlotKey, compactModeKey } from './lib/layout'
 import BrandLogo from './components/BrandLogo.vue'
 import {
@@ -94,19 +94,12 @@ let scheduleRefreshTimer: ReturnType<typeof setInterval> | undefined
 
 const hubState = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
 const lastHubEventAt = ref<string | null>(null)
-const lastRefreshAt = ref<Date | null>(null)
 let hub: HubConnection | null = null
 
 const receipts = ref<CommandReceipt[]>([])
 const RECEIPT_STORAGE_KEY = 'roomcontrol.receipts'
 
-const confirmation = ref<{
-  title: string
-  message: string
-  actionLabel: string
-  tone: 'default' | 'danger'
-} | null>(null)
-let confirmationResolver: ((confirmed: boolean) => void) | null = null
+const { confirmation, confirmAction, resolveConfirmation } = useConfirmDialog()
 
 const selectedLoginRole = computed(() => {
   const account = loginAccounts.value.find((item) => item.username === username.value)
@@ -149,20 +142,6 @@ const clockDate = computed(() =>
   currentDateTime.value.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'short' }),
 )
 const clockTime = computed(() => currentDateTime.value.toLocaleTimeString('zh-CN', { hour12: false }))
-
-const realtimeTone = computed(() => {
-  if (!rooms.value.length) return 'neutral'
-  if (hubState.value === 'connected') return 'success'
-  if (hubState.value === 'connecting') return 'warning'
-  return 'danger'
-})
-
-const realtimeLabel = computed(() => {
-  if (!rooms.value.length) return '等待教室接入'
-  if (hubState.value === 'connected') return '实时同步'
-  if (hubState.value === 'connecting') return '连接中'
-  return '实时同步断开'
-})
 
 const onlineTone = computed(() => {
   if (!configuredRoomCount.value) return 'neutral'
@@ -333,29 +312,6 @@ function showSuccess(message: string) {
   showToast(message, false)
 }
 
-function confirmAction(
-  message: string,
-  options: { title?: string; actionLabel?: string; tone?: 'default' | 'danger' } = {},
-): Promise<boolean> {
-  if (confirmationResolver) return Promise.resolve(false)
-  confirmation.value = {
-    title: options.title ?? '确认操作',
-    message,
-    actionLabel: options.actionLabel ?? '确认',
-    tone: options.tone ?? 'default',
-  }
-  return new Promise((resolve) => {
-    confirmationResolver = resolve
-  })
-}
-
-function resolveConfirmation(confirmed: boolean) {
-  const resolve = confirmationResolver
-  confirmationResolver = null
-  confirmation.value = null
-  resolve?.(confirmed)
-}
-
 function loadStoredReceipts() {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(RECEIPT_STORAGE_KEY) ?? '[]') as CommandReceipt[]
@@ -492,7 +448,6 @@ async function bootstrap() {
 async function loadSnapshot() {
   try {
     await Promise.all([loadRooms(), loadSchedules()])
-    lastRefreshAt.value = new Date()
     snapshotError.value = ''
   } catch (error) {
     snapshotError.value = toErrorMessage(error)
@@ -553,7 +508,6 @@ async function logout() {
     rooms.value = []
     schedules.value = []
     snapshotError.value = ''
-    lastRefreshAt.value = null
     username.value = ''
     password.value = ''
     workspace.value = 'overview'
@@ -792,7 +746,7 @@ onBeforeUnmount(() => {
                 {{ account.username }}
               </option>
             </select>
-            <input name="username" v-else v-model="username" class="input" autocomplete="username" required />
+            <input name="username" v-else v-model="username" class="input" maxlength="60" autocomplete="username" required />
           </label>
           <p v-if="selectedLoginRole" class="login-role">
             <strong>{{ selectedLoginRole.label }}</strong>
@@ -804,7 +758,7 @@ onBeforeUnmount(() => {
           </p>
           <label class="field">
             密码
-            <input name="password" v-model="password" class="input" type="password" autocomplete="current-password" required />
+            <input name="password" v-model="password" class="input" type="password" maxlength="128" autocomplete="current-password" required />
           </label>
           <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
           <button class="btn btn-primary btn-block" :disabled="busy">
@@ -837,12 +791,6 @@ onBeforeUnmount(() => {
 
       <div class="topbar-actions">
         <div class="status-cluster">
-          <!-- <span class="status-item is-realtime" :class="`is-${realtimeTone}`"
-            :title="`最后实时事件：${formatRelative(lastHubEventAt)}`">
-            <span class="dot" :class="[`is-${realtimeTone}`, { 'is-pulse': hubState === 'connected' }]"></span>
-            {{ realtimeLabel }}
-            <span v-if="lastHubEventAt" class="text-2xs muted">{{ formatRelative(lastHubEventAt) }}</span>
-          </span> -->
           <span class="status-item" :class="`is-${onlineTone}`"
             :title="`${offlineRoomCount} 间离线，${unconfiguredRoomCount} 间未接入`">
             <UiIcon name="connection" :size="13" />
@@ -892,14 +840,14 @@ onBeforeUnmount(() => {
         </div>
 
         <OverviewWorkspace v-if="workspace === 'overview'" :rooms="rooms" :schedules="schedules"
-          :current-user="currentUser" :now="currentDateTime" :last-refresh-at="lastRefreshAt" @select-room="openRoom"
-          @open-automation="openAutomation" @open-settings="openSettings" @refresh="refreshData" />
+          :current-user="currentUser" :now="currentDateTime" @select-room="openRoom"
+          @open-automation="openAutomation" @open-settings="openSettings" />
 
         <OperateWorkspace v-else-if="workspace === 'operate'" :rooms="rooms" :selected-room-id="selectedRoomId"
           :current-user="currentUser" :hub-state="hubState" :last-hub-event-at="lastHubEventAt"
-          :last-refresh-at="lastRefreshAt" :debug-enabled="debugEnabled" :receipts="receipts" :schedules="schedules"
+          :debug-enabled="debugEnabled" :receipts="receipts" :schedules="schedules"
           :now="currentDateTime" @select-room="selectedRoomId = $event" @send-command="sendDigitalPulse"
-          @schedule-command="scheduleCommand" @refresh="refreshData" @open-settings="openSettings"
+          @schedule-command="scheduleCommand" @open-settings="openSettings"
           @clear-receipts="clearReceipts" />
 
         <SettingsPage v-else-if="workspace === 'settings'" :rooms="rooms" :branding="branding" :theme="theme"

@@ -11,6 +11,10 @@ namespace RoomControl.Api.Services;
 public sealed class UserService
 {
     private const int Iterations = 210_000;
+    private const int MinPasswordLength = 6;
+    // 上限同时约束密码设置与登录校验，避免超长输入驱动 PBKDF2 消耗大量 CPU。
+    private const int MaxPasswordLength = 128;
+    private const int MaxUsernameLength = 60;
     private static readonly byte[] PlaceholderSalt = RandomNumberGenerator.GetBytes(16);
     private static readonly byte[] PlaceholderHash = RandomNumberGenerator.GetBytes(32);
     private readonly ControlDbContext _db;
@@ -23,13 +27,8 @@ public sealed class UserService
     /// <summary>校验凭据；成功返回当前角色与规范化用户名，失败或账号停用返回 <c>null</c>。</summary>
     public (UserRole Role, string Username)? Authenticate(string? username, string? password)
     {
-        if (!VerifyPassword(username, password))
-        {
-            return null;
-        }
-
-        var user = _db.Users.AsNoTracking().Single(u => u.Username == username!.Trim());
-        return (user.Role, user.Username);
+        var user = FindActiveUser(username, password);
+        return user is null ? null : (user.Role, user.Username);
     }
 
     /// <summary>用于 Cookie 校验：返回账号当前生效的角色，账号被删除或禁用时返回 null。</summary>
@@ -69,10 +68,7 @@ public sealed class UserService
         var username = NormalizeUsername(request.Username);
         var role = ParseRole(request.Role);
         var password = request.Password ?? string.Empty;
-        if (password.Length < 6)
-        {
-            throw new ArgumentException("密码长度至少需要 6 个字符。");
-        }
+        EnsurePasswordLength(password);
 
         if (_db.Users.Any(u => u.Username == username))
         {
@@ -140,10 +136,7 @@ public sealed class UserService
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
-            if (request.Password.Length < 6)
-            {
-                throw new ArgumentException("密码长度至少需要 6 个字符。");
-            }
+            EnsurePasswordLength(request.Password);
             var salt = RandomNumberGenerator.GetBytes(16);
             user.PasswordHash = HashPassword(request.Password, salt);
             user.PasswordSalt = salt;
@@ -197,13 +190,11 @@ public sealed class UserService
         return true;
     }
 
-    /// <summary>当前用户修改密码：旧密码不正确或账号停用时返回 <c>false</c>，新密码至少 6 个字符。</summary>
+    /// <summary>当前用户修改密码：旧密码不正确或账号停用时返回 <c>false</c>，新密码需 6–128 个字符。</summary>
     public bool ChangePassword(string username, string? oldPassword, string? newPassword)
     {
-        if (string.IsNullOrEmpty(newPassword) || newPassword.Length < 6)
-        {
-            throw new ArgumentException("新密码长度至少需要 6 个字符。");
-        }
+        var password = newPassword ?? string.Empty;
+        EnsurePasswordLength(password);
 
         var user = _db.Users.SingleOrDefault(u => u.Username == username);
         if (user is null || !user.IsActive || !IsPasswordMatch(user, oldPassword))
@@ -212,7 +203,7 @@ public sealed class UserService
         }
 
         var salt = RandomNumberGenerator.GetBytes(16);
-        user.PasswordHash = HashPassword(newPassword, salt);
+        user.PasswordHash = HashPassword(password, salt);
         user.PasswordSalt = salt;
         user.UpdatedAt = DateTimeOffset.UtcNow;
         _db.SaveChanges();
@@ -233,9 +224,10 @@ public sealed class UserService
             return;
         }
 
-        if (adminPassword.Length < 6)
+        if (adminPassword.Length is < MinPasswordLength or > MaxPasswordLength)
         {
-            throw new InvalidOperationException("默认管理员密码长度至少需要 6 个字符。");
+            throw new InvalidOperationException(
+                $"默认管理员密码长度需在 {MinPasswordLength}–{MaxPasswordLength} 个字符之间。");
         }
 
         var salt = RandomNumberGenerator.GetBytes(16);
@@ -251,26 +243,45 @@ public sealed class UserService
         _db.SaveChanges();
     }
 
-    private bool VerifyPassword(string? username, string? password)
+    // 只查询一次账号，并在账号不存在时同样执行 KDF，避免通过响应时间判断用户名是否存在。
+    private User? FindActiveUser(string? username, string? password)
     {
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrWhiteSpace(username) ||
+            string.IsNullOrEmpty(password) ||
+            username.Trim().Length > MaxUsernameLength)
         {
-            return false;
+            return null;
         }
 
-        var user = _db.Users.SingleOrDefault(u => u.Username == username.Trim());
-        // 账号不存在时同样计算一次哈希，避免通过响应时间判断用户名是否存在。
-        var isMatch = IsPasswordMatch(user, password);
-        return user is { IsActive: true } && isMatch;
+        var user = _db.Users.AsNoTracking().SingleOrDefault(u => u.Username == username.Trim());
+        return user is { IsActive: true } && IsPasswordMatch(user, password) ? user : null;
     }
 
     private static bool IsPasswordMatch(User? user, string? password)
     {
+        // 超长密码直接拒绝，避免无效凭据驱动代价高昂的 KDF。
+        if (password is { Length: > MaxPasswordLength })
+        {
+            return false;
+        }
+
         // 不存在用户时使用固定占位盐和哈希，仍执行相同的 KDF 与固定时间比较。
         var salt = user?.PasswordSalt ?? PlaceholderSalt;
         var expectedHash = user?.PasswordHash ?? PlaceholderHash;
         var candidate = HashPassword(password ?? string.Empty, salt);
         return CryptographicOperations.FixedTimeEquals(candidate, expectedHash);
+    }
+
+    private static void EnsurePasswordLength(string password)
+    {
+        if (password.Length < MinPasswordLength)
+        {
+            throw new ArgumentException($"密码长度至少需要 {MinPasswordLength} 个字符。");
+        }
+        if (password.Length > MaxPasswordLength)
+        {
+            throw new ArgumentException($"密码长度不能超过 {MaxPasswordLength} 个字符。");
+        }
     }
 
     private static byte[] HashPassword(string password, byte[] salt) =>
@@ -280,9 +291,9 @@ public sealed class UserService
     private static string NormalizeUsername(string? username)
     {
         var trimmed = username?.Trim() ?? string.Empty;
-        if (trimmed.Length is 0 or > 60)
+        if (trimmed.Length == 0 || trimmed.Length > MaxUsernameLength)
         {
-            throw new ArgumentException("用户名必填且不能超过 60 个字符。");
+            throw new ArgumentException($"用户名必填且不能超过 {MaxUsernameLength} 个字符。");
         }
 
         if (trimmed.Any(char.IsControl))

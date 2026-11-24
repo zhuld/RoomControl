@@ -11,11 +11,8 @@ public sealed record CreateRoomRequest(string Name, string? Building, string? Fl
 /// <summary>更新站点名称、副标题和可选的 Data URL Logo。</summary>
 public sealed record UpdateBrandingRequest(string DisplayName, string Subtitle, string? LogoDataUrl);
 
-/// <summary>创建楼栋的请求。</summary>
-public sealed record CreateBuildingRequest(string Name);
-
-/// <summary>创建楼层的请求。</summary>
-public sealed record CreateFloorRequest(string Name);
+/// <summary>创建或重命名楼栋/楼层的请求。</summary>
+public sealed record LocationNameRequest(string Name);
 
 /// <summary>创建中控连接的网络地址和 CIP 标识。</summary>
 public sealed record CreateControllerRequest(
@@ -32,8 +29,8 @@ public sealed record UpdateControllerRequest(
     int Ipid,
     bool Enabled);
 
-/// <summary>创建 Join 映射；使能 Join 可不配置。</summary>
-public sealed record CreateJoinMappingRequest(
+/// <summary>创建或更新 Join 映射；使能 Join 可不配置，不配置时默认开启操作前确认。</summary>
+public sealed record JoinMappingDefinitionRequest(
     string Name,
     int SendJoinNumber,
     int StateJoinNumber,
@@ -43,19 +40,8 @@ public sealed record CreateJoinMappingRequest(
 /// <summary>按给定顺序重排某中控下的全部控制点。</summary>
 public sealed record ReorderJoinMappingsRequest(IReadOnlyList<Guid> MappingIds);
 
-/// <summary>复制一个数字控制点到指定中控，复制名称、发送/状态/使能 Join 和确认设置。</summary>
-public sealed record CopyJoinMappingRequest(IReadOnlyList<Guid> ControllerIds);
-
-/// <summary>复制一个中控的全部数字控制点到指定中控，目标控制点会先全部删除。</summary>
-public sealed record CopyAllJoinMappingsRequest(IReadOnlyList<Guid> ControllerIds);
-
-/// <summary>更新 Join 映射的名称、发送 Join 和状态/使能 Join。</summary>
-public sealed record UpdateJoinMappingRequest(
-    string Name,
-    int SendJoinNumber,
-    int StateJoinNumber,
-    int? EnableJoinNumber,
-    bool ShowConfirmationPopup = true);
+/// <summary>把控制点复制到一组目标中控；单点复制与整组复制共用。</summary>
+public sealed record CopyJoinMappingsRequest(IReadOnlyList<Guid> ControllerIds);
 
 /// <summary>创建或修改按服务器本地时间执行的一次性或每周重复任务；一个任务可覆盖多间教室的同名控制点。</summary>
 public sealed record ScheduleDefinitionRequest(

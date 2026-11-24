@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { formatClock, formatRelative } from '../lib/format'
-import { actionSlotKey, compactModeKey } from '../lib/layout'
+import {
+  buildingOf,
+  collator,
+  countRooms,
+  floorOf,
+  groupRoomsByBuilding,
+  roomStatus,
+  type StatusFilter,
+} from '../lib/rooms'
 import type {
   CommandReceipt,
   CurrentUser,
@@ -23,7 +31,6 @@ const props = defineProps<{
   currentUser: CurrentUser | null
   hubState: 'connecting' | 'connected' | 'disconnected'
   lastHubEventAt: string | null
-  lastRefreshAt: Date | null
   debugEnabled: boolean
   receipts: CommandReceipt[]
   schedules: Schedule[]
@@ -34,17 +41,10 @@ const emit = defineEmits<{
   selectRoom: [roomId: string]
   sendCommand: [room: Room, join: JoinMapping]
   scheduleCommand: [room: Room, join: JoinMapping]
-  refresh: []
   openSettings: [section: SettingsSection, roomId: string]
   clearReceipts: []
 }>()
 
-type RoomStatus = 'online' | 'offline' | 'unconfigured'
-type StatusFilter = 'all' | RoomStatus
-
-const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
-const compactMode = inject(compactModeKey, ref(false))
-const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const statusFilter = ref<StatusFilter>('all')
 // 回执列表默认收起，避免长期占用操作区；顶部按钮随时展开。
 const receiptRailOpen = ref(false)
@@ -61,11 +61,6 @@ const selectedRoom = computed(
 const controller = computed(() => selectedRoom.value?.controller ?? null)
 const joins = computed(() => controller.value?.joins ?? [])
 
-function roomStatus(room: Room): RoomStatus {
-  if (!room.controller) return 'unconfigured'
-  return room.controller.isOnline ? 'online' : 'offline'
-}
-
 function filteredRoom(room: Room) {
   return statusFilter.value === 'all' || roomStatus(room) === statusFilter.value
 }
@@ -74,44 +69,15 @@ function selectRoomFromCascader(roomId: string) {
   if (roomId) emit('selectRoom', roomId)
 }
 
-interface FloorGroup {
-  floor: string
-  rooms: Room[]
-}
-
-interface BuildingGroup {
-  building: string
-  floors: FloorGroup[]
-}
-
-const roomGroups = computed<BuildingGroup[]>(() => {
-  const buildings = new Map<string, Map<string, Room[]>>()
-  for (const room of props.rooms.filter(filteredRoom)) {
-    const building = room.building?.trim() || '未分配楼栋'
-    const floor = room.floor?.trim() || '未分配楼层'
-    const floors = buildings.get(building) ?? new Map<string, Room[]>()
-    buildings.set(building, floors)
-    const rooms = floors.get(floor) ?? []
-    floors.set(floor, rooms)
-    rooms.push(room)
-  }
-
-  return [...buildings.entries()]
-    .sort((left, right) => collator.compare(left[0], right[0]))
-    .map(([building, floors]) => ({
-      building,
-      floors: [...floors.entries()]
-        .sort((left, right) => collator.compare(left[0], right[0]))
-        .map(([floor, rooms]) => ({
-          floor,
-          rooms: [...rooms].sort((left, right) => collator.compare(left.name, right.name)),
-        })),
-    }))
+const roomGroups = computed(() => {
+  const visibleRooms = props.rooms
+    .filter(filteredRoom)
+    .sort((left, right) => collator.compare(left.name, right.name))
+  return groupRoomsByBuilding(visibleRooms)
 })
 
 function filterCount(status: StatusFilter) {
-  if (status === 'all') return props.rooms.length
-  return props.rooms.filter((room) => roomStatus(room) === status).length
+  return countRooms(props.rooms, status)
 }
 
 function joinOnCount(room: Room) {
@@ -222,17 +188,6 @@ function receiptLabel(status: CommandReceipt['status']) {
         <h1>教室操作</h1>
         <p>定位教室、确认中控与使能状态，再下发指令。每次下发都会在本会话留下回执。</p>
       </div>
-      <!-- <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
-        <div class="workspace-actions">
-          <span class="text-xs muted tabular">
-            {{ lastRefreshAt ? `快照 ${formatClock(lastRefreshAt)}` : '尚未刷新' }}
-          </span>
-
-          <button type="button" class="btn btn-quiet" @click="emit('refresh')">
-            <UiIcon name="refresh" :size="16" />刷新快照
-          </button>
-        </div>
-      </Teleport> -->
     </header>
 
     <div class="operate-layout" :class="{ 'is-rail-open': receiptRailOpen }">
@@ -324,7 +279,7 @@ function receiptLabel(status: CommandReceipt['status']) {
           <section class="room-hero" aria-label="教室状态">
             <div class="room-hero-title">
               <p class="eyebrow room-hero-location">
-                {{ selectedRoom.building || '未分配楼栋' }} / {{ selectedRoom.floor || '未分配楼层' }}
+                {{ buildingOf(selectedRoom) }} / {{ floorOf(selectedRoom) }}
               </p>
               <h1>{{ selectedRoom.name }}</h1>
               <div class="room-hero-meta">

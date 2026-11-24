@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed, inject, reactive, ref, watch } from 'vue'
 import { readJson, request, toErrorMessage } from '../api'
+import { useConfirmDialog } from '../lib/confirm'
 import { compactModeKey, actionSlotKey } from '../lib/layout'
+import {
+  buildingOf,
+  floorOf,
+  groupRoomsByBuilding,
+  roomStatusLabel,
+  roomStatusTone,
+  sortRoomsByLocation,
+} from '../lib/rooms'
 import type {
   AutomationTarget,
   Branding,
@@ -118,13 +127,13 @@ const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const busy = ref(false)
 const setupLoading = ref(false)
 const setupLoadError = ref('')
-const confirmationMessage = ref('')
-const confirmationActionLabel = ref('确认删除')
-let confirmationResolver: ((confirmed: boolean) => void) | null = null
+const { confirmation, confirmAction, resolveConfirmation } = useConfirmDialog({
+  actionLabel: '确认删除',
+  tone: 'danger',
+})
 
 // Logo 限制需与后端校验及存储上限保持一致。
 const maxLogoBytes = 200 * 1024
-const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' })
 
 const brandingForm = reactive({
   displayName: props.branding.displayName,
@@ -174,14 +183,7 @@ const copyingJoin = ref<JoinMapping | null>(null)
 const copyingAll = ref(false)
 const copyTargetControllerIds = ref<string[]>([])
 
-const sortedRooms = computed(() =>
-  [...props.rooms].sort(
-    (left, right) =>
-      collator.compare(left.building || '未分配楼栋', right.building || '未分配楼栋') ||
-      collator.compare(left.floor || '未分配楼层', right.floor || '未分配楼层') ||
-      collator.compare(left.name, right.name),
-  ),
-)
+const sortedRooms = computed(() => sortRoomsByLocation(props.rooms))
 
 const totalFloorCount = computed(() =>
   buildings.value.reduce((sum, building) => sum + building.floors.length, 0),
@@ -295,36 +297,7 @@ const healthItems = computed<HealthItem[]>(() => {
 const healthOk = computed(() => healthItems.value.length === 0)
 
 // 中控页使用楼栋 → 楼层 → 教室三级选择，并保留列表快速浏览。
-interface ControllerFloorGroup {
-  floor: string
-  rooms: Room[]
-}
-
-interface ControllerBuildingGroup {
-  building: string
-  floors: ControllerFloorGroup[]
-}
-
-const controllerGroups = computed<ControllerBuildingGroup[]>(() => {
-  const grouped = new Map<string, Map<string, Room[]>>()
-  for (const room of sortedRooms.value) {
-    const building = room.building?.trim() || '未分配楼栋'
-    const floor = room.floor?.trim() || '未分配楼层'
-    const floors = grouped.get(building) ?? new Map<string, Room[]>()
-    grouped.set(building, floors)
-    const rooms = floors.get(floor) ?? []
-    floors.set(floor, rooms)
-    rooms.push(room)
-  }
-  return [...grouped.entries()]
-    .sort((left, right) => collator.compare(left[0], right[0]))
-    .map(([building, floors]) => ({
-      building,
-      floors: [...floors.entries()]
-        .sort((left, right) => collator.compare(left[0], right[0]))
-        .map(([floor, rooms]) => ({ floor, rooms })),
-    }))
-})
+const controllerGroups = computed(() => groupRoomsByBuilding(sortedRooms.value))
 
 const configuredRoom = computed(
   () => props.rooms.find((room) => room.id === configuredRoomId.value) ?? null,
@@ -447,16 +420,6 @@ function fillControllerForm() {
   controllerForm.enabled = controller?.enabled ?? true
 }
 
-function controllerStatus(room: Room): FeedbackTone {
-  if (!room.controller) return 'warning'
-  return room.controller.isOnline ? 'success' : 'danger'
-}
-
-function controllerStatusLabel(room: Room) {
-  if (!room.controller) return '未接入'
-  return room.controller.isOnline ? '在线' : '离线'
-}
-
 function jumpTo(section: SettingsSection, roomId?: string) {
   if (roomId && props.rooms.some((room) => room.id === roomId)) {
     configuredRoomId.value = roomId
@@ -474,23 +437,6 @@ async function run(action: () => Promise<void>, successMessage: string) {
   } finally {
     busy.value = false
   }
-}
-
-function confirmAction(message: string, actionLabel = '确认删除'): Promise<boolean> {
-  // 将确认框封装为 Promise，调用方在确认完成后继续执行删除操作。
-  if (confirmationResolver) return Promise.resolve(false)
-  confirmationActionLabel.value = actionLabel
-  confirmationMessage.value = message
-  return new Promise((resolve) => {
-    confirmationResolver = resolve
-  })
-}
-
-function resolveConfirmation(confirmed: boolean) {
-  const resolve = confirmationResolver
-  confirmationResolver = null
-  confirmationMessage.value = ''
-  resolve?.(confirmed)
 }
 
 function onLogoSelected(event: Event) {
@@ -666,7 +612,7 @@ async function saveRoom(room: Room) {
 }
 
 async function deleteRoom(room: Room) {
-  if (!(await confirmAction(`删除教室「${room.name}」及其中控、控制点？关联的定时任务会归档。`))) return
+  if (!(await confirmAction(`删除教室「${room.name}」及其中控、控制点？关联的定时任务会一并删除。`))) return
   await run(async () => {
     await request(`/api/rooms/${room.id}`, { method: 'DELETE' })
     if (configuredRoomId.value === room.id) configuredRoomId.value = ''
@@ -703,7 +649,7 @@ async function saveController() {
 async function deleteController() {
   const controller = configuredRoom.value?.controller
   if (!controller) return
-  if (!(await confirmAction(`移除中控「${controller.name}」及其控制点？关联的定时任务会归档。`))) return
+  if (!(await confirmAction(`移除中控「${controller.name}」及其控制点？关联的定时任务会一并删除。`))) return
   await run(async () => {
     await request(`/api/controllers/${controller.id}`, { method: 'DELETE' })
     emit('roomsChanged')
@@ -772,7 +718,7 @@ async function submitJoin() {
 }
 
 async function deleteJoin(join: JoinMapping) {
-  if (!(await confirmAction(`删除控制点「${join.name}」？关联的定时任务会归档。`))) return
+  if (!(await confirmAction(`删除控制点「${join.name}」？关联的定时任务会一并删除。`))) return
   await run(async () => {
     await request(`/api/joins/${join.id}`, { method: 'DELETE' })
     emit('roomsChanged')
@@ -923,7 +869,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
         <p class="eyebrow">管理 · 配置</p>
         <h1>配置与接入</h1>
         <p v-if="canManageSettings">按接入顺序补齐站点、位置、教室、中控、自动任务与权限。每一步的完成状态与阻塞项都会明确显示。</p>
-        <p v-else>维护教室的定时任务：创建、修改、停用与归档，并查看每次执行结果。其余接入步骤由管理员维护。</p>
+        <p v-else>维护教室的定时任务：创建、修改、暂停、恢复与删除，并查看每次执行结果。其余接入步骤由管理员维护。</p>
       </div>
       <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
@@ -1251,8 +1197,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                 </div>
                 <div v-else class="room-row">
                   <strong>{{ room.name }}</strong>
-                  <span>{{ room.building || '未分配楼栋' }} · {{ room.floor || '未分配楼层' }}</span>
-                  <StatusPill :tone="controllerStatus(room)" :label="controllerStatusLabel(room)" dot />
+                  <span>{{ buildingOf(room) }} · {{ floorOf(room) }}</span>
+                  <StatusPill :tone="roomStatusTone(room)" :label="roomStatusLabel(room)" dot />
                   <div class="room-row-actions">
                     <button class="btn btn-quiet btn-sm" @click="startEditRoom(room)">编辑</button>
                     <button class="btn btn-danger-quiet btn-sm" @click="deleteRoom(room)">删除</button>
@@ -1276,7 +1222,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                     <template v-for="floor in building.floors" :key="`${building.building}-${floor.floor}`">
                       <button v-for="room in floor.rooms" :key="room.id" type="button" class="room-item"
                         :class="{ active: room.id === configuredRoomId }" @click="configuredRoomId = room.id">
-                        <span class="dot" :class="`is-${controllerStatus(room)}`"></span>
+                        <span class="dot" :class="`is-${roomStatusTone(room)}`"></span>
                         <span class="room-item-copy">
                           <strong>{{ room.name }}</strong>
                           <span>{{ floor.floor }}</span>
@@ -1293,7 +1239,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                 <div class="settings-section-head is-flush">
                   <div>
                     <p class="eyebrow">
-                      {{ configuredRoom.building || '未分配楼栋' }} / {{ configuredRoom.floor || '未分配楼层' }}
+                      {{ buildingOf(configuredRoom) }} / {{ floorOf(configuredRoom) }}
                     </p>
                     <h3>{{ configuredRoom.name }}</h3>
                     <p class="panel-sub">
@@ -1306,7 +1252,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                       <template v-else>尚未接入中控</template>
                     </p>
                   </div>
-                  <StatusPill :tone="controllerStatus(configuredRoom)" :label="controllerStatusLabel(configuredRoom)"
+                  <StatusPill :tone="roomStatusTone(configuredRoom)" :label="roomStatusLabel(configuredRoom)"
                     dot />
                 </div>
 
@@ -1430,8 +1376,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           <div class="dialog-body stack">
             <label class="field">
               命令名称
-              <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input"
-                placeholder="例如：上课" maxlength="120" required />
+              <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input" placeholder="例如：上课"
+                maxlength="120" required />
             </label>
             <div class="join-number-fields">
               <label class="field">
@@ -1468,7 +1414,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
       <section class="dialog is-wide" role="dialog" aria-modal="true" aria-labelledby="copy-join-title">
         <h2 id="copy-join-title">{{ copyingAll ? '全部复制控制点到教室' : '复制控制点到教室' }}</h2>
         <p v-if="copyingAll">
-          将复制当前教室的全部控制点。目标教室原有控制点会全部删除，关联的定时任务会归档。
+          将复制当前教室的全部控制点。目标教室原有控制点会全部删除，关联的定时任务会一并删除。
         </p>
         <p v-else>
           将“{{ copyingJoin?.name }}”复制到选中的教室；若发送 Join 冲突，将覆盖目标教室中的同 Join 控制点。
@@ -1487,7 +1433,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <label v-for="room in copyTargetRooms" :key="room.id" class="checkbox">
               <input name="controllerId" v-model="copyTargetControllerIds" type="checkbox"
                 :value="room.controller!.id" />
-              {{ room.building || '未分配楼栋' }} / {{ room.floor || '未分配楼层' }} / {{ room.name }}
+              {{ buildingOf(room) }} / {{ floorOf(room) }} / {{ room.name }}
             </label>
           </div>
         </template>
@@ -1502,8 +1448,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
       </section>
     </div>
 
-    <ConfirmDialog :open="Boolean(confirmationMessage)" title="确认操作" :message="confirmationMessage"
-      :confirm-label="confirmationActionLabel" tone="danger" @cancel="resolveConfirmation(false)"
-      @confirm="resolveConfirmation(true)" />
+    <ConfirmDialog :open="confirmation !== null" :title="confirmation?.title ?? ''" :message="confirmation?.message ?? ''"
+      :confirm-label="confirmation?.actionLabel ?? '确认'" :tone="confirmation?.tone ?? 'danger'"
+      @cancel="resolveConfirmation(false)" @confirm="resolveConfirmation(true)" />
   </div>
 </template>

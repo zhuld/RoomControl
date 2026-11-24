@@ -248,9 +248,8 @@ public sealed class ScheduleService(
         ControlDbContext db,
         Guid groupId,
         CancellationToken cancellationToken) =>
-        db.Schedules
-            .Where(item => item.GroupId == groupId || (item.GroupId == null && item.Id == groupId))
-            .ToListAsync(cancellationToken);
+        db.Schedules.WhereGroup(groupId).ToListAsync(cancellationToken);
+
     private async Task<List<JoinMapping>> LoadMappingsAsync(
         IReadOnlyList<Guid> mappingIds,
         CancellationToken cancellationToken)

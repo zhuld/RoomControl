@@ -40,13 +40,18 @@ const actionLabels: Record<string, string> = {
   'PUT /api/controllers/{controllerId}': '更新中控',
   'DELETE /api/controllers/{controllerId}': '移除中控',
   'POST /api/controllers/{controllerId}/joins': '创建控制点',
+  'PUT /api/controllers/{controllerId}/joins/order': '调整控制点顺序',
+  'POST /api/controllers/{controllerId}/joins/copy-all': '复制全部控制点到教室',
   'PUT /api/joins/{mappingId}': '更新控制点',
   'DELETE /api/joins/{mappingId}': '删除控制点',
   'POST /api/joins/{mappingId}/copy': '复制控制点到教室',
-  'POST /api/controllers/{controllerId}/joins/copy-all': '复制全部控制点到教室',
-  'POST /api/joins/{mappingId}/pulse': '发送数字控制指令',
+  'POST /api/joins/{mappingId}/pulse': '发送',
   'POST /api/schedules': '创建定时任务',
-  'DELETE /api/schedules/{scheduleId}': '归档定时任务',
+  'PUT /api/schedules/groups/{groupId}': '更新定时任务',
+  'DELETE /api/schedules/groups/{groupId}': '删除定时任务',
+  'DELETE /api/schedules/{scheduleId}': '删除定时任务',
+  'POST /api/schedules/groups/{groupId}/pause': '暂停定时任务',
+  'POST /api/schedules/groups/{groupId}/resume': '恢复定时任务',
 }
 
 function normalizeAction(action: string) {
@@ -279,11 +284,6 @@ onBeforeUnmount(() => {
       </div>
       <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
-          <!-- <span class="audit-refresh">
-            <span class="dot" :class="autoRefresh ? 'is-online' : 'is-unknown'"></span>
-            {{ autoRefresh ? '自动刷新 · 每 5 秒' : '自动刷新已暂停' }}
-            <span class="muted">最近 {{ lastRefreshedAt ? formatClock(lastRefreshedAt) : '—' }}</span>
-          </span> -->
           <button type="button" class="btn btn-quiet btn-sm" :aria-pressed="autoRefresh"
             @click="autoRefresh = !autoRefresh">
             <UiIcon :name="autoRefresh ? 'pause' : 'play'" :size="14" />
