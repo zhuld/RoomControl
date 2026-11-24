@@ -33,18 +33,24 @@
 
 .login-intro .brand-copy strong {
   color: var(--rail-text);
-  font-size: var(--text-lg);
+  font-size: var(--text-2xl);
+  padding-bottom: 12px;
 }
 
 .login-intro .brand-copy span {
   color: var(--rail-muted);
+  font-size: var(--text-xl);
 }
 
-.login-brand .brand-logo,
-.login-brand .brand-mark {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-md);
+.login-brand.brand-logo,
+.login-brand.brand-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-lg);
+}
+
+.login-brand.brand-mark {
+  font-size: var(--text-2xl);
 }
 
 .login-intro h1 {

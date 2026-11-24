@@ -99,15 +99,15 @@ const sectionMeta: Record<SettingsSection, { eyebrow: string; title: string; des
     title: '中控与设备',
     description: '为教室接入中控并配置数字 Join 映射；保存后后台会自动重连并同步状态。',
   },
-  users: {
-    eyebrow: '步骤 6 · 用户与权限',
-    title: '用户与权限',
-    description: '管理员可管理配置与账号，操作员可下发指令，观看员仅可查看状态。',
-  },
   automation: {
     eyebrow: '步骤 5 · 自动任务',
     title: '自动任务',
     description: '一次任务可覆盖多间教室的同名控制点，也可随时修改时间、范围与目标。',
+  },
+  users: {
+    eyebrow: '步骤 6 · 用户与权限',
+    title: '用户与权限',
+    description: '管理员可管理配置与账号，操作员可下发指令，观看员仅可查看状态。',
   },
 }
 
@@ -987,20 +987,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           </div>
         </section>
 
-        <template v-if="section === 'automation'">
-          <section class="settings-section-head">
-            <div>
-              <p class="eyebrow">{{ canManageSettings ? meta.eyebrow : '自动任务 · 计划' }}</p>
-              <h2>{{ meta.title }}</h2>
-              <p>{{ meta.description }}</p>
-            </div>
-          </section>
-          <AutomationWorkspace embedded :rooms="rooms" :schedules="schedules" :current-user="currentUser"
-            :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
-            @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
-        </template>
-
-        <section v-else class="panel">
+        <section class="panel">
           <header class="panel-head">
             <div class="settings-section-head is-flush">
               <div>
@@ -1013,6 +1000,10 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
 
           <UsersPage v-if="section === 'users' && currentUser" :current-user="currentUser"
             @notify="emit('notify', $event)" />
+
+          <AutomationWorkspace v-if="section === 'automation'" embedded :rooms="rooms" :schedules="schedules" :current-user="currentUser"
+            :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
+            @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
 
           <div v-if="section === 'branding'" class="panel-body stack">
             <form class="branding-grid" @submit.prevent="saveBranding">
@@ -1118,8 +1109,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
               <form class="retention-form" @submit.prevent="saveLogRetention">
                 <label class="field">
                   保留天数
-                  <input name="logRetentionDays" v-model.number="logRetentionInput" class="input" type="number"
-                    min="0" :max="MAX_LOG_RETENTION_DAYS" step="1" />
+                  <input name="logRetentionDays" v-model.number="logRetentionInput" class="input" type="number" min="0"
+                    :max="MAX_LOG_RETENTION_DAYS" step="1" />
                 </label>
                 <button class="btn btn-primary" :disabled="busy || logRetentionInput === logRetentionDays">
                   保存日志设置
@@ -1386,7 +1377,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                             aria-label="拖动调整顺序" @dragstart="startJoinDrag($event, join)" @dragend="endJoinDrag">
                             <UiIcon name="drag" :size="14" />
                           </span>
-                          <input name="send-name" autocomplete="off" v-model="joinEdit.name" class="input" maxlength="120" required />
+                          <input name="send-name" autocomplete="off" v-model="joinEdit.name" class="input"
+                            maxlength="120" required />
                           <div class="join-config-number">
                             <input name="sendJoinNumber" v-model.number="joinEdit.sendJoinNumber" class="input"
                               type="number" min="1" max="32768" aria-label="发送 Join 编号" placeholder="发送" required />
@@ -1435,8 +1427,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                       <div class="join-number-fields">
                         <label class="field">
                           命令名称
-                          <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input" placeholder="例如：上课"
-                            maxlength="20" required />
+                          <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input"
+                            placeholder="例如：上课" maxlength="20" required />
                         </label>
                         <label class="field">
                           发送 Join

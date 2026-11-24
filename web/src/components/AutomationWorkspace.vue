@@ -553,129 +553,128 @@ watch(
 
     <div class="automation-layout">
       <div class="stack">
-        <section class="panel" aria-label="任务列表">
-          <header class="panel-toolbar">
-            <div class="auto-toolbar-left">
-              <div class="search-field">
-                <UiIcon name="search" :size="15" />
-                <input name="taskQuery" v-model="taskQuery" class="input" type="search" placeholder="搜索任务/教室"
-                  aria-label="搜索任务" />
+        <header class="panel-toolbar">
+          <div class="auto-toolbar-left">
+            <div class="search-field">
+              <UiIcon name="search" :size="15" />
+              <input name="taskQuery" v-model="taskQuery" class="input" type="search" placeholder="搜索任务/教室"
+                aria-label="搜索任务" />
+            </div>
+            <select name="roomFilter" v-model="roomFilter" class="select auto-room-filter" aria-label="按教室筛选">
+              <option value="">全部教室</option>
+              <option v-for="room in roomOptions" :key="room" :value="room">{{ room }}</option>
+            </select>
+            <div class="chip-row" role="group" aria-label="按启用状态筛选">
+              <button v-for="option in ([
+                { value: 'all', label: '全部' },
+                { value: 'enabled', label: '启用中' },
+                { value: 'disabled', label: '已暂停' },
+              ] as const)" :key="option.value" type="button" class="chip"
+                :class="{ active: statusFilter === option.value }" :aria-pressed="statusFilter === option.value"
+                @click="statusFilter = option.value">
+                {{ option.label }}
+              </button>
+            </div>
+          </div>
+          <div class="auto-toolbar-right">
+            <span class="text-xs muted">{{ filteredTasks.length }} / {{ tasks.length }}</span>
+            <button type="button" class="btn btn-primary btn-sm" @click="openCreate">
+              <UiIcon name="plus" :size="14" />新建任务
+            </button>
+          </div>
+        </header>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>任务名称</th>
+              <th>教室</th>
+              <th>启动时间</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+        </table>
+        <div v-if="filteredTasks.length" class="auto-list">
+          <article v-for="task in filteredTasks" :id="`auto-task-${task.key}`" :key="task.key" class="auto-task"
+            :class="{ 'is-focus': focusTaskKey === task.key }">
+            <div class="auto-task-main">
+              <div class="auto-task-title">
+                <strong>{{ task.name }}</strong>
+                <span>{{ planLabel(task) }} · {{ task.joinName }}</span>
               </div>
-              <select name="roomFilter" v-model="roomFilter" class="select auto-room-filter" aria-label="按教室筛选">
-                <option value="">全部教室</option>
-                <option v-for="room in roomOptions" :key="room" :value="room">{{ room }}</option>
-              </select>
-              <div class="chip-row" role="group" aria-label="按启用状态筛选">
-                <button v-for="option in ([
-                  { value: 'all', label: '全部' },
-                  { value: 'enabled', label: '启用中' },
-                  { value: 'disabled', label: '已暂停' },
-                ] as const)" :key="option.value" type="button" class="chip"
-                  :class="{ active: statusFilter === option.value }" :aria-pressed="statusFilter === option.value"
-                  @click="statusFilter = option.value">
-                  {{ option.label }}
+              <div class="auto-task-cell">
+                {{ taskRoomsLabel(task) }}
+                <span>{{ task.roomNames.length }} 间教室</span>
+              </div>
+              <div class="auto-task-cell" :class="{ 'is-overdue': isOverdue(task.nextRunAtUtc) }">
+                {{ formatRelative(task.nextRunAtUtc, now.getTime()) }}
+                <span>
+                  {{ task.nextRunAtUtc ? formatDateTime(task.nextRunAtUtc) : '无计划时间' }}
+                </span>
+              </div>
+              <div>
+                <StatusPill :tone="task.enabled ? 'success' : 'neutral'" :label="task.enabled ? '已启用' : '已暂停'" dot />
+              </div>
+              <div class="auto-task-actions">
+                <button type="button" class="btn btn-quiet btn-sm" title="查看执行记录" @click="toggleHistory(task)">
+                  {{ openTaskKey === task.key ? '收起' : '记录' }}
+                </button>
+                <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm" title="修改任务时间、范围与目标"
+                  @click="startEdit(task)">
+                  编辑
+                </button>
+                <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm"
+                  :disabled="stateBusyKey === task.key" :title="task.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'"
+                  @click="toggleTaskState(task)">
+                  {{ task.enabled ? '暂停' : '恢复' }}
+                </button>
+                <button v-if="canOperate" type="button" class="btn btn-danger-quiet btn-sm" title="删除任务及其执行记录"
+                  @click="requestDelete(task)">
+                  删除
                 </button>
               </div>
             </div>
-            <div class="auto-toolbar-right">
-              <span class="text-xs muted">{{ filteredTasks.length }} / {{ tasks.length }}</span>
-              <button type="button" class="btn btn-primary btn-sm" @click="openCreate">
-                <UiIcon name="plus" :size="14" />新建任务
-              </button>
-            </div>
-          </header>
-          <table class="table">
-            <thead>
-              <tr>
-                <th>任务名称</th>
-                <th>教室</th>
-                <th>启动时间</th>
-                <th>状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-          </table>
-          <div v-if="filteredTasks.length" class="auto-list">
-            <article v-for="task in filteredTasks" :id="`auto-task-${task.key}`" :key="task.key" class="auto-task"
-              :class="{ 'is-focus': focusTaskKey === task.key }">
-              <div class="auto-task-main">
-                <div class="auto-task-title">
-                  <strong>{{ task.name }}</strong>
-                  <span>{{ planLabel(task) }} · {{ task.joinName }}</span>
-                </div>
-                <div class="auto-task-cell">
-                  {{ taskRoomsLabel(task) }}
-                  <span>{{ task.roomNames.length }} 间教室</span>
-                </div>
-                <div class="auto-task-cell" :class="{ 'is-overdue': isOverdue(task.nextRunAtUtc) }">
-                  {{ formatRelative(task.nextRunAtUtc, now.getTime()) }}
+
+            <section v-if="openTaskKey === task.key" class="execution-panel">
+              <div class="execution-head">
+                <span>执行记录</span>
+                <button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoadingKey === task.key"
+                  @click="loadHistory(task, true)">
+                  <UiIcon name="refresh" :size="13" />刷新
+                </button>
+              </div>
+              <div v-if="historyLoadingKey === task.key" class="loading-inline">
+                <span class="spinner"></span>正在读取执行记录…
+              </div>
+              <p v-else-if="historyError" class="execution-error" role="alert">{{ historyError }}</p>
+              <template v-else-if="historyCache[task.key]?.length">
+                <div v-for="execution in historyCache[task.key]" :key="execution.id" class="execution-row">
+                  <StatusPill :tone="executionTone(execution.status)" :label="executionLabel(execution.status)" />
+                  <span class="tabular">
+                    {{ formatDateTime(execution.scheduledAtUtc) }}
+                  </span>
                   <span>
-                    {{ task.nextRunAtUtc ? formatDateTime(task.nextRunAtUtc) : '无计划时间' }}
+                    <span v-if="execution.error" class="execution-error">
+                      {{ execution.roomName }} · {{ execution.error }}
+                    </span>
+                    <template v-else>{{ execution.roomName }} · 数字控制指令已下发</template>
+                  </span>
+                  <span class="text-xs muted tabular">
+                    {{
+                      execution.completedAtUtc
+                        ? formatClock(execution.completedAtUtc)
+                        : '—'
+                    }}
                   </span>
                 </div>
-                <div>
-                  <StatusPill :tone="task.enabled ? 'success' : 'neutral'" :label="task.enabled ? '已启用' : '已暂停'" dot />
-                </div>
-                <div class="auto-task-actions">
-                  <button type="button" class="btn btn-quiet btn-sm" title="查看执行记录" @click="toggleHistory(task)">
-                    {{ openTaskKey === task.key ? '收起' : '记录' }}
-                  </button>
-                  <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm" title="修改任务时间、范围与目标"
-                    @click="startEdit(task)">
-                    编辑
-                  </button>
-                  <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm"
-                    :disabled="stateBusyKey === task.key" :title="task.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'"
-                    @click="toggleTaskState(task)">
-                    {{ task.enabled ? '暂停' : '恢复' }}
-                  </button>
-                  <button v-if="canOperate" type="button" class="btn btn-danger-quiet btn-sm" title="删除任务及其执行记录"
-                    @click="requestDelete(task)">
-                    删除
-                  </button>
-                </div>
-              </div>
+              </template>
+              <p v-else class="execution-empty">暂无执行记录。任务触发后会在此显示结果。</p>
+            </section>
+          </article>
+        </div>
 
-              <section v-if="openTaskKey === task.key" class="execution-panel">
-                <div class="execution-head">
-                  <span>执行记录</span>
-                  <button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoadingKey === task.key"
-                    @click="loadHistory(task, true)">
-                    <UiIcon name="refresh" :size="13" />刷新
-                  </button>
-                </div>
-                <div v-if="historyLoadingKey === task.key" class="loading-inline">
-                  <span class="spinner"></span>正在读取执行记录…
-                </div>
-                <p v-else-if="historyError" class="execution-error" role="alert">{{ historyError }}</p>
-                <template v-else-if="historyCache[task.key]?.length">
-                  <div v-for="execution in historyCache[task.key]" :key="execution.id" class="execution-row">
-                    <StatusPill :tone="executionTone(execution.status)" :label="executionLabel(execution.status)" />
-                    <span class="tabular">
-                      {{ formatDateTime(execution.scheduledAtUtc) }}
-                    </span>
-                    <span>
-                      <span v-if="execution.error" class="execution-error">
-                        {{ execution.roomName }} · {{ execution.error }}
-                      </span>
-                      <template v-else>{{ execution.roomName }} · 数字控制指令已下发</template>
-                    </span>
-                    <span class="text-xs muted tabular">
-                      {{
-                        execution.completedAtUtc
-                          ? formatClock(execution.completedAtUtc)
-                          : '—'
-                      }}
-                    </span>
-                  </div>
-                </template>
-                <p v-else class="execution-empty">暂无执行记录。任务触发后会在此显示结果。</p>
-              </section>
-            </article>
-          </div>
+        <EmptyState v-else icon="calendar" title="没有符合条件的任务" description="调整筛选条件，或新建任务为教室控制点安排计划。" />
 
-          <EmptyState v-else icon="calendar" title="没有符合条件的任务" description="调整筛选条件，或新建任务为教室控制点安排计划。" />
-        </section>
       </div>
 
       <Teleport to="body">

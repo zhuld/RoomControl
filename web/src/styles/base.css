@@ -236,7 +236,7 @@ a:hover {
 }
 
 .brand-copy strong {
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 650;
   overflow: hidden;
   text-overflow: ellipsis;
