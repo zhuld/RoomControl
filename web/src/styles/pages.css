@@ -855,6 +855,7 @@
 }
 
 @media (max-width: 1420px) {
+
   .operate-layout,
   .operate-layout.is-rail-open {
     grid-template-columns: 200px minmax(0, 1fr);
@@ -878,6 +879,7 @@
 }
 
 @media (max-width: 1040px) {
+
   .operate-layout,
   .operate-layout.is-rail-open {
     grid-template-columns: minmax(0, 1fr);
@@ -891,6 +893,7 @@
   .room-list {
     max-height: 248px;
   }
+
   .room-cascader {
     display: flex;
   }
@@ -1816,20 +1819,11 @@
     width: auto;
   }
 
-  .room-create-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .room-create-form .btn {
-    grid-column: 1 / -1;
-  }
-
   .room-table-head {
     display: none;
   }
 
   .room-row {
-    grid-template-columns: minmax(0, 1fr);
     gap: 6px;
     padding: 10px 14px;
   }
@@ -1848,15 +1842,7 @@
     max-height: 220px;
   }
 
-  .join-config-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
 
-  .join-config-row .join-kind,
-  .join-config-row .join-config-actions,
-  .join-config-row .join-config-number {
-    grid-column: 1 / -1;
-  }
 
   .join-config-actions {
     justify-content: flex-start;
@@ -1890,7 +1876,7 @@
   gap: var(--space-2);
 }
 
-.audit-date-range > svg {
+.audit-date-range>svg {
   color: var(--text-faint);
 }
 
@@ -1965,7 +1951,7 @@
 }
 
 .user-table {
-  min-width: 680px;
+  min-width: 580px;
 }
 
 .audit-message.is-error {
