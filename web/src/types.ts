@@ -4,15 +4,9 @@ export type ScheduleKind = 'Once' | 'Weekly'
 export type Workspace = 'overview' | 'operate' | 'settings' | 'audit'
 export type Density = 'comfortable' | 'compact'
 export type FeedbackTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
-export type UserRole = 'admin' | 'operator' | 'viewer'
-export type SettingsSection =
-  | 'appearance'
-  | 'branding'
-  | 'locations'
-  | 'rooms'
-  | 'controllers'
-  | 'automation'
-  | 'users'
+// 角色取值由 userRoles 单一定义推导，避免类型与选项两处维护。
+export type UserRole = (typeof userRoles)[number]['value']
+export type SettingsSection = (typeof settingsSections)[number]['value']
 
 // 从操作台或总览跳转自动任务时携带的上下文，token 用于重复触发同一目标。
 export interface AutomationTarget {
@@ -65,7 +59,8 @@ export interface LoginAccount {
   role: UserRole
 }
 
-export const userRoles: { value: UserRole; label: string; description: string }[] = [
+// 角色的唯一定义来源：新增或调整角色只需修改这里。
+export const userRoles = [
   {
     value: 'admin',
     label: '管理员',
@@ -81,7 +76,57 @@ export const userRoles: { value: UserRole; label: string; description: string }[
     label: '观看员',
     description: '仅可查看教室状态与中控在线情况，不可发送指令或修改配置。',
   },
-]
+] as const
+
+// 配置步骤的唯一定义来源：数组顺序即侧栏顺序，新增或调整步骤只需修改这里。
+export const settingsSections = [
+  {
+    value: 'branding',
+    eyebrow: '站点设置',
+    title: '站点设置',
+    description: '维护登录页与侧栏使用的名称、Logo、操作日志保留策略与浏览器技术信息显示。',
+  },
+  {
+    value: 'locations',
+    eyebrow: '教室层级',
+    title: '楼栋与楼层',
+    description: '先定义楼栋与楼层，教室只能从已配置项中选择；重命名会同步更新已有教室。',
+  },
+  {
+    value: 'rooms',
+    eyebrow: '教室',
+    title: '教室',
+    description: '维护教室名称与所在位置。定时任务按服务器本地时间执行。',
+  },
+  {
+    value: 'controllers',
+    eyebrow: '中控与设备',
+    title: '中控与设备',
+    description: '为教室接入中控并配置数字 Join 映射；保存后后台会自动重连并同步状态。',
+  },
+  {
+    value: 'automation',
+    eyebrow: '自动任务',
+    title: '自动任务',
+    description: '一次任务可覆盖多间教室的同名控制点，也可随时修改时间、范围与目标。',
+  },
+  {
+    value: 'users',
+    eyebrow: '用户与权限',
+    title: '用户与权限',
+    description: '管理员可管理配置与账号，操作员可下发指令，观看员仅可查看状态。',
+  },
+  {
+    value: 'appearance',
+    eyebrow: '显示偏好',
+    title: '外观与显示',
+    description: '调整主题与显示密度；仅保存在当前浏览器，管理员、操作员和观看员均可修改。',
+  },
+] as const
+
+export const settingsSectionMeta = Object.fromEntries(
+  settingsSections.map((section) => [section.value, section] as const),
+) as Record<SettingsSection, (typeof settingsSections)[number]>
 
 // 主题的唯一定义来源：新增或调整主题只需修改这里。
 export const themeOptions = [

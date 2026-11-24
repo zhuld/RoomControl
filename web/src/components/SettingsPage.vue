@@ -13,6 +13,8 @@ import {
   sortRoomsByLocation,
 } from '../lib/rooms'
 import {
+  settingsSectionMeta,
+  settingsSections,
   themeOptions,
   type AutomationTarget,
   type Branding,
@@ -78,44 +80,6 @@ interface HealthItem {
   actionLabel: string
   section: SettingsSection
   roomId?: string
-}
-
-const sectionMeta: Record<SettingsSection, { eyebrow: string; title: string; description: string }> = {
-  appearance: {
-    eyebrow: '显示偏好',
-    title: '外观与显示',
-    description: '调整主题与显示密度；仅保存在当前浏览器，管理员、操作员和观看员均可修改。',
-  },
-  branding: {
-    eyebrow: '站点设置',
-    title: '站点设置',
-    description: '维护登录页与侧栏使用的名称、Logo、操作日志保留策略与浏览器技术信息显示。',
-  },
-  locations: {
-    eyebrow: '教室层级',
-    title: '楼栋与楼层',
-    description: '先定义楼栋与楼层，教室只能从已配置项中选择；重命名会同步更新已有教室。',
-  },
-  rooms: {
-    eyebrow: '教室',
-    title: '教室',
-    description: '维护教室名称与所在位置。定时任务按服务器本地时间执行。',
-  },
-  controllers: {
-    eyebrow: '中控与设备',
-    title: '中控与设备',
-    description: '为教室接入中控并配置数字 Join 映射；保存后后台会自动重连并同步状态。',
-  },
-  automation: {
-    eyebrow: '自动任务',
-    title: '自动任务',
-    description: '一次任务可覆盖多间教室的同名控制点，也可随时修改时间、范围与目标。',
-  },
-  users: {
-    eyebrow: '用户与权限',
-    title: '用户与权限',
-    description: '管理员可管理配置与账号，操作员可下发指令，观看员仅可查看状态。',
-  },
 }
 
 const canManageSettings = computed(() => props.currentUser?.role === 'admin')
@@ -208,50 +172,45 @@ const currentThemeLabel = computed(
   () => themeOptions.find((option) => option.value === props.theme)?.label ?? props.theme,
 )
 
-const setupSteps = computed<SetupStep[]>(() => [
-  {
-    value: 'branding',
-    title: '站点设置',
-    summary: props.branding.displayName || '未命名站点',
-    done: Boolean(props.branding.displayName.trim()),
-  },
-  {
-    value: 'locations',
-    title: '楼栋与楼层',
-    summary: `${buildings.value.length} 栋 · ${totalFloorCount.value} 层`,
-    done: buildings.value.length > 0 && totalFloorCount.value > 0,
-  },
-  {
-    value: 'rooms',
-    title: '教室',
-    summary: `${props.rooms.length} 间`,
-    done: props.rooms.length > 0,
-  },
-  {
-    value: 'controllers',
-    title: '中控与设备',
-    summary: `${configuredRoomCount.value}/${props.rooms.length} 接入 · ${joinCount.value} 个控制点`,
-    done: props.rooms.length > 0 && roomsWithoutController.value.length === 0,
-  },
-  {
-    value: 'automation',
-    title: '自动任务',
-    summary: activeAutomationCount.value ? `${activeAutomationCount.value} 个启用任务` : '暂无启用任务',
-    done: activeAutomationCount.value > 0,
-  },
-  {
-    value: 'users',
-    title: '用户与权限',
-    summary: '管理员 / 操作员 / 观看员',
-    done: true,
-  },
-  {
-    value: 'appearance',
-    title: '外观与显示',
-    summary: `主题：${currentThemeLabel.value}`,
-    done: currentThemeLabel.value !== null && currentThemeLabel.value !== undefined,
-  },
-])
+// 步骤顺序与标题取自 settingsSections，这里只补充随数据变化的进度；缺键会由类型检查发现。
+const setupSteps = computed<SetupStep[]>(() => {
+  const progress: Record<SettingsSection, Pick<SetupStep, 'summary' | 'done'>> = {
+    branding: {
+      summary: props.branding.displayName || '未命名站点',
+      done: Boolean(props.branding.displayName.trim()),
+    },
+    locations: {
+      summary: `${buildings.value.length} 栋 · ${totalFloorCount.value} 层`,
+      done: buildings.value.length > 0 && totalFloorCount.value > 0,
+    },
+    rooms: {
+      summary: `${props.rooms.length} 间`,
+      done: props.rooms.length > 0,
+    },
+    controllers: {
+      summary: `${configuredRoomCount.value}/${props.rooms.length} 接入 · ${joinCount.value} 个控制点`,
+      done: props.rooms.length > 0 && roomsWithoutController.value.length === 0,
+    },
+    automation: {
+      summary: activeAutomationCount.value ? `${activeAutomationCount.value} 个启用任务` : '暂无启用任务',
+      done: activeAutomationCount.value > 0,
+    },
+    users: {
+      summary: '管理员 / 操作员 / 观看员',
+      done: true,
+    },
+    appearance: {
+      summary: `主题：${currentThemeLabel.value}`,
+      done: currentThemeLabel.value !== null && currentThemeLabel.value !== undefined,
+    },
+  }
+
+  return settingsSections.map((section) => ({
+    value: section.value,
+    title: section.title,
+    ...progress[section.value],
+  }))
+})
 
 const visibleSteps = computed(() =>
   setupSteps.value.filter((step) => canAccessSettingsSection(step.value, props.currentUser?.role)),
@@ -264,10 +223,7 @@ const activeSection = computed<SettingsSection>(() =>
     : (visibleSteps.value[0]?.value ?? 'appearance'),
 )
 
-const meta = computed(() => {
-  const section = sectionMeta[activeSection.value]
-  return { ...section, eyebrow: `${section.eyebrow}` }
-})
+const meta = computed(() => settingsSectionMeta[activeSection.value])
 
 const pageTitle = computed(() => settingsNavLabel(props.currentUser?.role))
 
