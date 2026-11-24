@@ -160,21 +160,16 @@ const controllerForm = reactive({
   enabled: true,
 })
 
+// 添加与编辑共用同一份表单状态，joinDialogTargetId 为空表示新建。
 const joinForm = reactive({
   name: '',
   sendJoinNumber: 1,
   stateJoinNumber: 2,
-  enableJoinNumber: 0,
+  enableJoinNumber: 0 as number | null,
   showConfirmationPopup: true,
 })
-const editingJoinId = ref('')
-const joinEdit = reactive({
-  name: '',
-  sendJoinNumber: 1,
-  showConfirmationPopup: true,
-  stateJoinNumber: 1,
-  enableJoinNumber: null as number | null,
-})
+const joinDialogOpen = ref(false)
+const joinDialogTargetId = ref('')
 const copyingJoin = ref<JoinMapping | null>(null)
 const copyingAll = ref(false)
 const copyTargetControllerIds = ref<string[]>([])
@@ -715,53 +710,65 @@ async function deleteController() {
   }, `中控「${controller.name}」已移除`)
 }
 
-async function createJoin() {
+function openCreateJoin() {
+  joinDialogTargetId.value = ''
+  joinForm.name = ''
+  joinForm.sendJoinNumber = 1
+  joinForm.stateJoinNumber = 2
+  joinForm.enableJoinNumber = 0
+  joinForm.showConfirmationPopup = true
+  joinDialogOpen.value = true
+}
+
+function openEditJoin(join: JoinMapping) {
+  joinDialogTargetId.value = join.id
+  joinForm.name = join.name
+  joinForm.sendJoinNumber = join.sendJoinNumber
+  joinForm.stateJoinNumber = join.stateJoinNumber
+  joinForm.enableJoinNumber = join.enableJoinNumber
+  joinForm.showConfirmationPopup = join.showConfirmationPopup
+  joinDialogOpen.value = true
+}
+
+function closeJoinDialog() {
+  joinDialogOpen.value = false
+  joinDialogTargetId.value = ''
+}
+
+async function submitJoin() {
   const controller = configuredRoom.value?.controller
   if (!controller) return
   const name = joinForm.name.trim()
-  if (!name) return
-  await run(async () => {
-    await request(`/api/controllers/${controller.id}/joins`, {
-      method: 'POST',
-      body: JSON.stringify({
-        ...joinForm,
-        name,
-        enableJoinNumber: Number(joinForm.enableJoinNumber) || 0,
-      }),
+  if (
+    !name ||
+    !isValidJoinNumber(joinForm.sendJoinNumber) ||
+    !isValidJoinNumber(joinForm.stateJoinNumber) ||
+    !isValidOptionalJoinNumber(joinForm.enableJoinNumber)
+  ) {
+    emit('notify', {
+      message: '请填写控制点名称，并确保发送、状态 Join 在 1 到 32768 之间；使能 Join 可为 0 或 1 到 32768。',
+      isError: true,
     })
-    joinForm.name = ''
-    emit('roomsChanged')
-  }, `控制点「${name}」已添加`)
-}
+    return
+  }
 
-function startEditJoin(join: JoinMapping) {
-  editingJoinId.value = join.id
-  joinEdit.name = join.name
-  joinEdit.sendJoinNumber = join.sendJoinNumber
-  joinEdit.stateJoinNumber = join.stateJoinNumber
-  joinEdit.enableJoinNumber = join.enableJoinNumber
-  joinEdit.showConfirmationPopup = join.showConfirmationPopup
-}
-
-async function saveJoin(join: JoinMapping) {
+  const targetId = joinDialogTargetId.value
+  const payload = {
+    name,
+    sendJoinNumber: joinForm.sendJoinNumber,
+    stateJoinNumber: joinForm.stateJoinNumber,
+    enableJoinNumber: Number(joinForm.enableJoinNumber) || 0,
+    showConfirmationPopup: joinForm.showConfirmationPopup,
+  }
   await run(async () => {
-    if (
-      !isValidJoinNumber(joinEdit.sendJoinNumber) ||
-      !isValidJoinNumber(joinEdit.stateJoinNumber) ||
-      !isValidOptionalJoinNumber(joinEdit.enableJoinNumber)
-    ) {
-      throw new Error('发送和状态 Join 必须在 1 到 32768 之间；使能 Join 可为 0 或 1 到 32768。')
+    if (targetId) {
+      await request(`/api/joins/${targetId}`, { method: 'PUT', body: JSON.stringify(payload) })
+    } else {
+      await request(`/api/controllers/${controller.id}/joins`, { method: 'POST', body: JSON.stringify(payload) })
     }
-    await request(`/api/joins/${join.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        ...joinEdit,
-        enableJoinNumber: Number(joinEdit.enableJoinNumber) || 0,
-      }),
-    })
-    editingJoinId.value = ''
+    closeJoinDialog()
     emit('roomsChanged')
-  }, `控制点「${join.name}」已更新`)
+  }, targetId ? `控制点「${name}」已更新` : `控制点「${name}」已添加`)
 }
 
 async function deleteJoin(join: JoinMapping) {
@@ -1001,8 +1008,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           <UsersPage v-if="section === 'users' && currentUser" :current-user="currentUser"
             @notify="emit('notify', $event)" />
 
-          <AutomationWorkspace v-if="section === 'automation'" embedded :rooms="rooms" :schedules="schedules" :current-user="currentUser"
-            :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
+          <AutomationWorkspace v-if="section === 'automation'" embedded :rooms="rooms" :schedules="schedules"
+            :current-user="currentUser" :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
             @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
 
           <div v-if="section === 'branding'" class="panel-body stack">
@@ -1362,6 +1369,10 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                         class="btn btn-quiet btn-sm" @click="openCopyAll">
                         全部复制到教室
                       </button>
+                      <button v-if="configuredRoom.controller" type="button" class="btn btn-primary btn-sm"
+                        @click="openCreateJoin">
+                        <UiIcon name="plus" :size="14" />添加控制点
+                      </button>
                     </div>
                   </div>
 
@@ -1372,87 +1383,25 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                         'is-drag-over': dragOverJoinId === join.id,
                       }" @dragover="dragJoinOver($event, join)" @dragleave="clearJoinDragOver(join)"
                         @drop="dropJoin($event, join)">
-                        <template v-if="editingJoinId === join.id">
-                          <span class="join-type-icon join-drag-handle" draggable="true" title="拖动调整控制台按钮顺序"
-                            aria-label="拖动调整顺序" @dragstart="startJoinDrag($event, join)" @dragend="endJoinDrag">
-                            <UiIcon name="drag" :size="14" />
-                          </span>
-                          <input name="send-name" autocomplete="off" v-model="joinEdit.name" class="input"
-                            maxlength="120" required />
-                          <div class="join-config-number">
-                            <input name="sendJoinNumber" v-model.number="joinEdit.sendJoinNumber" class="input"
-                              type="number" min="1" max="32768" aria-label="发送 Join 编号" placeholder="发送" required />
-                            <input name="stateJoinNumber" v-model.number="joinEdit.stateJoinNumber" class="input"
-                              type="number" min="1" max="32768" aria-label="状态接收 Join 编号" placeholder="状态" required />
-                            <input name="enableJoinNumber" v-model.number="joinEdit.enableJoinNumber" class="input"
-                              type="number" min="0" max="32768" aria-label="使能接收 Join 编号" placeholder="使能（0=不设置）" />
-                            <label class="checkbox" title="发送指令或删除该控制点前显示确认弹窗">
-                              <input name="showConfirmationPopup" v-model="joinEdit.showConfirmationPopup"
-                                type="checkbox" />
-                              操作前确认
-                            </label>
-                          </div>
-                          <div class="join-config-actions">
-                            <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveJoin(join)">保存</button>
-                            <button class="btn btn-quiet btn-sm" @click="editingJoinId = ''">取消</button>
-                          </div>
-                        </template>
-                        <template v-else>
-                          <span class="join-type-icon join-drag-handle" draggable="true" title="拖动调整控制台按钮顺序"
-                            aria-label="拖动调整顺序" @dragstart="startJoinDrag($event, join)" @dragend="endJoinDrag">
-                            <UiIcon name="drag" :size="14" />
-                          </span>
-                          <strong>{{ join.name }}</strong>
-                          <span class="join-kind">
-                            发送 {{ join.sendJoinNumber }} · 状态 {{ join.stateJoinNumber }} · 使能
-                            {{ join.enableJoinNumber }} · {{ join.showConfirmationPopup ? '需确认' : '直接下发' }}
-                          </span>
-                          <div class="join-config-actions">
-                            <button class="btn btn-quiet btn-sm" @click="openCopyJoin(join)">复制到教室</button>
-                            <button class="btn btn-quiet btn-sm" @click="startEditJoin(join)">编辑</button>
-                            <button class="btn btn-danger-quiet btn-sm" @click="deleteJoin(join)">删除</button>
-                          </div>
-                        </template>
+                        <span class="join-type-icon join-drag-handle" draggable="true" title="拖动调整控制台按钮顺序"
+                          aria-label="拖动调整顺序" @dragstart="startJoinDrag($event, join)" @dragend="endJoinDrag">
+                          <UiIcon name="drag" :size="14" />
+                        </span>
+                        <strong>{{ join.name }}</strong>
+                        <span class="join-kind">
+                          发送 {{ join.sendJoinNumber }} · 状态 {{ join.stateJoinNumber }} · 使能
+                          {{ join.enableJoinNumber }} · {{ join.showConfirmationPopup ? '需确认' : '直接下发' }}
+                        </span>
+                        <div class="join-config-actions">
+                          <button class="btn btn-quiet btn-sm" @click="openCopyJoin(join)">复制到教室</button>
+                          <button class="btn btn-quiet btn-sm" @click="openEditJoin(join)">编辑</button>
+                          <button class="btn btn-danger-quiet btn-sm" @click="deleteJoin(join)">删除</button>
+                        </div>
                       </div>
                     </div>
                     <p v-else class="empty-history text-sm muted">
-                      该中控还没有控制点，添加 Join 映射后即可在操作台操作。
+                      该中控还没有控制点，点击「添加控制点」创建 Join 映射后即可在操作台操作。
                     </p>
-
-                    <form class="add-join-card" @submit.prevent="createJoin">
-                      <div>
-                        <strong>添加数字控制点</strong>
-                        <p>分别配置发送、状态接收和使能接收 Join；使能 Join 默认为 0，表示不设置并默认允许。使能只限制手动操作，定时任务仍会按时下发。</p>
-                      </div>
-                      <div class="join-number-fields">
-                        <label class="field">
-                          命令名称
-                          <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input"
-                            placeholder="例如：上课" maxlength="20" required />
-                        </label>
-                        <label class="field">
-                          发送 Join
-                          <input name="sendJoinNumber" v-model.number="joinForm.sendJoinNumber" class="input"
-                            type="number" min="1" max="32768" required />
-                        </label>
-                        <label class="field">
-                          状态接收
-                          <input name="stateJoinNumber" v-model.number="joinForm.stateJoinNumber" class="input"
-                            type="number" min="1" max="32768" required />
-                        </label>
-                        <label class="field">
-                          使能接收
-                          <input name="enableJoinNumber" v-model.number="joinForm.enableJoinNumber" class="input"
-                            type="number" min="0" max="32768" />
-                        </label>
-                        <label class="checkbox" title="发送指令或删除该控制点前显示确认弹窗">
-                          <input name="showConfirmationPopup" type="checkbox"
-                            v-model="joinForm.showConfirmationPopup" />
-                          操作前确认
-                        </label>
-                      </div>
-                      <button class="btn btn-primary" :disabled="busy">添加控制点</button>
-                    </form>
                   </template>
 
                   <EmptyState v-else icon="connection" title="尚未配置中控" description="先保存中控连接信息，之后即可添加 CIP 控制点。" />
@@ -1468,6 +1417,50 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           </div>
         </section>
       </main>
+    </div>
+
+    <div v-if="joinDialogOpen" class="dialog-overlay" @click.self="closeJoinDialog"
+      @keydown.esc.stop.prevent="closeJoinDialog">
+      <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="join-form-title">
+        <h2 id="join-form-title">{{ joinDialogTargetId ? '编辑控制点' : '添加控制点' }}</h2>
+        <p class="panel-sub">
+          分别配置发送、状态接收与使能接收 Join；使能 Join 填 0 表示不设置并默认允许，只限制手动操作。
+        </p>
+        <form @submit.prevent="submitJoin">
+          <div class="dialog-body stack">
+            <label class="field">
+              命令名称
+              <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input"
+                placeholder="例如：上课" maxlength="120" required />
+            </label>
+            <div class="join-number-fields">
+              <label class="field">
+                发送 Join
+                <input name="sendJoinNumber" v-model.number="joinForm.sendJoinNumber" class="input" type="number"
+                  min="1" max="32768" required />
+              </label>
+              <label class="field">
+                状态接收
+                <input name="stateJoinNumber" v-model.number="joinForm.stateJoinNumber" class="input" type="number"
+                  min="1" max="32768" required />
+              </label>
+              <label class="field">
+                使能接收
+                <input name="enableJoinNumber" v-model.number="joinForm.enableJoinNumber" class="input" type="number"
+                  min="0" max="32768" placeholder="0 = 不设置" />
+              </label>
+            </div>
+            <label class="checkbox" title="发送指令或删除该控制点前显示确认弹窗">
+              <input name="showConfirmationPopup" v-model="joinForm.showConfirmationPopup" type="checkbox" />
+              操作前确认
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-quiet" @click="closeJoinDialog">取消</button>
+            <button type="submit" class="btn btn-primary" :disabled="busy">{{ busy ? '保存中…' : '保存' }}</button>
+          </div>
+        </form>
+      </section>
     </div>
 
     <div v-if="copyingJoin || copyingAll" class="dialog-overlay" @click.self="closeCopyJoin"
