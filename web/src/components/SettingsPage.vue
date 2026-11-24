@@ -201,9 +201,14 @@ const controllersWithoutJoins = computed(() =>
   props.rooms.filter((room) => room.controller && room.controller.joins.length === 0),
 )
 
-const activeAutomationCount = computed(
-  () => props.schedules.filter((schedule) => schedule.enabled).length,
-)
+// 同一任务可覆盖多间教室，接口会为每间教室返回一个目标；按 GroupId 合并后计数。
+const activeAutomationCount = computed(() => {
+  const groups = new Set<string>()
+  for (const schedule of props.schedules) {
+    if (schedule.enabled) groups.add(schedule.groupId ?? schedule.id)
+  }
+  return groups.size
+})
 
 const setupSteps = computed<SetupStep[]>(() => [
   {
@@ -917,7 +922,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
         <div class="workspace-actions">
           <StatusPill v-if="canManageSettings" :tone="healthOk ? 'success' : 'warning'"
             :label="healthOk ? '接入检查通过' : `${healthItems.length} 项待补齐`" dot />
-          <StatusPill v-else :tone="activeAutomationCount ? 'info' : 'neutral'"
+          <StatusPill :tone="activeAutomationCount ? 'info' : 'neutral'"
             :label="activeAutomationCount ? `${activeAutomationCount} 个启用任务` : '暂无启用任务'" dot />
         </div>
       </Teleport>

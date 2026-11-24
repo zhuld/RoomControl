@@ -349,7 +349,7 @@ api.MapGet("/logs", async (
         })
         .ToListAsync(cancellationToken);
     return Results.Ok(logs);
-}).RequireAuthorization("AdminOnly");
+}).RequireAuthorization();
 
 api.MapGet("/logs/settings", async (
     AuditLogRetentionService retentionService,

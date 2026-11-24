@@ -332,7 +332,7 @@ function handleAttention(item: AttentionItem) {
           </span>
         </div>
       </article>
-      <article v-if="canOperate" class="kpi is-info">
+      <article class="kpi is-info">
         <span class="kpi-icon">
           <UiIcon name="automation" :size="17" />
         </span>

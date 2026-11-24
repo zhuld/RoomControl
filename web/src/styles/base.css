@@ -80,8 +80,8 @@ a:hover {
 }
 
 ::selection {
-  background: var(--accent-soft);
-  color: var(--text);
+  background: var(--accent-strong);
+  color: var(--accent-contrast);
 }
 
 ::-webkit-scrollbar {

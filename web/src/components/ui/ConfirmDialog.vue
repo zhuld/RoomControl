@@ -73,7 +73,7 @@ watch(
         <button
           type="button"
           class="btn"
-          :class="tone === 'danger' ? 'btn-danger' : 'btn-primary'"
+          :class="tone === 'danger' ? 'btn-danger-quiet' : 'btn-primary'"
           @click="emit('confirm')"
         >
           {{ confirmLabel }}

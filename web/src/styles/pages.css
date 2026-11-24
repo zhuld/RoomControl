@@ -194,6 +194,10 @@
 
 .attention-list {
   border-top: 1px solid var(--border);
+  /* 待处理项较多时限制高度，避免总览首屏被无限拉长；超出后内部滚动。 */
+  max-height: min(50dvh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .attention-item {
@@ -1918,8 +1922,41 @@
   max-height: min(68dvh, 750px);
 }
 
+.audit-foot {
+  row-gap: var(--space-2);
+}
+
+.audit-pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.audit-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.audit-page-size .select {
+  width: 76px;
+  height: 30px;
+  font-size: var(--text-xs);
+}
+
+.audit-page-indicator {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 .audit-table {
   min-width: 920px;
+  /* 显式允许选择记录文字，方便复制时间、对象或操作内容。 */
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 .audit-table .log-action,
@@ -2079,6 +2116,11 @@
     flex: 1;
     width: auto;
     min-width: 0;
+  }
+
+  .audit-pagination {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .log-target {

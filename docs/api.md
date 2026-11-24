@@ -53,8 +53,8 @@
 | 角色标识 | 显示名 | 权限范围 |
 | --- | --- | --- |
 | `admin` | 管理员 | 全部配置、用户管理、操作日志、控制指令、定时任务 |
-| `operator` | 操作员 | 查看状态、发送控制指令、创建/修改/暂停/恢复/删除定时任务 |
-| `viewer` | 观看员 | 只读：查看教室、控制点状态与中控在线情况 |
+| `operator` | 操作员 | 查看状态、查看操作日志、发送控制指令、创建/修改/暂停/恢复/删除定时任务 |
+| `viewer` | 观看员 | 只读：查看教室、控制点状态、中控在线情况与操作日志 |
 
 ### 2.3 权限策略
 
@@ -157,7 +157,7 @@
 | POST | `/api/schedules/groups/{groupId}/resume` | operator / admin | 恢复整组任务 |
 | DELETE | `/api/schedules/{scheduleId}` | operator / admin | 删除单个任务目标 |
 | GET | `/api/schedules/{scheduleId}/executions` | 已登录 | 单个任务目标的执行记录 |
-| GET | `/api/logs` | admin | 操作日志 |
+| GET | `/api/logs` | 已登录 | 操作日志 |
 | GET | `/api/logs/settings` | admin | 读取日志保留天数 |
 | PUT | `/api/logs/settings` | admin | 更新日志保留天数并立即清理 |
 | WebSocket | `/hubs/control` | 已登录 | SignalR 实时状态推送 |
@@ -767,7 +767,7 @@
 
 ### `GET /api/logs`
 
-仅 `admin`。
+任意已登录角色（`admin` / `operator` / `viewer`）均可查看。
 
 | 查询参数 | 类型 | 说明 |
 | --- | --- | --- |

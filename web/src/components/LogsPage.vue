@@ -70,6 +70,12 @@ const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const searchText = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
+// 每页固定行数，管理员可按需要切换；选择保存在当前浏览器。
+const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
+const PAGE_SIZE_STORAGE_KEY = 'roomcontrol.audit.pagesize'
+const storedPageSize = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY))
+const pageSize = ref(PAGE_SIZE_OPTIONS.includes(storedPageSize) ? storedPageSize : 100)
+const currentPage = ref(1)
 const logs = ref<AuditLog[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
@@ -78,6 +84,7 @@ const autoRefresh = ref(localStorage.getItem(AUTO_REFRESH_STORAGE_KEY) !== '0')
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let requestInFlight = false
 let reloadPending = false
+let pointerDownInTable = false
 
 const dateRangeInvalid = computed(
   () => Boolean(dateFrom.value && dateTo.value && dateFrom.value > dateTo.value),
@@ -87,8 +94,19 @@ watch(autoRefresh, (enabled) => {
   localStorage.setItem(AUTO_REFRESH_STORAGE_KEY, enabled ? '1' : '0')
 })
 
+watch(pageSize, (size) => {
+  localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size))
+  currentPage.value = 1
+})
+
+// 分类、关键词与日期变化后回到第一页，避免停留在超出范围的页码。
+watch([selectedCategory, searchText], () => {
+  currentPage.value = 1
+})
+
 // 日期区间由服务端筛选，变更后立即重新读取；分类与搜索仍在前端组合过滤。
 watch([dateFrom, dateTo], () => {
+  currentPage.value = 1
   void loadLogs()
 })
 
@@ -112,8 +130,33 @@ const filteredLogs = computed(() => {
 })
 
 const failureCount = computed(
-  () => logs.value.filter((log) => log.statusCode >= 400).length,
+  () => filteredLogs.value.filter((log) => log.statusCode >= 400).length,
 )
+
+const totalPages = computed(
+  () => Math.max(1, Math.ceil(filteredLogs.value.length / pageSize.value)),
+)
+
+const pagedLogs = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredLogs.value.slice(start, start + pageSize.value)
+})
+
+const rangeStart = computed(() =>
+  filteredLogs.value.length ? (currentPage.value - 1) * pageSize.value + 1 : 0,
+)
+
+const rangeEnd = computed(() =>
+  Math.min(currentPage.value * pageSize.value, filteredLogs.value.length),
+)
+
+watch(totalPages, (pages) => {
+  if (currentPage.value > pages) currentPage.value = pages
+})
+
+function goToPage(page: number) {
+  currentPage.value = Math.min(Math.max(page, 1), totalPages.value)
+}
 
 function toDateBoundary(date: string, endOfDay: boolean) {
   // 日期输入是浏览器本地日期，转换为 UTC 时间点交给服务端筛选。
@@ -168,8 +211,28 @@ async function loadLogs(options: { silent?: boolean } = {}) {
 }
 
 function refreshInBackground() {
-  if (!autoRefresh.value || document.hidden) return
+  // 正在表格内选择文本时暂停自动刷新，避免重渲染清除已选内容。
+  if (!autoRefresh.value || document.hidden || pointerDownInTable || hasLogTableSelection()) return
   void loadLogs({ silent: true })
+}
+
+function hasLogTableSelection() {
+  const selection = window.getSelection()
+  if (!selection || selection.isCollapsed || !selection.toString()) return false
+  const table = document.querySelector('.audit-table')
+  if (!table) return false
+  // 选中范围可能从表格内拖到表格外，anchor 或 focus 任一在表内即视为正在选择。
+  return [selection.anchorNode, selection.focusNode].some(
+    (node) => node !== null && table.contains(node),
+  )
+}
+
+function handleTablePointerDown() {
+  pointerDownInTable = true
+}
+
+function handlePointerUp() {
+  pointerDownInTable = false
 }
 
 function handleVisibilityChange() {
@@ -194,11 +257,15 @@ onMounted(() => {
   void loadLogs()
   refreshTimer = setInterval(refreshInBackground, AUTO_REFRESH_MS)
   document.addEventListener('visibilitychange', handleVisibilityChange)
+  document.addEventListener('pointerup', handlePointerUp)
+  document.addEventListener('pointercancel', handlePointerUp)
 })
 
 onBeforeUnmount(() => {
   if (refreshTimer !== undefined) clearInterval(refreshTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('pointerup', handlePointerUp)
+  document.removeEventListener('pointercancel', handlePointerUp)
 })
 </script>
 
@@ -276,7 +343,7 @@ onBeforeUnmount(() => {
         :description="searchText || selectedCategory || dateFrom || dateTo
           ? '调整分类、搜索词或日期区间后再试。'
           : '完成登录、配置或控制操作后会在此出现。'" />
-      <div v-else class="table-wrap audit-table-wrap">
+      <div v-else class="table-wrap audit-table-wrap" @pointerdown="handleTablePointerDown">
         <table class="table audit-table">
           <thead>
             <tr>
@@ -289,7 +356,7 @@ onBeforeUnmount(() => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="log in filteredLogs" :key="log.id">
+            <tr v-for="log in pagedLogs" :key="log.id">
               <td class="log-time">
                 <span class="is-strong">{{ formatDateTime(log.occurredAtUtc) }}</span>
                 <span class="block text-2xs muted">{{ formatRelative(log.occurredAtUtc) }}</span>
@@ -312,11 +379,30 @@ onBeforeUnmount(() => {
         </table>
       </div>
 
-      <footer class="panel-foot">
+      <footer class="panel-foot audit-foot">
         <span>
-          显示 {{ filteredLogs.length }} 条 / 已读取 {{ logs.length }} 条
+          显示 {{ rangeStart }}–{{ rangeEnd }} 条 / 共 {{ filteredLogs.length }} 条
+          <template v-if="logs.length !== filteredLogs.length">（已读取 {{ logs.length }} 条）</template>
           <template v-if="failureCount"> · 其中 {{ failureCount }} 条失败</template>
         </span>
+        <div class="audit-pagination">
+          <label class="audit-page-size">
+            每页
+            <select v-model.number="pageSize" class="select" aria-label="每页行数">
+              <option v-for="size in PAGE_SIZE_OPTIONS" :key="size" :value="size">{{ size }}</option>
+            </select>
+            条
+          </label>
+          <button type="button" class="btn btn-quiet btn-sm" :disabled="currentPage <= 1"
+            @click="goToPage(currentPage - 1)">
+            上一页
+          </button>
+          <span class="audit-page-indicator">{{ currentPage }} / {{ totalPages }}</span>
+          <button type="button" class="btn btn-quiet btn-sm" :disabled="currentPage >= totalPages"
+            @click="goToPage(currentPage + 1)">
+            下一页
+          </button>
+        </div>
         <span>
           {{ autoRefresh ? '每 5 秒自动刷新' : '自动刷新已暂停' }} · 最近刷新
           {{ lastRefreshedAt ? formatClock(lastRefreshedAt) : '—' }}

@@ -11,7 +11,6 @@ const props = defineProps<{
   roomCount: number
   onlineCount: number
   attentionCount: number
-  canManage: boolean
   hubState: 'connecting' | 'connected' | 'disconnected'
   railCollapsed: boolean
 }>()
@@ -82,7 +81,10 @@ function toggleCollapse(event: MouseEvent) {
           <UiIcon class="rail-icon" name="settings" />
           <span class="rail-label">配置与接入</span>
         </button>
-        <button v-if="canManage" type="button" class="rail-link" :class="{ active: workspace === 'audit' }" title="操作记录"
+      </section>
+
+      <section class="rail-section">
+        <button type="button" class="rail-link" :class="{ active: workspace === 'audit' }" title="操作记录"
           aria-label="操作记录" @click="openWorkspace('audit', $event)">
           <UiIcon class="rail-icon" name="audit" />
           <span class="rail-label">操作记录</span>

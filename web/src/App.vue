@@ -88,6 +88,9 @@ const debugEnabled = ref(localStorage.getItem('roomcontrol.debug') === '1')
 const currentDateTime = ref(new Date())
 let clockInterval: ReturnType<typeof setInterval> | undefined
 let toastTimeout: ReturnType<typeof setTimeout> | undefined
+// 自动任务在后台执行后没有推送事件；轮询计划数据以清除过期的逾期提示。
+const SCHEDULE_REFRESH_MS = 15_000
+let scheduleRefreshTimer: ReturnType<typeof setInterval> | undefined
 
 const hubState = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
 const lastHubEventAt = ref<string | null>(null)
@@ -118,15 +121,20 @@ const offlineRoomCount = computed(
   () => rooms.value.filter((room) => room.controller && !room.controller.isOnline).length,
 )
 const unconfiguredRoomCount = computed(() => rooms.value.filter((room) => !room.controller).length)
-const overdueScheduleCount = computed(
-  () =>
-    schedules.value.filter(
-      (schedule) =>
-        schedule.enabled &&
-        schedule.nextRunAtUtc !== null &&
-        new Date(schedule.nextRunAtUtc).getTime() < currentDateTime.value.getTime() - 60_000,
-    ).length,
-)
+const overdueScheduleCount = computed(() => {
+  // 同一任务覆盖多间教室时，接口会返回多条目标记录；按 GroupId 合并后计数。
+  const groups = new Set<string>()
+  for (const schedule of schedules.value) {
+    if (
+      schedule.enabled &&
+      schedule.nextRunAtUtc !== null &&
+      new Date(schedule.nextRunAtUtc).getTime() < currentDateTime.value.getTime() - 60_000
+    ) {
+      groups.add(schedule.groupId ?? schedule.id)
+    }
+  }
+  return groups.size
+})
 const attentionCount = computed(
   () => offlineRoomCount.value + unconfiguredRoomCount.value + overdueScheduleCount.value,
 )
@@ -196,6 +204,8 @@ watch(debugEnabled, (enabled) => {
 watch(workspace, (value) => {
   localStorage.setItem('roomcontrol.workspace', value)
   railOpen.value = false
+  // 切换到总览或配置页时立即同步一次计划，避免显示已执行任务的旧时间。
+  if (value === 'overview' || value === 'settings') void refreshSchedulesInBackground()
 })
 
 watch(railCollapsed, (collapsed) => {
@@ -222,9 +232,6 @@ watch(
 watch(currentUser, (user) => {
   if (!user) return
   // 配置与接入对操作员只开放「自动任务」步骤，其余步骤仅管理员可见。
-  if (user.role !== 'admin' && workspace.value === 'audit') {
-    workspace.value = 'overview'
-  }
   if (user.role === 'viewer' && (workspace.value === 'operate' || workspace.value === 'settings')) {
     workspace.value = 'overview'
   }
@@ -235,9 +242,8 @@ watch(currentUser, (user) => {
 
 function canAccess(target: Workspace, role: UserRole | undefined) {
   if (!role) return target === 'overview'
-  if (target === 'audit') return role === 'admin'
-  if (target === 'settings') return role !== 'viewer'
-  if (target === 'operate') return role !== 'viewer'
+  // 操作记录对所有已登录角色开放；配置与教室操作为只读角色不可用。
+  if (target === 'settings' || target === 'operate') return role !== 'viewer'
   return true
 }
 
@@ -396,6 +402,20 @@ async function loadRooms() {
 
 async function loadSchedules() {
   schedules.value = await readJson<Schedule[]>('/api/schedules')
+}
+
+// 计划任务由后台执行，前端没有实时事件；定期刷新以更新下次执行时间与逾期状态。
+async function refreshSchedulesInBackground() {
+  if (!authenticated.value || document.hidden) return
+  try {
+    await loadSchedules()
+  } catch {
+    // 后台刷新失败时保留现有数据，下一次轮询继续重试。
+  }
+}
+
+function handleScheduleVisibilityChange() {
+  if (!document.hidden) void refreshSchedulesInBackground()
 }
 
 async function loadCurrentUser() {
@@ -701,11 +721,15 @@ onMounted(() => {
   clockInterval = setInterval(() => {
     currentDateTime.value = new Date()
   }, 1000)
+  scheduleRefreshTimer = setInterval(refreshSchedulesInBackground, SCHEDULE_REFRESH_MS)
+  document.addEventListener('visibilitychange', handleScheduleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
   if (toastTimeout !== undefined) clearTimeout(toastTimeout)
   if (clockInterval !== undefined) clearInterval(clockInterval)
+  if (scheduleRefreshTimer !== undefined) clearInterval(scheduleRefreshTimer)
+  document.removeEventListener('visibilitychange', handleScheduleVisibilityChange)
   void hub?.stop()
 })
 </script>
@@ -850,7 +874,7 @@ onBeforeUnmount(() => {
     </header>
 
     <TaskRail :current-user="currentUser" :workspace="workspace" :room-count="rooms.length"
-      :online-count="onlineRoomCount" :attention-count="attentionCount" :can-manage="canManageSettings"
+      :online-count="onlineRoomCount" :attention-count="attentionCount"
       :hub-state="hubState" :rail-collapsed="railCollapsed" @navigate="navigate" @logout="logout"
       @toggle-collapse="railCollapsed = !railCollapsed" />
 
