@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, inject, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { readJson, request, toErrorMessage } from '../api'
 import { formatClock, formatDateTime, formatRelative } from '../lib/format'
-import { actionSlotKey, compactModeKey } from '../lib/layout'
 import { collator } from '../lib/rooms'
 import { groupSchedules, type ScheduleGroup } from '../lib/schedules'
+import { scheduleKinds } from '../types'
 import type {
   AutomationTarget,
   CurrentUser,
@@ -27,7 +27,6 @@ const props = defineProps<{
   selectedRoomId: string
   target: AutomationTarget | null
   now: Date
-  embedded?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,14 +34,19 @@ const emit = defineEmits<{
   notify: [payload: { message: string; isError: boolean }]
 }>()
 
-type StatusFilter = 'all' | 'enabled' | 'disabled'
+// 任务筛选的唯一定义来源：新增筛选项只需修改这里。
+const taskStatusFilters = [
+  { value: 'all', label: '全部' },
+  { value: 'enabled', label: '启用中' },
+  { value: 'disabled', label: '已暂停' },
+] as const
+
+type StatusFilter = (typeof taskStatusFilters)[number]['value']
 
 interface TaskExecution extends ScheduleExecution {
   roomName: string
 }
 
-const compactMode = inject(compactModeKey, ref(false))
-const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const taskQuery = ref('')
 const roomFilter = ref('')
 const statusFilter = ref<StatusFilter>('all')
@@ -119,16 +123,6 @@ const filteredTasks = computed(() => {
       return leftNext - rightNext || collator.compare(left.name, right.name)
     })
 })
-
-const nextTask = computed(
-  () =>
-    [...tasks.value]
-      .filter((task) => task.enabled && task.nextRunAtUtc)
-      .sort(
-        (left, right) =>
-          new Date(left.nextRunAtUtc as string).getTime() - new Date(right.nextRunAtUtc as string).getTime(),
-      )[0] ?? null,
-)
 
 const selectedRooms = computed(() =>
   schedulableRooms.value.filter((room) => form.roomIds.includes(room.id)),
@@ -228,7 +222,7 @@ function toggleWeekday(day: number) {
 }
 
 function planLabel(task: { kind: ScheduleKind }) {
-  return task.kind === 'Weekly' ? '每周重复' : '一次性'
+  return scheduleKinds.find((kind) => kind.value === task.kind)?.label ?? task.kind
 }
 
 function isOverdue(value: string | null) {
@@ -482,21 +476,6 @@ watch(
 
 <template>
   <div class="workspace-inner">
-    <header v-if="!embedded" class="workspace-header">
-      <div class="workspace-header-copy">
-        <p class="eyebrow">自动化 · 计划</p>
-        <h1>自动任务</h1>
-        <p>一次任务可覆盖多间教室的同名控制点，也可随时修改时间、范围与目标。</p>
-      </div>
-      <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
-        <div class="workspace-actions">
-          <StatusPill v-if="nextTask" tone="info" :label="`下次 ${formatRelative(nextTask.nextRunAtUtc, now.getTime())}`"
-            class="status-item is-warning" dot />
-          <span class="status-item is-info ">{{ tasks.length }} 个活动任务</span>
-        </div>
-      </Teleport>
-    </header>
-
     <div class="automation-layout">
       <div class="stack">
         <header class="panel-toolbar">
@@ -511,11 +490,7 @@ watch(
               <option v-for="room in roomOptions" :key="room" :value="room">{{ room }}</option>
             </select>
             <div class="chip-row" role="group" aria-label="按启用状态筛选">
-              <button v-for="option in ([
-                { value: 'all', label: '全部' },
-                { value: 'enabled', label: '启用中' },
-                { value: 'disabled', label: '已暂停' },
-              ] as const)" :key="option.value" type="button" class="chip"
+              <button v-for="option in taskStatusFilters" :key="option.value" type="button" class="chip"
                 :class="{ active: statusFilter === option.value }" :aria-pressed="statusFilter === option.value"
                 @click="statusFilter = option.value">
                 {{ option.label }}
@@ -676,11 +651,9 @@ watch(
                 <div class="field">
                   重复方式
                   <div class="segmented" role="group" aria-label="重复方式">
-                    <button type="button" :class="{ active: form.kind === 'Weekly' }" @click="form.kind = 'Weekly'">
-                      每周重复
-                    </button>
-                    <button type="button" :class="{ active: form.kind === 'Once' }" @click="form.kind = 'Once'">
-                      一次性
+                    <button v-for="kind in scheduleKinds" :key="kind.value" type="button"
+                      :class="{ active: form.kind === kind.value }" @click="form.kind = kind.value">
+                      {{ kind.label }}
                     </button>
                   </div>
                 </div>

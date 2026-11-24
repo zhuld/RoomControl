@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { settingsNavLabel } from '../lib/settings'
 import type { CurrentUser, Workspace } from '../types'
-import { userRoles } from '../types'
+import { userRoles, workspaces } from '../types'
 import UiIcon from './ui/UiIcon.vue'
 
 // 任务导航按「值守 → 操作 → 自动化 → 管理」排列，不暴露实现页面。
@@ -23,6 +22,11 @@ const emit = defineEmits<{
 }>()
 
 const canOperate = computed(() => props.currentUser?.role !== 'viewer')
+
+// 侧栏按 workspaces 的顺序渲染；操作页对观看员隐藏。
+const railItems = computed(() =>
+  workspaces.filter((item) => item.value !== 'operate' || canOperate.value),
+)
 
 const roleLabel = computed(
   () => userRoles.find((role) => role.value === props.currentUser?.role)?.label ?? '访客',
@@ -54,43 +58,21 @@ function toggleCollapse(event: MouseEvent) {
       </button>
     </div>
     <div class="rail-scroll">
-      <section class="rail-section">
-        <button type="button" class="rail-link" :class="{ active: workspace === 'overview' }" title="系统总览"
-          :aria-label="canOperate && attentionCount ? `系统总览，${attentionCount} 项待处理` : '系统总览'"
-          @click="openWorkspace('overview', $event)">
-          <UiIcon class="rail-icon" name="overview" />
-          <span class="rail-label">系统总览</span>
-          <span v-if="canOperate" class="rail-badge" :class="{ 'is-alert': attentionCount > 0 }">{{ attentionCount
-          }}</span>
+      <section v-for="item in railItems" :key="item.value" class="rail-section">
+        <button type="button" class="rail-link" :class="{ active: workspace === item.value }" :title="item.label"
+          :aria-label="item.value === 'overview' && canOperate && attentionCount
+            ? `${item.label}，${attentionCount} 项待处理`
+            : item.label" @click="openWorkspace(item.value, $event)">
+          <UiIcon class="rail-icon" :name="item.icon" />
+          <span class="rail-label">{{ item.label }}</span>
+          <span v-if="item.value === 'overview' && canOperate" class="rail-badge"
+            :class="{ 'is-alert': attentionCount > 0 }">{{ attentionCount }}</span>
         </button>
-        <p v-if="!roomCount" class="rail-note">尚未接入教室，先完成配置。</p>
-        <p v-else-if="canOperate && attentionCount" class="rail-note">{{ attentionCount }} 项需要处理，进入总览查看。</p>
-        <p v-else class="rail-note">{{ roomCount }} 间教室 · {{ onlineCount }} 间在线。</p>
-      </section>
-
-      <section v-if="canOperate" class="rail-section">
-        <button type="button" class="rail-link" :class="{ active: workspace === 'operate' }" title="教室操作"
-          aria-label="教室操作" @click="openWorkspace('operate', $event)">
-          <UiIcon class="rail-icon" name="operate" />
-          <span class="rail-label">教室操作</span>
-        </button>
-      </section>
-
-      <section class="rail-section">
-        <button type="button" class="rail-link" :class="{ active: workspace === 'settings' }"
-          :title="settingsNavLabel(currentUser?.role)" :aria-label="settingsNavLabel(currentUser?.role)"
-          @click="openWorkspace('settings', $event)">
-          <UiIcon class="rail-icon" name="settings" />
-          <span class="rail-label">{{ settingsNavLabel(currentUser?.role) }}</span>
-        </button>
-      </section>
-
-      <section class="rail-section">
-        <button type="button" class="rail-link" :class="{ active: workspace === 'audit' }" title="操作记录"
-          aria-label="操作记录" @click="openWorkspace('audit', $event)">
-          <UiIcon class="rail-icon" name="audit" />
-          <span class="rail-label">操作记录</span>
-        </button>
+        <template v-if="item.value === 'overview'">
+          <p v-if="!roomCount" class="rail-note">尚未接入教室，先完成配置。</p>
+          <p v-else-if="canOperate && attentionCount" class="rail-note">{{ attentionCount }} 项需要处理，进入总览查看。</p>
+          <p v-else class="rail-note">{{ roomCount }} 间教室 · {{ onlineCount }} 间在线。</p>
+        </template>
       </section>
     </div>
 

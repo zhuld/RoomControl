@@ -2,8 +2,8 @@
 import { computed, inject, reactive, ref, watch } from 'vue'
 import { readJson, request, toErrorMessage } from '../api'
 import { useConfirmDialog } from '../lib/confirm'
-import { compactModeKey, actionSlotKey } from '../lib/layout'
-import { canAccessSettingsSection, settingsNavLabel } from '../lib/settings'
+import { actionSlotKey } from '../lib/layout'
+import { canAccessSettingsSection } from '../lib/settings'
 import {
   buildingOf,
   floorOf,
@@ -13,6 +13,7 @@ import {
   sortRoomsByLocation,
 } from '../lib/rooms'
 import {
+  densityOptions,
   settingsSectionMeta,
   settingsSections,
   themeOptions,
@@ -83,7 +84,6 @@ interface HealthItem {
 }
 
 const canManageSettings = computed(() => props.currentUser?.role === 'admin')
-const compactMode = inject(compactModeKey, ref(false))
 const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const busy = ref(false)
 const setupLoading = ref(false)
@@ -224,18 +224,6 @@ const activeSection = computed<SettingsSection>(() =>
 )
 
 const meta = computed(() => settingsSectionMeta[activeSection.value])
-
-const pageTitle = computed(() => settingsNavLabel(props.currentUser?.role))
-
-const headerDescription = computed(() => {
-  if (canManageSettings.value) {
-    return '按接入顺序补齐站点、位置、教室、中控、自动任务与用户权限，并按需调整外观与显示。'
-  }
-  if (props.currentUser?.role === 'operator') {
-    return '维护外观与显示，以及教室的定时任务；其余接入步骤由管理员维护。'
-  }
-  return '调整主题与显示密度；配置与操作权限由管理员分配。'
-})
 
 const healthItems = computed<HealthItem[]>(() => {
   const items: HealthItem[] = []
@@ -850,21 +838,14 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
 
 <template>
   <div class="workspace-inner">
-    <header class="workspace-header">
-      <div class="workspace-header-copy">
-        <p class="eyebrow">管理 · 配置</p>
-        <h1>{{ pageTitle }}</h1>
-        <p>{{ headerDescription }}</p>
+    <Teleport v-if="actionSlot" :to="actionSlot">
+      <div class="workspace-actions">
+        <StatusPill v-if="canManageSettings" :tone="healthOk ? 'success' : 'warning'"
+          :label="healthOk ? '接入检查通过' : `${healthItems.length} 项待补齐`" dot />
+        <StatusPill v-if="currentUser?.role !== 'viewer'" :tone="activeAutomationCount ? 'info' : 'neutral'"
+          :label="activeAutomationCount ? `${activeAutomationCount} 个启用任务` : '暂无启用任务'" dot />
       </div>
-      <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
-        <div class="workspace-actions">
-          <StatusPill v-if="canManageSettings" :tone="healthOk ? 'success' : 'warning'"
-            :label="healthOk ? '接入检查通过' : `${healthItems.length} 项待补齐`" dot />
-          <StatusPill v-if="currentUser?.role !== 'viewer'" :tone="activeAutomationCount ? 'info' : 'neutral'"
-            :label="activeAutomationCount ? `${activeAutomationCount} 个启用任务` : '暂无启用任务'" dot />
-        </div>
-      </Teleport>
-    </header>
+    </Teleport>
 
     <div class="settings-layout">
       <nav class="panel setup-nav" aria-label="设置步骤">
@@ -937,7 +918,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           <UsersPage v-if="activeSection === 'users' && currentUser" :current-user="currentUser"
             @notify="emit('notify', $event)" />
 
-          <AutomationWorkspace v-if="activeSection === 'automation'" embedded :rooms="rooms" :schedules="schedules"
+          <AutomationWorkspace v-if="activeSection === 'automation'" :rooms="rooms" :schedules="schedules"
             :current-user="currentUser" :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
             @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
 
@@ -972,13 +953,10 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                 </div>
               </div>
               <div class="segmented" role="radiogroup" aria-label="显示密度">
-                <button type="button" :class="{ active: density === 'comfortable' }" role="radio"
-                  :aria-checked="density === 'comfortable'" @click="selectDensity('comfortable')">
-                  标准
-                </button>
-                <button type="button" :class="{ active: density === 'compact' }" role="radio"
-                  :aria-checked="density === 'compact'" @click="selectDensity('compact')">
-                  紧凑
+                <button v-for="option in densityOptions" :key="option.value" type="button"
+                  :class="{ active: density === option.value }" role="radio"
+                  :aria-checked="density === option.value" @click="selectDensity(option.value)">
+                  {{ option.label }}
                 </button>
               </div>
             </div>

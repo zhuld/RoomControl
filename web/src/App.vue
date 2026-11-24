@@ -10,17 +10,17 @@ import TaskRail from './components/TaskRail.vue'
 import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 import UiIcon from './components/ui/UiIcon.vue'
 import { useConfirmDialog } from './lib/confirm'
-import { actionSlotKey, compactModeKey } from './lib/layout'
+import { actionSlotKey } from './lib/layout'
 import {
   canAccessSettingsSection,
   defaultSettingsSection,
-  settingsNavLabel,
 } from './lib/settings'
 import BrandLogo from './components/BrandLogo.vue'
 import {
   defaultBranding,
   resolveThemeName,
   userRoles,
+  workspaceMeta,
   type AutomationTarget,
   type Branding,
   type CommandReceipt,
@@ -65,27 +65,12 @@ let automationToken = 0
 
 const canOperate = computed(() => currentUser.value?.role !== 'viewer')
 
-const workspaceMeta: Record<Workspace, string> = {
-  overview: '系统总览',
-  operate: '教室操作',
-  settings: '配置与接入',
-  audit: '操作记录',
-}
-
-const activeWorkspaceLabel = computed(() =>
-  workspace.value === 'settings'
-    ? settingsNavLabel(currentUser.value?.role)
-    : workspaceMeta[workspace.value],
-)
+const activeWorkspaceLabel = computed(() => workspaceMeta[workspace.value].label)
 
 const theme = ref<ThemeName>('pine')
 const density = ref<Density>('comfortable')
-// 紧凑模式下各工作区把页头操作传送到顶部栏，页头整体隐藏。
+// 各工作区的页头操作统一传送到顶部栏。
 const actionSlot = ref<HTMLElement | null>(null)
-provide(
-  compactModeKey,
-  computed(() => density.value === 'compact'),
-)
 provide(actionSlotKey, actionSlot)
 const debugEnabled = ref(localStorage.getItem('roomcontrol.debug') === '1')
 const currentDateTime = ref(new Date())

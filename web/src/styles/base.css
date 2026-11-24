@@ -639,23 +639,7 @@ a:hover {
   margin: 0 auto;
 }
 
-.workspace-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-5);
-  margin-bottom: var(--space-5);
-}
-
-.workspace-header-copy {
-  min-width: 0;
-}
-
-/* 紧凑模式隐藏整段页头，页头操作由各工作区传送到顶部栏的 .topbar-workspace-slot。 */
-[data-density='compact'] .workspace-header {
-  display: none;
-}
-
+/* 各工作区的页头操作统一传送到顶部栏的 .topbar-workspace-slot。 */
 .topbar-workspace-slot {
   display: flex;
   align-items: center;
@@ -679,16 +663,6 @@ a:hover {
 .topbar-workspace-slot .workspace-actions > * {
   min-width: 0;
   white-space: nowrap;
-}
-
-.workspace-header h1 {
-  margin-top: 2px;
-}
-
-.workspace-header p {
-  margin-top: var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--text-md);
 }
 
 .workspace-actions {
@@ -837,15 +811,6 @@ a:hover {
 
   .workspace-scroll {
     padding: var(--space-4);
-  }
-
-  .workspace-header {
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .workspace-actions {
-    width: 100%;
   }
 }
 

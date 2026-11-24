@@ -1,8 +1,8 @@
 // 前端视图状态、API 数据结构和配置选项的共享类型定义。
-export type ScheduleKind = 'Once' | 'Weekly'
+export type ScheduleKind = (typeof scheduleKinds)[number]['value']
 // 工作区按操作员任务流划分，而不是按页面划分。
-export type Workspace = 'overview' | 'operate' | 'settings' | 'audit'
-export type Density = 'comfortable' | 'compact'
+export type Workspace = (typeof workspaces)[number]['value']
+export type Density = (typeof densityOptions)[number]['value']
 export type FeedbackTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 // 角色取值由 userRoles 单一定义推导，避免类型与选项两处维护。
 export type UserRole = (typeof userRoles)[number]['value']
@@ -16,7 +16,7 @@ export interface AutomationTarget {
   scheduleId?: string
 }
 
-export type ReceiptStatus = 'sending' | 'sent' | 'failed'
+export type ReceiptStatus = (typeof receiptStatuses)[number]['value']
 
 // 命令回执是当前浏览器会话内可追踪的操作记录，与后端审计日志互补。
 export interface CommandReceipt {
@@ -95,7 +95,7 @@ export const settingsSections = [
   {
     value: 'rooms',
     eyebrow: '教室',
-    title: '教室',
+    title: '教室管理',
     description: '维护教室名称与所在位置。定时任务按服务器本地时间执行。',
   },
   {
@@ -127,6 +127,43 @@ export const settingsSections = [
 export const settingsSectionMeta = Object.fromEntries(
   settingsSections.map((section) => [section.value, section] as const),
 ) as Record<SettingsSection, (typeof settingsSections)[number]>
+
+// 工作区的唯一定义来源：数组顺序即侧栏顺序。
+export interface WorkspaceDefinition {
+  readonly value: string
+  readonly label: string
+  readonly icon: string
+}
+
+export const workspaces = [
+  { value: 'overview', label: '系统总览', icon: 'overview' },
+  { value: 'operate', label: '教室操作', icon: 'operate' },
+  { value: 'settings', label: '系统配置', icon: 'settings' },
+  { value: 'audit', label: '操作记录', icon: 'audit' },
+] as const satisfies readonly WorkspaceDefinition[]
+
+export const workspaceMeta = Object.fromEntries(
+  workspaces.map((item) => [item.value, item] as const),
+) as Record<Workspace, WorkspaceDefinition>
+
+// 重复方式的唯一定义来源。
+export const scheduleKinds = [
+  { value: 'Weekly', label: '每周重复' },
+  { value: 'Once', label: '一次性' },
+] as const
+
+// 显示密度的唯一定义来源。
+export const densityOptions = [
+  { value: 'comfortable', label: '标准' },
+  { value: 'compact', label: '紧凑' },
+] as const
+
+// 命令回执状态的唯一定义来源：文案与色调都在这里维护。
+export const receiptStatuses = [
+  { value: 'sending', label: '发送中', tone: 'info' },
+  { value: 'sent', label: '已发送', tone: 'success' },
+  { value: 'failed', label: '发送失败', tone: 'danger' },
+] as const satisfies readonly { value: string; label: string; tone: FeedbackTone }[]
 
 // 主题的唯一定义来源：新增或调整主题只需修改这里。
 export const themeOptions = [

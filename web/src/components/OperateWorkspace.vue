@@ -11,11 +11,13 @@ import {
   roomStatusFilters,
   type StatusFilter,
 } from '../lib/rooms'
+import { receiptStatuses } from '../types'
 import type {
   CommandReceipt,
   CurrentUser,
   FeedbackTone,
   JoinMapping,
+  ReceiptStatus,
   Room,
   Schedule,
   SettingsSection,
@@ -168,29 +170,21 @@ const hubBanner = computed(() => {
   return null
 })
 
+// 回执状态的唯一定义来源：文案与色调都从这里取。
+const receiptMeta = (status: ReceiptStatus) =>
+  receiptStatuses.find((item) => item.value === status) ?? receiptStatuses[0]
+
 function receiptTone(status: CommandReceipt['status']): FeedbackTone {
-  if (status === 'sent') return 'success'
-  if (status === 'failed') return 'danger'
-  return 'info'
+  return receiptMeta(status).tone
 }
 
 function receiptLabel(status: CommandReceipt['status']) {
-  if (status === 'sent') return '已发送'
-  if (status === 'failed') return '发送失败'
-  return '发送中'
+  return receiptMeta(status).label
 }
 </script>
 
 <template>
   <div class="workspace-inner">
-    <header class="workspace-header">
-      <div class="workspace-header-copy">
-        <p class="eyebrow">教室 · 操作</p>
-        <h1>教室操作</h1>
-        <p>定位教室、确认中控与使能状态，再下发指令。每次下发都会在本会话留下回执。</p>
-      </div>
-    </header>
-
     <div class="operate-layout" :class="{ 'is-rail-open': receiptRailOpen }">
       <aside class="panel room-finder" aria-label="选择教室">
         <div class="room-finder-head">

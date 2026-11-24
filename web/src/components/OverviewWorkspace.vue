@@ -223,14 +223,6 @@ function handleAttention(item: AttentionItem) {
 
 <template>
   <div class="workspace-inner">
-    <header class="workspace-header">
-      <div class="workspace-header-copy">
-        <p class="eyebrow">值守 · 接班</p>
-        <h1>系统总览</h1>
-        <p v-if="canOperate">先处理异常，再进入教室操作。控制点状态以中控回报为准，尚未回报时按低电平（关闭）显示。</p>
-        <p v-else>只读查看各教室的中控在线状态与控制点状态；尚未回报的控制点按低电平（关闭）显示。</p>
-      </div>
-    </header>
 
     <section class="kpi-grid overview-summary" aria-label="站点概况">
       <article class="kpi is-accent">

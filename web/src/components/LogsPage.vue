@@ -2,7 +2,7 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { readJson, toErrorMessage } from '../api'
 import { formatClock, formatDateTime, formatRelative } from '../lib/format'
-import { compactModeKey, actionSlotKey } from '../lib/layout'
+import { actionSlotKey } from '../lib/layout'
 import type { AuditLog } from '../types'
 import EmptyState from './ui/EmptyState.vue'
 import UiIcon from './ui/UiIcon.vue'
@@ -70,7 +70,6 @@ const AUTO_REFRESH_MS = 5000
 const AUTO_REFRESH_STORAGE_KEY = 'roomcontrol.audit.autorefresh'
 
 const selectedCategory = ref('')
-const compactMode = inject(compactModeKey, ref(false))
 const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const searchText = ref('')
 const dateFrom = ref('')
@@ -276,25 +275,18 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="workspace-inner">
-    <header class="workspace-header">
-      <div class="workspace-header-copy">
-        <p class="eyebrow">管理 · 审计</p>
-        <h1>操作记录</h1>
-        <p>追踪认证、配置变更、控制指令、中控连接、状态变化与定时任务。可按日期区间筛选；超过保留天数的记录会自动清理，保留天数在「配置与接入 · 站点与外观」中调整。</p>
+    <Teleport v-if="actionSlot" :to="actionSlot">
+      <div class="workspace-actions">
+        <button type="button" class="btn btn-quiet btn-sm" :aria-pressed="autoRefresh"
+          @click="autoRefresh = !autoRefresh">
+          <UiIcon :name="autoRefresh ? 'pause' : 'play'" :size="14" />
+          {{ autoRefresh ? '暂停' : '继续' }}
+        </button>
+        <button type="button" class="btn btn-quiet" :disabled="loading" @click="loadLogs()">
+          <UiIcon name="refresh" :size="16" />{{ loading ? '正在读取…' : '刷新' }}
+        </button>
       </div>
-      <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
-        <div class="workspace-actions">
-          <button type="button" class="btn btn-quiet btn-sm" :aria-pressed="autoRefresh"
-            @click="autoRefresh = !autoRefresh">
-            <UiIcon :name="autoRefresh ? 'pause' : 'play'" :size="14" />
-            {{ autoRefresh ? '暂停' : '继续' }}
-          </button>
-          <button type="button" class="btn btn-quiet" :disabled="loading" @click="loadLogs()">
-            <UiIcon name="refresh" :size="16" />{{ loading ? '正在读取…' : '刷新' }}
-          </button>
-        </div>
-      </Teleport>
-    </header>
+    </Teleport>
 
     <section class="panel" aria-label="操作记录">
       <header class="panel-toolbar audit-toolbar">

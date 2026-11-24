@@ -1,16 +1,16 @@
 import type { FeedbackTone, Room } from '../types'
 
 // 教室状态、位置名称与分组排序在总览、操作和配置页共用同一套口径。
-export type RoomStatus = 'online' | 'offline' | 'unconfigured'
-export type StatusFilter = 'all' | RoomStatus
+export type RoomStatus = Exclude<StatusFilter, 'all'>
+export type StatusFilter = (typeof roomStatusFilters)[number]['value']
 
-// 状态筛选按钮的统一定义，总览与教室操作页共用。
+// 状态筛选的唯一定义来源：筛选按钮、状态标签与色调都从这里取。
 export const roomStatusFilters = [
   { value: 'all', label: '全部' },
-  { value: 'online', label: '在线' },
-  { value: 'offline', label: '离线' },
-  { value: 'unconfigured', label: '未接入' },
-] as const satisfies readonly { value: StatusFilter; label: string }[]
+  { value: 'online', label: '在线', tone: 'success' },
+  { value: 'offline', label: '离线', tone: 'danger' },
+  { value: 'unconfigured', label: '未接入', tone: 'warning' },
+] as const satisfies readonly { value: string; label: string; tone?: FeedbackTone }[]
 
 const UNASSIGNED_BUILDING = '未分配楼栋'
 const UNASSIGNED_FLOOR = '未分配楼层'
@@ -36,13 +36,14 @@ export function countRooms(rooms: Room[], status: StatusFilter): number {
 }
 
 export function roomStatusLabel(room: Room): string {
-  if (roomStatus(room) === 'unconfigured') return '未接入'
-  return roomStatus(room) === 'online' ? '在线' : '离线'
+  const status = roomStatus(room)
+  return roomStatusFilters.find((filter) => filter.value === status)?.label ?? status
 }
 
 export function roomStatusTone(room: Room): FeedbackTone {
-  if (roomStatus(room) === 'unconfigured') return 'warning'
-  return roomStatus(room) === 'online' ? 'success' : 'danger'
+  const status = roomStatus(room)
+  const filter = roomStatusFilters.find((item) => item.value === status)
+  return filter && 'tone' in filter ? filter.tone : 'neutral'
 }
 
 export function sortRoomsByLocation(rooms: Room[]): Room[] {

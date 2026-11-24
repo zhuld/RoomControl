@@ -14,8 +14,3 @@ export function defaultSettingsSection(role: UserRole | undefined): SettingsSect
   if (role === 'admin') return 'branding'
   return role === 'operator' ? 'automation' : 'appearance'
 }
-
-// 观看员只能进入外观步骤，页面与导航名称直接反映可用内容。
-export function settingsNavLabel(role: UserRole | undefined): string {
-  return role === 'viewer' ? '外观与显示' : '配置与接入'
-}
