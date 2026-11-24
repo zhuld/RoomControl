@@ -544,13 +544,8 @@ watch(
       </div>
       <Teleport v-if="actionSlot" :to="actionSlot" :disabled="!compactMode">
         <div class="workspace-actions">
-          <StatusPill
-            v-if="nextTask"
-            tone="info"
-            :label="`下次 ${formatRelative(nextTask.nextRunAtUtc, now.getTime())}`"
-            class="status-item is-warning"
-            dot
-          />
+          <StatusPill v-if="nextTask" tone="info" :label="`下次 ${formatRelative(nextTask.nextRunAtUtc, now.getTime())}`"
+            class="status-item is-warning" dot />
           <span class="status-item is-info ">{{ tasks.length }} 个活动任务</span>
         </div>
       </Teleport>
@@ -563,33 +558,21 @@ watch(
             <div class="auto-toolbar-left">
               <div class="search-field">
                 <UiIcon name="search" :size="15" />
-                <input
-                  name="taskQuery"
-                  v-model="taskQuery"
-                  class="input"
-                  type="search"
-                  placeholder="搜索任务/教室"
-                  aria-label="搜索任务"
-                />
+                <input name="taskQuery" v-model="taskQuery" class="input" type="search" placeholder="搜索任务/教室"
+                  aria-label="搜索任务" />
               </div>
               <select name="roomFilter" v-model="roomFilter" class="select auto-room-filter" aria-label="按教室筛选">
                 <option value="">全部教室</option>
                 <option v-for="room in roomOptions" :key="room" :value="room">{{ room }}</option>
               </select>
               <div class="chip-row" role="group" aria-label="按启用状态筛选">
-                <button
-                  v-for="option in ([
-                    { value: 'all', label: '全部' },
-                    { value: 'enabled', label: '启用中' },
-                    { value: 'disabled', label: '已暂停' },
-                  ] as const)"
-                  :key="option.value"
-                  type="button"
-                  class="chip"
-                  :class="{ active: statusFilter === option.value }"
-                  :aria-pressed="statusFilter === option.value"
-                  @click="statusFilter = option.value"
-                >
+                <button v-for="option in ([
+                  { value: 'all', label: '全部' },
+                  { value: 'enabled', label: '启用中' },
+                  { value: 'disabled', label: '已暂停' },
+                ] as const)" :key="option.value" type="button" class="chip"
+                  :class="{ active: statusFilter === option.value }" :aria-pressed="statusFilter === option.value"
+                  @click="statusFilter = option.value">
                   {{ option.label }}
                 </button>
               </div>
@@ -601,15 +584,20 @@ watch(
               </button>
             </div>
           </header>
-
+          <table class="table">
+            <thead>
+              <tr>
+                <th>任务名称</th>
+                <th>教室</th>
+                <th>启动时间</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+          </table>
           <div v-if="filteredTasks.length" class="auto-list">
-            <article
-              v-for="task in filteredTasks"
-              :id="`auto-task-${task.key}`"
-              :key="task.key"
-              class="auto-task"
-              :class="{ 'is-focus': focusTaskKey === task.key }"
-            >
+            <article v-for="task in filteredTasks" :id="`auto-task-${task.key}`" :key="task.key" class="auto-task"
+              :class="{ 'is-focus': focusTaskKey === task.key }">
               <div class="auto-task-main">
                 <div class="auto-task-title">
                   <strong>{{ task.name }}</strong>
@@ -626,47 +614,23 @@ watch(
                   </span>
                 </div>
                 <div>
-                  <StatusPill
-                    :tone="task.enabled ? 'success' : 'neutral'"
-                    :label="task.enabled ? '已启用' : '已暂停'"
-                    dot
-                  />
+                  <StatusPill :tone="task.enabled ? 'success' : 'neutral'" :label="task.enabled ? '已启用' : '已暂停'" dot />
                 </div>
                 <div class="auto-task-actions">
-                  <button
-                    type="button"
-                    class="btn btn-quiet btn-sm"
-                    title="查看执行记录"
-                    @click="toggleHistory(task)"
-                  >
+                  <button type="button" class="btn btn-quiet btn-sm" title="查看执行记录" @click="toggleHistory(task)">
                     {{ openTaskKey === task.key ? '收起' : '记录' }}
                   </button>
-                  <button
-                    v-if="canOperate"
-                    type="button"
-                    class="btn btn-quiet btn-sm"
-                    title="修改任务时间、范围与目标"
-                    @click="startEdit(task)"
-                  >
+                  <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm" title="修改任务时间、范围与目标"
+                    @click="startEdit(task)">
                     编辑
                   </button>
-                  <button
-                    v-if="canOperate"
-                    type="button"
-                    class="btn btn-quiet btn-sm"
-                    :disabled="stateBusyKey === task.key"
-                    :title="task.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'"
-                    @click="toggleTaskState(task)"
-                  >
+                  <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm"
+                    :disabled="stateBusyKey === task.key" :title="task.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'"
+                    @click="toggleTaskState(task)">
                     {{ task.enabled ? '暂停' : '恢复' }}
                   </button>
-                  <button
-                    v-if="canOperate"
-                    type="button"
-                    class="btn btn-danger-quiet btn-sm"
-                    title="删除任务及其执行记录"
-                    @click="requestDelete(task)"
-                  >
+                  <button v-if="canOperate" type="button" class="btn btn-danger-quiet btn-sm" title="删除任务及其执行记录"
+                    @click="requestDelete(task)">
                     删除
                   </button>
                 </div>
@@ -675,12 +639,8 @@ watch(
               <section v-if="openTaskKey === task.key" class="execution-panel">
                 <div class="execution-head">
                   <span>执行记录</span>
-                  <button
-                    type="button"
-                    class="btn btn-ghost btn-sm"
-                    :disabled="historyLoadingKey === task.key"
-                    @click="loadHistory(task, true)"
-                  >
+                  <button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoadingKey === task.key"
+                    @click="loadHistory(task, true)">
                     <UiIcon name="refresh" :size="13" />刷新
                   </button>
                 </div>
@@ -689,11 +649,7 @@ watch(
                 </div>
                 <p v-else-if="historyError" class="execution-error" role="alert">{{ historyError }}</p>
                 <template v-else-if="historyCache[task.key]?.length">
-                  <div
-                    v-for="execution in historyCache[task.key]"
-                    :key="execution.id"
-                    class="execution-row"
-                  >
+                  <div v-for="execution in historyCache[task.key]" :key="execution.id" class="execution-row">
                     <StatusPill :tone="executionTone(execution.status)" :label="executionLabel(execution.status)" />
                     <span class="tabular">
                       {{ formatDateTime(execution.scheduledAtUtc) }}
@@ -718,42 +674,21 @@ watch(
             </article>
           </div>
 
-          <EmptyState
-            v-else
-            icon="calendar"
-            title="没有符合条件的任务"
-            description="调整筛选条件，或新建任务为教室控制点安排计划。"
-          />
+          <EmptyState v-else icon="calendar" title="没有符合条件的任务" description="调整筛选条件，或新建任务为教室控制点安排计划。" />
         </section>
       </div>
 
       <Teleport to="body">
-        <div
-          v-if="formOpen"
-          class="dialog-overlay auto-form-overlay"
-          @click.self="closeForm"
-          @keydown.esc.stop.prevent="closeForm"
-        >
-          <aside
-            id="auto-form"
-            class="panel auto-form"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="auto-form-title"
-            tabindex="-1"
-          >
+        <div v-if="formOpen" class="dialog-overlay auto-form-overlay" @click.self="closeForm"
+          @keydown.esc.stop.prevent="closeForm">
+          <aside id="auto-form" class="panel auto-form" role="dialog" aria-modal="true"
+            aria-labelledby="auto-form-title" tabindex="-1">
             <header class="panel-head">
               <div class="panel-head-copy">
                 <h2 id="auto-form-title">{{ form.mode === 'edit' ? '修改执行计划' : '新建执行计划' }}</h2>
                 <p class="panel-sub">一处配置即可覆盖多间教室的同名控制点。</p>
               </div>
-              <button
-                type="button"
-                class="btn btn-quiet btn-sm"
-                title="关闭表单"
-                aria-label="关闭表单"
-                @click="closeForm"
-              >
+              <button type="button" class="btn btn-quiet btn-sm" title="关闭表单" aria-label="关闭表单" @click="closeForm">
                 <UiIcon name="x" :size="15" />
               </button>
             </header>
@@ -763,12 +698,8 @@ watch(
                 教室（已选 {{ form.roomIds.length }} / {{ schedulableRooms.length }}）
                 <div class="room-picker">
                   <label v-for="room in schedulableRooms" :key="room.id" class="room-option">
-                    <input
-                      name="roomIds"
-                      type="checkbox"
-                      :checked="form.roomIds.includes(room.id)"
-                      @change="toggleRoom(room.id)"
-                    />
+                    <input name="roomIds" type="checkbox" :checked="form.roomIds.includes(room.id)"
+                      @change="toggleRoom(room.id)" />
                     <span class="room-option-copy">
                       <strong>{{ room.name }}</strong>
                       <span>{{ room.building || '未分配楼栋' }} · {{ room.floor || '未分配楼层' }}</span>
@@ -781,117 +712,100 @@ watch(
                 </div>
               </div>
               <div>
-              <label class="field">
-                控制点（所选教室共有）
-                <select name="joinName" v-model="form.joinName" class="select" :disabled="!commonJoinNames.length">
-                  <option v-for="name in commonJoinNames" :key="name" :value="name">{{ name }}</option>
-                </select>
-              </label>
-              <p v-if="form.roomIds.length && !commonJoinNames.length" class="form-note is-warning">
-                所选教室没有同名控制点，请调整教室范围。
-              </p>
+                <label class="field">
+                  控制点（所选教室共有）
+                  <select name="joinName" v-model="form.joinName" class="select" :disabled="!commonJoinNames.length">
+                    <option v-for="name in commonJoinNames" :key="name" :value="name">{{ name }}</option>
+                  </select>
+                </label>
+                <p v-if="form.roomIds.length && !commonJoinNames.length" class="form-note is-warning">
+                  所选教室没有同名控制点，请调整教室范围。
+                </p>
 
-              <label class="field">
-                任务名称
-                <input name="taskName" v-model="form.name" class="input" maxlength="120" placeholder="例如：工作日上课" required />
-              </label>
+                <label class="field">
+                  任务名称
+                  <input name="taskName" v-model="form.name" class="input" maxlength="120" placeholder="例如：工作日上课"
+                    required />
+                </label>
 
-              <div class="field">
-                重复方式
-                <div class="segmented" role="group" aria-label="重复方式">
-                  <button type="button" :class="{ active: form.kind === 'Weekly' }" @click="form.kind = 'Weekly'">
-                    每周重复
-                  </button>
-                  <button type="button" :class="{ active: form.kind === 'Once' }" @click="form.kind = 'Once'">
-                    一次性
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="form.kind === 'Once'" class="field">
-                执行日期与时间
-                <div class="date-time-row">
-                  <input name="runDate" v-model="form.runDate" class="input" type="date" required
-                    aria-label="执行日期" />
-                  <div class="time-selects" role="group" aria-label="执行时间">
-                    <select name="runHour" v-model.number="form.runHour" class="select" aria-label="执行小时">
-                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ pad2(hour) }}</option>
-                    </select>
-                    <span class="time-separator">:</span>
-                    <select name="runMinute" v-model.number="form.runMinute" class="select" aria-label="执行分钟">
-                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ pad2(minute) }}</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-              <template v-else>
                 <div class="field">
-                  本地执行时间
-                  <div class="time-selects" role="group" aria-label="本地执行时间">
-                    <select name="localHour" v-model.number="form.localHour" class="select" aria-label="执行小时">
-                      <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ pad2(hour) }}</option>
-                    </select>
-                    <span class="time-separator">:</span>
-                    <select name="localMinute" v-model.number="form.localMinute" class="select" aria-label="执行分钟">
-                      <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ pad2(minute) }}</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="field">
-                  重复日
-                  <div class="weekday-picker" role="group" aria-label="重复日">
-                    <button
-                      v-for="day in weekdayOptions"
-                      :key="day.value"
-                      type="button"
-                      class="weekday"
-                      :class="{ active: form.weekdays.includes(day.value) }"
-                      :aria-pressed="form.weekdays.includes(day.value)"
-                      @click="toggleWeekday(day.value)"
-                    >
-                      {{ day.label }}
+                  重复方式
+                  <div class="segmented" role="group" aria-label="重复方式">
+                    <button type="button" :class="{ active: form.kind === 'Weekly' }" @click="form.kind = 'Weekly'">
+                      每周重复
+                    </button>
+                    <button type="button" :class="{ active: form.kind === 'Once' }" @click="form.kind = 'Once'">
+                      一次性
                     </button>
                   </div>
                 </div>
-              </template>
 
-              <p class="form-note">
-                覆盖 {{ selectedTargets.length }} 间教室，按服务器本地时间执行。
-                中控离线时会记为失败，不会自动补发。
-              </p>
-              <div class="form-actions is-start">
-                <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">
-                  {{ formBusy ? '正在保存…' : form.mode === 'edit' ? '保存' : '创建' }}
-                </button>
-                <button v-if="form.mode === 'edit'" type="button" class="btn btn-quiet" @click="closeForm">
-                  取消
-                </button>
-              </div>
+                <div v-if="form.kind === 'Once'" class="field">
+                  执行日期与时间
+                  <div class="date-time-row">
+                    <input name="runDate" v-model="form.runDate" class="input" type="date" required aria-label="执行日期" />
+                    <div class="time-selects" role="group" aria-label="执行时间">
+                      <select name="runHour" v-model.number="form.runHour" class="select" aria-label="执行小时">
+                        <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ pad2(hour) }}</option>
+                      </select>
+                      <span class="time-separator">:</span>
+                      <select name="runMinute" v-model.number="form.runMinute" class="select" aria-label="执行分钟">
+                        <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ pad2(minute) }}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <template v-else>
+                  <div class="field">
+                    本地执行时间
+                    <div class="time-selects" role="group" aria-label="本地执行时间">
+                      <select name="localHour" v-model.number="form.localHour" class="select" aria-label="执行小时">
+                        <option v-for="hour in hourOptions" :key="hour" :value="hour">{{ pad2(hour) }}</option>
+                      </select>
+                      <span class="time-separator">:</span>
+                      <select name="localMinute" v-model.number="form.localMinute" class="select" aria-label="执行分钟">
+                        <option v-for="minute in minuteOptions" :key="minute" :value="minute">{{ pad2(minute) }}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="field">
+                    重复日
+                    <div class="weekday-picker" role="group" aria-label="重复日">
+                      <button v-for="day in weekdayOptions" :key="day.value" type="button" class="weekday"
+                        :class="{ active: form.weekdays.includes(day.value) }"
+                        :aria-pressed="form.weekdays.includes(day.value)" @click="toggleWeekday(day.value)">
+                        {{ day.label }}
+                      </button>
+                    </div>
+                  </div>
+                </template>
+
+                <p class="form-note">
+                  覆盖 {{ selectedTargets.length }} 间教室，按服务器本地时间执行。
+                  中控离线时会记为失败，不会自动补发。
+                </p>
+                <div class="form-actions is-start">
+                  <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">
+                    {{ formBusy ? '正在保存…' : form.mode === 'edit' ? '保存' : '创建' }}
+                  </button>
+                  <button v-if="form.mode === 'edit'" type="button" class="btn btn-quiet" @click="closeForm">
+                    取消
+                  </button>
+                </div>
               </div>
             </form>
 
-        <EmptyState
-          v-else
-          icon="connection"
-          title="还没有可排程的控制点"
-          description="先在配置中为教室接入中控并添加控制点。"
-        />
+            <EmptyState v-else icon="connection" title="还没有可排程的控制点" description="先在配置中为教室接入中控并添加控制点。" />
           </aside>
         </div>
       </Teleport>
     </div>
 
-    <ConfirmDialog
-      :open="pendingDelete !== null"
-      title="删除自动任务"
-      :message="pendingDelete
-        ? `删除「${pendingDelete.name}」将移除 ${pendingDelete.roomNames.length} 间教室的目标与全部执行记录，此操作不可撤销。`
-        : ''"
-      confirm-label="确认删除"
-      tone="danger"
-      @cancel="pendingDelete = null"
-      @confirm="confirmDelete"
-    />
+    <ConfirmDialog :open="pendingDelete !== null" title="删除自动任务" :message="pendingDelete
+      ? `删除「${pendingDelete.name}」将移除 ${pendingDelete.roomNames.length} 间教室的目标与全部执行记录，此操作不可撤销。`
+      : ''" confirm-label="确认删除" tone="danger" @cancel="pendingDelete = null" @confirm="confirmDelete" />
     <span v-if="deleteBusy" class="sr-only" role="status">正在删除任务</span>
   </div>
 </template>

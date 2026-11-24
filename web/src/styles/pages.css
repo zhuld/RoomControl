@@ -1819,10 +1819,6 @@
     width: auto;
   }
 
-  .room-table-head {
-    display: none;
-  }
-
   .room-row {
     gap: 6px;
     padding: 10px 14px;

@@ -1220,7 +1220,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
 
             <div v-if="sortedRooms.length" class="room-table">
               <div class="room-table-head">
-                <span>教室</span><span>楼栋 / 楼层</span><span>中控</span><span></span>
+                <span>教室</span><span>楼栋 / 楼层</span><span>状态</span><span>操作</span>
               </div>
               <template v-for="room in sortedRooms" :key="room.id">
                 <div v-if="editingRoomId === room.id" class="room-row is-editing">
