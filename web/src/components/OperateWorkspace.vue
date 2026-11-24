@@ -24,6 +24,7 @@ import type {
 } from '../types'
 import EmptyState from './ui/EmptyState.vue'
 import RoomCascader from './ui/RoomCascader.vue'
+import RoomTree from './ui/RoomTree.vue'
 import StatusPill from './ui/StatusPill.vue'
 import UiIcon from './ui/UiIcon.vue'
 
@@ -194,7 +195,7 @@ function receiptLabel(status: CommandReceipt['status']) {
             :model-value="selectedRoomId"
             @update:model-value="selectRoomFromCascader"
           />
-          <div class="room-finder-filters" role="group" aria-label="按状态筛选">
+          <!-- <div class="room-finder-filters" role="group" aria-label="按状态筛选">
             <button
               v-for="option in roomStatusFilters"
               :key="option.value"
@@ -206,39 +207,20 @@ function receiptLabel(status: CommandReceipt['status']) {
             >
               {{ option.label }}<span class="chip-count">{{ filterCount(option.value) }}</span>
             </button>
-          </div>
+          </div> -->
         </div>
 
-        <nav class="room-list" aria-label="教室列表">
-          <template v-for="building in roomGroups" :key="building.building">
-            <p class="room-group-head">{{ building.building }}</p>
-            <template v-for="floor in building.floors" :key="`${building.building}-${floor.floor}`">
-              <button
-                v-for="room in floor.rooms"
-                :key="room.id"
-                type="button"
-                class="room-item"
-                :class="{ active: room.id === selectedRoomId }"
-                @click="emit('selectRoom', room.id)"
-              >
-                <span
-                  class="dot"
-                  :class="{
-                    'is-online': roomStatus(room) === 'online',
-                    'is-offline': roomStatus(room) === 'offline',
-                    'is-unknown': roomStatus(room) === 'unconfigured',
-                  }"
-                ></span>
-                <span class="room-item-copy">
-                  <strong>{{ room.name }}</strong>
-                  <span>{{ floor.floor }}</span>
-                </span>
-                <span class="room-item-count">{{ joinOnCount(room) }}/{{ joinTotal(room) }}</span>
-              </button>
-            </template>
+        <RoomTree :groups="roomGroups" :selected-id="selectedRoomId" label="教室列表"
+          @select="emit('selectRoom', $event)">
+          <template #status="{ room }">
+            <span class="dot" :class="{
+              'is-online': roomStatus(room) === 'online',
+              'is-offline': roomStatus(room) === 'offline',
+              'is-unknown': roomStatus(room) === 'unconfigured',
+            }"></span>
           </template>
-          <p v-if="!roomGroups.length" class="panel-body text-xs muted">没有符合条件的教室。</p>
-        </nav>
+          <template #meta="{ room }">{{ joinOnCount(room) }}/{{ joinTotal(room) }}</template>
+        </RoomTree>
       </aside>
 
       <main class="operate-main">

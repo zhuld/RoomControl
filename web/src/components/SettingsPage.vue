@@ -36,6 +36,7 @@ import BrandLogo from './BrandLogo.vue'
 import ConfirmDialog from './ui/ConfirmDialog.vue'
 import EmptyState from './ui/EmptyState.vue'
 import RoomCascader from './ui/RoomCascader.vue'
+import RoomTree from './ui/RoomTree.vue'
 import StatusPill from './ui/StatusPill.vue'
 import UiIcon from './ui/UiIcon.vue'
 import UsersPage from './UsersPage.vue'
@@ -1177,23 +1178,13 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                   <RoomCascader stacked :rooms="rooms" :model-value="configuredRoomId"
                     @update:model-value="configuredRoomId = $event" />
                 </div>
-                <nav class="room-list" aria-label="选择教室">
-                  <template v-for="building in controllerGroups" :key="building.building">
-                    <p class="room-group-head">{{ building.building }}</p>
-                    <template v-for="floor in building.floors" :key="`${building.building}-${floor.floor}`">
-                      <button v-for="room in floor.rooms" :key="room.id" type="button" class="room-item"
-                        :class="{ active: room.id === configuredRoomId }" @click="configuredRoomId = room.id">
-                        <span class="dot" :class="`is-${roomStatusTone(room)}`"></span>
-                        <span class="room-item-copy">
-                          <strong>{{ room.name }}</strong>
-                          <span>{{ floor.floor }}</span>
-                        </span>
-                        <span class="room-item-count">{{ room.controller?.joins.length ?? 0 }}</span>
-                      </button>
-                    </template>
+                <RoomTree :groups="controllerGroups" :selected-id="configuredRoomId" label="选择教室"
+                  @select="configuredRoomId = $event">
+                  <template #status="{ room }">
+                    <span class="dot" :class="`is-${roomStatusTone(room)}`"></span>
                   </template>
-                  <p v-if="!controllerGroups.length" class="panel-body text-xs muted">没有符合条件的教室。</p>
-                </nav>
+                  <template #meta="{ room }">{{ room.controller?.joins.length ?? 0 }}</template>
+                </RoomTree>
               </div>
 
               <div v-if="configuredRoom" class="controller-panel">
