@@ -284,14 +284,7 @@ function receiptLabel(status: CommandReceipt['status']) {
           </div>
 
           <section class="panel" aria-label="设备控制">
-            <header class="panel-toolbar">
-              <div class="section-lead is-flat">
-                <div>
-                  <h2>设备控制</h2>
-                  <p>{{ joins.length }} 个控制点 · 按顺序排列，点击按钮下发控制指令</p>
-                </div>
-              </div>
-            </header>
+
 
             <div v-if="joins.length" class="panel-body control-stage">
               <!-- 视频窗口预留位：接入教室摄像头后在此替换为实时画面。 -->

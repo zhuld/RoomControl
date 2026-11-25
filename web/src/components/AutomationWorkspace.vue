@@ -104,6 +104,26 @@ const roomOptions = computed(() =>
   [...new Set(tasks.value.flatMap((task) => task.roomNames))].sort(collator.compare),
 )
 
+// 排列顺序只取决于任务定义：一次性任务按执行时刻在前，每周任务按本地执行时间在后。
+// 顺序与启用状态、下次执行时间无关，暂停或恢复后任务不会换位。
+function planSeconds(localTime: string) {
+  const [hour = '0', minute = '0', second = '0'] = localTime.split(':')
+  return Number(hour) * 3600 + Number(minute) * 60 + Number(second)
+}
+
+function compareTaskOrder(left: ScheduleGroup, right: ScheduleGroup) {
+  const leftWeekly = left.kind === 'Weekly'
+  const rightWeekly = right.kind === 'Weekly'
+  if (leftWeekly !== rightWeekly) return leftWeekly ? 1 : -1
+  const leftValue = leftWeekly
+    ? planSeconds(left.localTime)
+    : left.runAtUtc ? new Date(left.runAtUtc).getTime() : Number.MAX_SAFE_INTEGER
+  const rightValue = rightWeekly
+    ? planSeconds(right.localTime)
+    : right.runAtUtc ? new Date(right.runAtUtc).getTime() : Number.MAX_SAFE_INTEGER
+  return leftValue - rightValue || collator.compare(left.name, right.name)
+}
+
 const filteredTasks = computed(() => {
   const query = taskQuery.value.trim().toLocaleLowerCase()
   return tasks.value
@@ -116,12 +136,7 @@ const filteredTasks = computed(() => {
         .toLocaleLowerCase()
         .includes(query)
     })
-    .sort((left, right) => {
-      if (left.enabled !== right.enabled) return left.enabled ? -1 : 1
-      const leftNext = left.nextRunAtUtc ? new Date(left.nextRunAtUtc).getTime() : Number.MAX_SAFE_INTEGER
-      const rightNext = right.nextRunAtUtc ? new Date(right.nextRunAtUtc).getTime() : Number.MAX_SAFE_INTEGER
-      return leftNext - rightNext || collator.compare(left.name, right.name)
-    })
+    .sort(compareTaskOrder)
 })
 
 const selectedRooms = computed(() =>
