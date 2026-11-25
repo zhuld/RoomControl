@@ -111,6 +111,12 @@ export const settingsSections = [
     description: '一次任务可覆盖多间教室的同名控制点，也可随时修改时间、范围与目标。',
   },
   {
+    value: 'manual-tasks',
+    eyebrow: '手动任务',
+    title: '手动任务',
+    description: '把多间教室的同名控制点聚合为一个按钮，显示在系统总览，点击即批量下发。',
+  },
+  {
     value: 'users',
     eyebrow: '用户与权限',
     title: '用户与权限',
@@ -245,6 +251,54 @@ export interface ScheduleExecution {
   scheduleId: string
   scheduledAtUtc: string
   completedAtUtc: string | null
+  status: string
+  error: string | null
+}
+
+export interface ManualTaskTarget {
+  id: string
+  joinMappingId: string | null
+  roomId: string | null
+  roomName: string
+  joinName: string
+  controllerId: string | null
+  isOnline: boolean
+}
+
+export interface ManualTask {
+  id: string
+  name: string
+  joinName: string
+  confirmBeforeRun: boolean
+  sortOrder: number
+  targets: ManualTaskTarget[]
+}
+
+export interface ManualTaskRunTargetResult {
+  targetId: string
+  roomName: string
+  joinName: string
+  status: string
+  error: string | null
+}
+
+export interface ManualTaskRunResult {
+  runId: string
+  taskName: string
+  startedAtUtc: string
+  completedAtUtc: string
+  succeededCount: number
+  failedCount: number
+  targets: ManualTaskRunTargetResult[]
+}
+
+export interface ManualTaskExecution {
+  id: string
+  manualTaskId: string
+  startedAtUtc: string
+  completedAtUtc: string | null
+  succeededCount: number
+  failedCount: number
   status: string
   error: string | null
 }

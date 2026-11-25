@@ -52,6 +52,12 @@ public sealed record ScheduleDefinitionRequest(
     int WeekdayMask,
     TimeSpan LocalTime);
 
+/// <summary>创建或修改手动任务；一个任务聚合多间教室的同名控制点，并显示为总览按钮。</summary>
+public sealed record ManualTaskDefinitionRequest(
+    IReadOnlyList<Guid> JoinMappingIds,
+    string Name,
+    bool ConfirmBeforeRun = true);
+
 /// <summary>创建用户时提交的身份凭据、角色和启用状态。</summary>
 public sealed record CreateUserRequest(string Username, string Password, string Role, bool IsActive);
 

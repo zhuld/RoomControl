@@ -22,6 +22,10 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
         {
             return await ResolveAsync("schedules", scheduleId);
         }
+        if (TryGetId(values, "taskId", out var taskId))
+        {
+            return await ResolveAsync("manual-tasks", taskId);
+        }
         if (TryGetId(values, "groupId", out var groupId))
         {
             return await ResolveScheduleGroupAsync(groupId);
@@ -98,6 +102,26 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
                 return schedule is null
                     ? new AuditTarget($"定时任务 {id}")
                     : new AuditTarget($"教室「{schedule.RoomName}」· 定时任务「{schedule.Name}」");
+            }
+            case "manual-tasks":
+            {
+                var task = await db.ManualTasks.AsNoTracking()
+                    .Where(item => item.Id == id)
+                    .Select(item => new
+                    {
+                        item.Name,
+                        RoomNames = item.Targets.Select(target => target.RoomName).ToList()
+                    })
+                    .SingleOrDefaultAsync();
+                if (task is null)
+                {
+                    return new AuditTarget($"手动任务 {id}");
+                }
+
+                var scope = task.RoomNames.Count > 1
+                    ? $"教室「{task.RoomNames[0]}」等 {task.RoomNames.Count} 间"
+                    : $"教室「{task.RoomNames.FirstOrDefault() ?? "—"}」";
+                return new AuditTarget($"{scope} · 手动任务「{task.Name}」");
             }
             case "controllers":
             {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { formatRelative } from '../lib/format'
+import { computed, reactive, ref, watch } from 'vue'
+import { request, toErrorMessage } from '../api'
+import { useConfirmDialog } from '../lib/confirm'
+import { formatClock, formatRelative } from '../lib/format'
 import {
   buildingOf,
   collator,
@@ -14,16 +16,25 @@ import {
   type StatusFilter,
 } from '../lib/rooms'
 import { groupSchedules, type ScheduleGroup } from '../lib/schedules'
-import type { CurrentUser, Room, Schedule, SettingsSection } from '../types'
+import type {
+  CurrentUser,
+  ManualTask,
+  ManualTaskRunResult,
+  Room,
+  Schedule,
+  SettingsSection,
+} from '../types'
+import ConfirmDialog from './ui/ConfirmDialog.vue'
 import EmptyState from './ui/EmptyState.vue'
 import RoomCascader from './ui/RoomCascader.vue'
 import StatusPill from './ui/StatusPill.vue'
 import UiIcon from './ui/UiIcon.vue'
 
-// 系统总览只回答三个问题：哪里异常、哪些任务将执行、每间教室当前是否在线。
+// 系统总览回答四个问题：哪里异常、哪些任务将执行、手动任务怎么触发、每间教室当前是否在线。
 const props = defineProps<{
   rooms: Room[]
   schedules: Schedule[]
+  manualTasks: ManualTask[]
   currentUser: CurrentUser | null
   now: Date
 }>()
@@ -32,7 +43,16 @@ const emit = defineEmits<{
   selectRoom: [roomId: string]
   openAutomation: [target?: { roomId?: string; scheduleId?: string }]
   openSettings: [section: SettingsSection, roomId?: string]
+  notify: [payload: { message: string; isError: boolean }]
 }>()
+
+const { confirmation, confirmAction, resolveConfirmation } = useConfirmDialog({
+  title: '执行手动任务',
+  actionLabel: '确认执行',
+})
+
+const runningManualTaskId = ref('')
+const manualTaskResults = reactive<Record<string, ManualTaskRunResult>>({})
 
 const selectedRoomFilter = ref('')
 const levelFilters = ref<{ building: string; floor: string }>({ building: '', floor: '' })
@@ -219,6 +239,69 @@ function handleAttention(item: AttentionItem) {
   }
   emit('openSettings', 'controllers', item.roomId)
 }
+
+function manualTaskRoomsLabel(task: ManualTask) {
+  const names = task.targets.map((target) => target.roomName)
+  if (names.length <= 2) return names.join('、')
+  return `${names.slice(0, 2).join('、')} 等 ${names.length} 间`
+}
+
+function manualTaskTone(task: ManualTask) {
+  const result = manualTaskResults[task.id]
+  if (!result) return 'neutral' as const
+  if (result.failedCount === 0) return 'success' as const
+  return result.succeededCount === 0 ? 'danger' as const : 'warning' as const
+}
+
+function manualTaskLabel(task: ManualTask) {
+  if (runningManualTaskId.value === task.id) return '正在下发…'
+  const result = manualTaskResults[task.id]
+  if (!result) return '点击发送'
+  return `成功 ${result.succeededCount} / ${result.succeededCount + result.failedCount}`
+}
+
+// 总览按钮直接下发全部目标；任务可配置是否先弹出二次确认。
+async function runManualTask(task: ManualTask) {
+  if (runningManualTaskId.value) return
+  if (!task.targets.length) {
+    emit('notify', { message: `任务「${task.name}」还没有可执行的控制点。`, isError: true })
+    return
+  }
+
+  if (task.confirmBeforeRun) {
+    const confirmed = await confirmAction(
+      `将向 ${task.targets.length} 间教室发送「${task.joinName}」指令，确定执行「${task.name}」吗？`,
+    )
+    if (!confirmed) return
+  }
+
+  runningManualTaskId.value = task.id
+  try {
+    const response = await request(`/api/manual-tasks/${task.id}/run`, { method: 'POST' })
+    const result = (await response.json()) as ManualTaskRunResult
+    manualTaskResults[task.id] = result
+    if (result.failedCount > 0) {
+      const failures = result.targets
+        .filter((target) => target.status === 'Failed')
+        .slice(0, 3)
+        .map((target) => `${target.roomName}：${target.error ?? '发送失败'}`)
+        .join('；')
+      emit('notify', {
+        message: `「${result.taskName}」成功 ${result.succeededCount} 间，失败 ${result.failedCount} 间。${failures}`,
+        isError: true,
+      })
+    } else {
+      emit('notify', {
+        message: `「${result.taskName}」已发送至 ${result.succeededCount} 间教室。`,
+        isError: false,
+      })
+    }
+  } catch (error) {
+    emit('notify', { message: toErrorMessage(error), isError: true })
+  } finally {
+    runningManualTaskId.value = ''
+  }
+}
 </script>
 
 <template>
@@ -354,6 +437,46 @@ function handleAttention(item: AttentionItem) {
       </section>
     </div>
 
+    <section v-if="canOperate" class="panel section-gap" aria-label="手动任务">
+      <header class="panel-head">
+        <div class="panel-head-copy">
+          <p class="eyebrow">一键下发</p>
+          <h2>手动任务</h2>
+          <p class="panel-sub">每个按钮对应多间教室的一个控制点，点击后同时下发。</p>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" @click="emit('openSettings', 'manual-tasks')">
+          管理任务
+          <UiIcon name="chevron-right" :size="14" />
+        </button>
+      </header>
+
+      <div v-if="manualTasks.length" class="panel-body">
+        <div class="manual-task-grid">
+          <button v-for="task in manualTasks" :key="task.id" type="button" class="manual-task-button"
+            :disabled="runningManualTaskId !== '' || !task.targets.length"
+            :title="task.targets.length ? `${task.joinName} · ${manualTaskRoomsLabel(task)}` : '还没有可执行的控制点'"
+            @click="runManualTask(task)">
+            <span class="manual-task-name">{{ task.name }}</span>
+            <span class="manual-task-meta">{{ task.joinName }} · {{ task.targets.length }} 间教室</span>
+            <span class="manual-task-rooms">{{ manualTaskRoomsLabel(task) }}</span>
+            <span class="manual-task-foot">
+              <StatusPill :tone="manualTaskTone(task)" :label="manualTaskLabel(task)" />
+              <span v-if="manualTaskResults[task.id]" class="text-2xs muted tabular">
+                {{ formatClock(manualTaskResults[task.id].completedAtUtc) }}
+              </span>
+            </span>
+          </button>
+        </div>
+      </div>
+      <EmptyState v-else icon="bolt" title="还没有手动任务"
+        description="进入配置与接入 · 手动任务，把多间教室的同名控制点聚合为一个总览按钮。">
+        <button type="button" class="btn btn-outline btn-sm empty-action"
+          @click="emit('openSettings', 'manual-tasks')">
+          创建手动任务
+        </button>
+      </EmptyState>
+    </section>
+
     <section class="panel section-gap" aria-label="教室状态">
       <header class="panel-toolbar">
         <div class="room-toolbar-left">
@@ -408,5 +531,10 @@ function handleAttention(item: AttentionItem) {
         <EmptyState v-else icon="search" title="没有符合条件的教室" description="调整搜索词或状态筛选后再试。" />
       </div>
     </section>
+
+    <ConfirmDialog :open="confirmation !== null" :title="confirmation?.title ?? ''"
+      :message="confirmation?.message ?? ''" :confirm-label="confirmation?.actionLabel ?? '确认'"
+      :tone="confirmation?.tone ?? 'default'" @cancel="resolveConfirmation(false)"
+      @confirm="resolveConfirmation(true)" />
   </div>
 </template>

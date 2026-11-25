@@ -12,7 +12,7 @@ public sealed class ControllerConnectionService(
     IDbContextFactory<ControlDbContext> contextFactory,
     IControllerAdapterFactory adapterFactory,
     ControllerStateStore stateStore,
-    ILogger<ControllerConnectionService> logger) : BackgroundService
+    ILogger<ControllerConnectionService> logger) : BackgroundService, IControlCommandSender
 {
     private readonly ConcurrentDictionary<Guid, IControllerAdapter> _connectedAdapters = new();
     private readonly Dictionary<Guid, WorkerHandle> _workers = [];

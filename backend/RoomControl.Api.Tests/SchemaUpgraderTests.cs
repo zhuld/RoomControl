@@ -313,6 +313,54 @@ public sealed class SchemaUpgraderTests
     }
 
     [Fact]
+    public async Task UpgradeCreatesManualTaskTablesForExistingDatabase()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "CREATE TABLE \"Rooms\" (\"Id\" TEXT NOT NULL)";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<ControlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ControlDbContext(options);
+        await SchemaUpgrader.UpgradeAsync(db, CancellationToken.None);
+
+        var taskColumns = await ReadColumnsAsync(connection, "ManualTasks");
+        Assert.Contains("Name", taskColumns);
+        Assert.Contains("JoinName", taskColumns);
+        Assert.Contains("ConfirmBeforeRun", taskColumns);
+        Assert.Contains("SortOrder", taskColumns);
+
+        var targetColumns = await ReadColumnsAsync(connection, "ManualTaskTargets");
+        Assert.Contains("ManualTaskId", targetColumns);
+        Assert.Contains("JoinMappingId", targetColumns);
+        Assert.Contains("RoomName", targetColumns);
+
+        var executionColumns = await ReadColumnsAsync(connection, "ManualTaskExecutions");
+        Assert.Contains("SucceededCount", executionColumns);
+        Assert.Contains("FailedCount", executionColumns);
+        Assert.Contains("StartedAtUtc", executionColumns);
+    }
+
+    private static async Task<HashSet<string>> ReadColumnsAsync(SqliteConnection connection, string table)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"PRAGMA table_info(\"{table}\")";
+        var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            columns.Add(reader.GetString(1));
+        }
+
+        return columns;
+    }
+
+    [Fact]
     public async Task UpgradeAddsTargetColumnToExistingAuditLogs()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

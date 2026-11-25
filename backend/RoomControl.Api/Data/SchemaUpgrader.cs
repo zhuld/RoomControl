@@ -207,6 +207,45 @@ public static class SchemaUpgrader
                     "ALTER TABLE \"Schedules\" DROP COLUMN \"TimeZoneId\"",
                     cancellationToken);
             }
+
+            // 手动任务：任务定义、教室目标与执行摘要；旧库通过启动升级补齐。
+            await db.Database.ExecuteSqlRawAsync(
+                """
+                CREATE TABLE IF NOT EXISTS "ManualTasks" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_ManualTasks" PRIMARY KEY,
+                    "Name" TEXT NOT NULL,
+                    "JoinName" TEXT NOT NULL,
+                    "ConfirmBeforeRun" INTEGER NOT NULL,
+                    "SortOrder" INTEGER NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS "ManualTaskTargets" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_ManualTaskTargets" PRIMARY KEY,
+                    "ManualTaskId" TEXT NOT NULL,
+                    "JoinMappingId" TEXT NULL,
+                    "RoomName" TEXT NOT NULL,
+                    "JoinName" TEXT NOT NULL,
+                    CONSTRAINT "FK_ManualTaskTargets_ManualTasks_ManualTaskId" FOREIGN KEY ("ManualTaskId") REFERENCES "ManualTasks" ("Id") ON DELETE CASCADE,
+                    CONSTRAINT "FK_ManualTaskTargets_JoinMappings_JoinMappingId" FOREIGN KEY ("JoinMappingId") REFERENCES "JoinMappings" ("Id") ON DELETE SET NULL
+                );
+                CREATE INDEX IF NOT EXISTS "IX_ManualTaskTargets_ManualTaskId"
+                    ON "ManualTaskTargets" ("ManualTaskId");
+                CREATE INDEX IF NOT EXISTS "IX_ManualTaskTargets_JoinMappingId"
+                    ON "ManualTaskTargets" ("JoinMappingId");
+                CREATE TABLE IF NOT EXISTS "ManualTaskExecutions" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_ManualTaskExecutions" PRIMARY KEY,
+                    "ManualTaskId" TEXT NOT NULL,
+                    "StartedAtUtc" INTEGER NOT NULL,
+                    "CompletedAtUtc" INTEGER NULL,
+                    "SucceededCount" INTEGER NOT NULL,
+                    "FailedCount" INTEGER NOT NULL,
+                    "Status" TEXT NOT NULL,
+                    "Error" TEXT NULL,
+                    CONSTRAINT "FK_ManualTaskExecutions_ManualTasks_ManualTaskId" FOREIGN KEY ("ManualTaskId") REFERENCES "ManualTasks" ("Id") ON DELETE CASCADE
+                );
+                CREATE INDEX IF NOT EXISTS "IX_ManualTaskExecutions_ManualTaskId_StartedAtUtc"
+                    ON "ManualTaskExecutions" ("ManualTaskId", "StartedAtUtc");
+                """,
+                cancellationToken);
             return;
         }
 
@@ -320,6 +359,39 @@ public static class SchemaUpgrader
                     ALTER TABLE "Schedules" DROP COLUMN "IsArchived";
                 END IF;
             END $$;
+            CREATE TABLE IF NOT EXISTS "ManualTasks" (
+                "Id" uuid NOT NULL CONSTRAINT "PK_ManualTasks" PRIMARY KEY,
+                "Name" character varying(120) NOT NULL,
+                "JoinName" character varying(120) NOT NULL,
+                "ConfirmBeforeRun" boolean NOT NULL,
+                "SortOrder" integer NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS "ManualTaskTargets" (
+                "Id" uuid NOT NULL CONSTRAINT "PK_ManualTaskTargets" PRIMARY KEY,
+                "ManualTaskId" uuid NOT NULL,
+                "JoinMappingId" uuid NULL,
+                "RoomName" character varying(120) NOT NULL,
+                "JoinName" character varying(120) NOT NULL,
+                CONSTRAINT "FK_ManualTaskTargets_ManualTasks_ManualTaskId" FOREIGN KEY ("ManualTaskId") REFERENCES "ManualTasks" ("Id") ON DELETE CASCADE,
+                CONSTRAINT "FK_ManualTaskTargets_JoinMappings_JoinMappingId" FOREIGN KEY ("JoinMappingId") REFERENCES "JoinMappings" ("Id") ON DELETE SET NULL
+            );
+            CREATE INDEX IF NOT EXISTS "IX_ManualTaskTargets_ManualTaskId"
+                ON "ManualTaskTargets" ("ManualTaskId");
+            CREATE INDEX IF NOT EXISTS "IX_ManualTaskTargets_JoinMappingId"
+                ON "ManualTaskTargets" ("JoinMappingId");
+            CREATE TABLE IF NOT EXISTS "ManualTaskExecutions" (
+                "Id" uuid NOT NULL CONSTRAINT "PK_ManualTaskExecutions" PRIMARY KEY,
+                "ManualTaskId" uuid NOT NULL,
+                "StartedAtUtc" timestamp with time zone NOT NULL,
+                "CompletedAtUtc" timestamp with time zone NULL,
+                "SucceededCount" integer NOT NULL,
+                "FailedCount" integer NOT NULL,
+                "Status" character varying(16) NOT NULL,
+                "Error" character varying(2000) NULL,
+                CONSTRAINT "FK_ManualTaskExecutions_ManualTasks_ManualTaskId" FOREIGN KEY ("ManualTaskId") REFERENCES "ManualTasks" ("Id") ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS "IX_ManualTaskExecutions_ManualTaskId_StartedAtUtc"
+                ON "ManualTaskExecutions" ("ManualTaskId", "StartedAtUtc");
             """,
             cancellationToken);
     }

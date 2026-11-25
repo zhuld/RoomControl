@@ -104,6 +104,13 @@ public sealed class AuditLogMiddleware(
         {
             return AuditLogCategories.Schedule;
         }
+        // 手动任务的执行属于人工下发，定义变更归入配置。
+        if (path.StartsWith("/api/manual-tasks", StringComparison.OrdinalIgnoreCase))
+        {
+            return path.EndsWith("/run", StringComparison.OrdinalIgnoreCase)
+                ? AuditLogCategories.Control
+                : AuditLogCategories.Configuration;
+        }
         if (path.EndsWith("/pulse", StringComparison.OrdinalIgnoreCase))
         {
             return AuditLogCategories.Control;

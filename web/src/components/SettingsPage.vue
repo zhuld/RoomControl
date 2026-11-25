@@ -26,6 +26,7 @@ import {
   type FeedbackTone,
   type FloorOption,
   type JoinMapping,
+  type ManualTask,
   type Room,
   type Schedule,
   type SettingsSection,
@@ -33,6 +34,7 @@ import {
 } from '../types'
 import AutomationWorkspace from './AutomationWorkspace.vue'
 import BrandLogo from './BrandLogo.vue'
+import ManualTasksWorkspace from './ManualTasksWorkspace.vue'
 import ConfirmDialog from './ui/ConfirmDialog.vue'
 import EmptyState from './ui/EmptyState.vue'
 import RoomCascader from './ui/RoomCascader.vue'
@@ -41,7 +43,7 @@ import StatusPill from './ui/StatusPill.vue'
 import UiIcon from './ui/UiIcon.vue'
 import UsersPage from './UsersPage.vue'
 
-// 配置页按接入顺序组织：站点 → 位置 → 教室 → 中控 → 自动任务 → 权限。
+// 配置页按接入顺序组织：站点 → 位置 → 教室 → 中控 → 自动任务 → 手动任务 → 权限。
 const props = defineProps<{
   rooms: Room[]
   branding: Branding
@@ -52,6 +54,7 @@ const props = defineProps<{
   focusRoomId?: string
   debugEnabled: boolean
   schedules: Schedule[]
+  manualTasks: ManualTask[]
   selectedRoomId: string
   automationTarget: AutomationTarget | null
   now: Date
@@ -66,6 +69,7 @@ const emit = defineEmits<{
   debugChanged: [enabled: boolean]
   sectionChanged: [section: SettingsSection]
   automationChanged: []
+  manualTasksChanged: []
 }>()
 
 interface SetupStep {
@@ -195,6 +199,10 @@ const setupSteps = computed<SetupStep[]>(() => {
     automation: {
       summary: activeAutomationCount.value ? `${activeAutomationCount.value} 个启用任务` : '暂无启用任务',
       done: activeAutomationCount.value > 0,
+    },
+    'manual-tasks': {
+      summary: props.manualTasks.length ? `${props.manualTasks.length} 个手动任务` : '暂无手动任务',
+      done: props.manualTasks.length > 0,
     },
     users: {
       summary: '管理员 / 操作员 / 观看员',
@@ -850,12 +858,12 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
 
     <div class="settings-layout">
       <nav class="panel setup-nav" aria-label="设置步骤">
-        <button v-for="(step, index) in visibleSteps" :key="step.value" type="button" class="setup-step"
+        <button v-for="(step) in visibleSteps" :key="step.value" type="button" class="setup-step"
           :class="{ active: activeSection === step.value }"
           :aria-current="activeSection === step.value ? 'step' : undefined" @click="jumpTo(step.value)">
           <span class="step-no">
             <UiIcon v-if="step.done" name="check" :size="12" />
-            <template v-else>{{ index + 1 }}</template>
+            <UiIcon v-else name="alert" :size="12" />
           </span>
           <span class="setup-step-copy">
             <strong>{{ step.title }}</strong>
@@ -922,6 +930,10 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           <AutomationWorkspace v-if="activeSection === 'automation'" :rooms="rooms" :schedules="schedules"
             :current-user="currentUser" :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
             @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
+
+          <ManualTasksWorkspace v-if="activeSection === 'manual-tasks'" :rooms="rooms"
+            :manual-tasks="manualTasks" :current-user="currentUser" :selected-room-id="selectedRoomId"
+            @changed="emit('manualTasksChanged')" @notify="emit('notify', $event)" />
 
           <div v-if="activeSection === 'appearance'" class="panel-body stack">
             <div class="stack">

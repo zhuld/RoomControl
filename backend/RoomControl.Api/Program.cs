@@ -146,8 +146,11 @@ builder.Services.AddScoped<AuditLogTargetResolver>();
 builder.Services.AddSingleton<IControllerAdapterFactory, ControllerAdapterFactory>();
 builder.Services.AddSingleton<ControllerStateStore>();
 builder.Services.AddSingleton<ControllerConnectionService>();
+builder.Services.AddSingleton<IControlCommandSender>(services =>
+    services.GetRequiredService<ControllerConnectionService>());
 builder.Services.AddHostedService(services => services.GetRequiredService<ControllerConnectionService>());
 builder.Services.AddSingleton<ScheduleService>();
+builder.Services.AddSingleton<ManualTaskService>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -759,6 +762,7 @@ api.MapDelete("/rooms/{roomId:guid}", async (
     Guid roomId,
     ControlDbContext db,
     ScheduleService scheduleService,
+    ManualTaskService manualTaskService,
     CancellationToken cancellationToken) =>
 {
     var room = await db.Rooms.Include(item => item.Controller)
@@ -767,6 +771,7 @@ api.MapDelete("/rooms/{roomId:guid}", async (
     if (room.Controller is { } controller)
     {
         await scheduleService.DeleteForControllerAsync(controller.Id, cancellationToken);
+        await manualTaskService.DeleteForControllerAsync(controller.Id, cancellationToken);
         var snapshots = await db.JoinSnapshots.Where(item => item.ControllerId == controller.Id).ToListAsync(cancellationToken);
         db.JoinSnapshots.RemoveRange(snapshots);
     }
@@ -840,12 +845,14 @@ api.MapDelete("/controllers/{controllerId:guid}", async (
     Guid controllerId,
     ControlDbContext db,
     ScheduleService scheduleService,
+    ManualTaskService manualTaskService,
     CancellationToken cancellationToken) =>
 {
     var controller = await db.Controllers.SingleOrDefaultAsync(item => item.Id == controllerId, cancellationToken)
         ?? throw new KeyNotFoundException("Controller was not found.");
 
     await scheduleService.DeleteForControllerAsync(controllerId, cancellationToken);
+    await manualTaskService.DeleteForControllerAsync(controllerId, cancellationToken);
     var snapshots = await db.JoinSnapshots.Where(item => item.ControllerId == controllerId).ToListAsync(cancellationToken);
     db.JoinSnapshots.RemoveRange(snapshots);
     db.Controllers.Remove(controller);
@@ -942,6 +949,7 @@ api.MapPost("/joins/{mappingId:guid}/copy", async (
     CopyJoinMappingsRequest request,
     ControlDbContext db,
     ScheduleService scheduleService,
+    ManualTaskService manualTaskService,
     CancellationToken cancellationToken) =>
 {
     var source = await db.JoinMappings
@@ -966,6 +974,7 @@ api.MapPost("/joins/{mappingId:guid}/copy", async (
         foreach (var conflict in conflicts)
         {
             await scheduleService.DeleteForJoinMappingAsync(conflict.Id, cancellationToken);
+            await manualTaskService.DeleteForJoinMappingAsync(conflict.Id, cancellationToken);
             db.JoinMappings.Remove(conflict);
         }
 
@@ -984,6 +993,7 @@ api.MapPost("/controllers/{controllerId:guid}/joins/copy-all", async (
     CopyJoinMappingsRequest request,
     ControlDbContext db,
     ScheduleService scheduleService,
+    ManualTaskService manualTaskService,
     CancellationToken cancellationToken) =>
 {
     var sourceMappings = await db.JoinMappings
@@ -1007,6 +1017,7 @@ api.MapPost("/controllers/{controllerId:guid}/joins/copy-all", async (
         foreach (var existing in existingMappings)
         {
             await scheduleService.DeleteForJoinMappingAsync(existing.Id, cancellationToken);
+            await manualTaskService.DeleteForJoinMappingAsync(existing.Id, cancellationToken);
             db.JoinMappings.Remove(existing);
         }
 
@@ -1057,12 +1068,14 @@ api.MapDelete("/joins/{mappingId:guid}", async (
     Guid mappingId,
     ControlDbContext db,
     ScheduleService scheduleService,
+    ManualTaskService manualTaskService,
     CancellationToken cancellationToken) =>
 {
     var mapping = await db.JoinMappings.SingleOrDefaultAsync(item => item.Id == mappingId, cancellationToken)
         ?? throw new KeyNotFoundException("Join mapping was not found.");
 
     await scheduleService.DeleteForJoinMappingAsync(mappingId, cancellationToken);
+    await manualTaskService.DeleteForJoinMappingAsync(mappingId, cancellationToken);
     db.JoinMappings.Remove(mapping);
     await db.SaveChangesAsync(cancellationToken);
     return Results.NoContent();
@@ -1189,6 +1202,70 @@ api.MapGet("/schedules/{scheduleId:guid}/executions", async (
         .OrderByDescending(item => item.ScheduledAtUtc)
         .Take(100)
         .ToListAsync(cancellationToken);
+    return Results.Ok(executions);
+});
+
+// 手动任务：一个任务聚合多间教室的同名控制点，显示为总览上的一个执行按钮。
+api.MapGet("/manual-tasks", async (ManualTaskService service, CancellationToken cancellationToken) =>
+{
+    var tasks = await service.GetAllAsync(cancellationToken);
+    return Results.Ok(tasks.Select(ManualTaskPayload));
+});
+
+api.MapPost("/manual-tasks", async (
+    ManualTaskDefinitionRequest request,
+    ManualTaskService service,
+    CancellationToken cancellationToken) =>
+{
+    var task = await service.CreateAsync(
+        request.JoinMappingIds,
+        request.Name,
+        request.ConfirmBeforeRun,
+        cancellationToken);
+    return Results.Created($"/api/manual-tasks/{task.Id}", ManualTaskPayload(task));
+}).RequireAuthorization("OperatorOrAdmin");
+
+api.MapPut("/manual-tasks/{taskId:guid}", async (
+    Guid taskId,
+    ManualTaskDefinitionRequest request,
+    ManualTaskService service,
+    CancellationToken cancellationToken) =>
+{
+    var task = await service.UpdateAsync(
+        taskId,
+        request.JoinMappingIds,
+        request.Name,
+        request.ConfirmBeforeRun,
+        cancellationToken);
+    return Results.Ok(ManualTaskPayload(task));
+}).RequireAuthorization("OperatorOrAdmin");
+
+api.MapDelete("/manual-tasks/{taskId:guid}", async (
+    Guid taskId,
+    ManualTaskService service,
+    CancellationToken cancellationToken) =>
+{
+    await service.DeleteAsync(taskId, cancellationToken);
+    return Results.NoContent();
+}).RequireAuthorization("OperatorOrAdmin");
+
+// 点击总览按钮时立即向全部目标教室下发一次脉冲，并逐间返回结果。
+api.MapPost("/manual-tasks/{taskId:guid}/run", async (
+    Guid taskId,
+    ManualTaskService service,
+    CancellationToken cancellationToken) =>
+{
+    var result = await service.RunAsync(taskId, cancellationToken);
+    return Results.Ok(result);
+}).RequireAuthorization("OperatorOrAdmin");
+
+// 执行摘要只读，保留最近 100 次供手动任务页展开查看。
+api.MapGet("/manual-tasks/{taskId:guid}/executions", async (
+    Guid taskId,
+    ManualTaskService service,
+    CancellationToken cancellationToken) =>
+{
+    var executions = await service.GetExecutionsAsync(taskId, cancellationToken);
     return Results.Ok(executions);
 });
 
@@ -1375,6 +1452,27 @@ static object ScheduleGroupPayload(Guid groupId, IReadOnlyList<ControlSchedule> 
     schedules[0].Name,
     schedules[0].Kind,
     schedules[0].NextRunAtUtc
+};
+
+static object ManualTaskPayload(ManualTask task) => new
+{
+    task.Id,
+    task.Name,
+    task.JoinName,
+    task.ConfirmBeforeRun,
+    task.SortOrder,
+    Targets = task.Targets
+        .OrderBy(target => target.RoomName, StringComparer.Ordinal)
+        .Select(target => new
+        {
+            target.Id,
+            target.JoinMappingId,
+            RoomId = target.JoinMapping?.Controller?.RoomId,
+            target.RoomName,
+            target.JoinName,
+            ControllerId = target.JoinMapping?.ControllerId,
+            IsOnline = target.JoinMapping?.Controller?.IsOnline ?? false
+        })
 };
 
 static async Task SeedLocationsAsync(ControlDbContext db, CancellationToken cancellationToken)

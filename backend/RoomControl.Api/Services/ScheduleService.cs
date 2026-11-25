@@ -435,6 +435,16 @@ public sealed class ScheduleService(
             Status = "Failed",
             Error = "任务到期时平台未运行，未自动补发。"
         });
+        // 错过的自动执行同样写入操作记录，避免用户在「操作记录」中找不到该任务的任何痕迹。
+        db.AuditLogs.Add(new AuditLog
+        {
+            Category = AuditLogCategories.Schedule,
+            Action = "定时任务未自动执行（平台停机期间到期）",
+            Target = $"教室「{schedule.RoomName}」· 定时任务「{schedule.Name}」",
+            Actor = "系统",
+            StatusCode = StatusCodes.Status503ServiceUnavailable,
+            OccurredAtUtc = now,
+        });
         logger.LogWarning("One-time schedule {ScheduleId} expired while the platform was stopped.", schedule.Id);
     }
 }

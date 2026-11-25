@@ -9,7 +9,7 @@ namespace RoomControl.Api.Services;
 [DisallowConcurrentExecution]
 public sealed class ScheduledControlJob(
     IDbContextFactory<ControlDbContext> contextFactory,
-    ControllerConnectionService connectionService,
+    IControlCommandSender connectionService,
     ILogger<ScheduledControlJob> logger) : IJob
 {
     public async Task Execute(IJobExecutionContext context)
@@ -36,6 +36,7 @@ public sealed class ScheduledControlJob(
             Status = "Pending"
         };
         db.ScheduleExecutions.Add(execution);
+        var auditStatusCode = 0;
 
         try
         {
@@ -45,11 +46,15 @@ public sealed class ScheduledControlJob(
                 enforceEnableJoin: false,
                 context.CancellationToken);
             execution.Status = "Succeeded";
+            auditStatusCode = StatusCodes.Status200OK;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             execution.Status = "Failed";
             execution.Error = exception.Message;
+            auditStatusCode = exception is ControllerUnavailableException
+                ? StatusCodes.Status503ServiceUnavailable
+                : StatusCodes.Status500InternalServerError;
             logger.LogWarning(exception, "Scheduled control {ScheduleId} failed.", schedule.Id);
         }
         finally
@@ -68,6 +73,17 @@ public sealed class ScheduledControlJob(
                     schedule.WeekdayMask,
                     schedule.LocalTime);
             }
+
+            // 自动执行不经过 HTTP 审计中间件，这里补写操作记录，让发送结果可在「操作记录」中追溯。
+            db.AuditLogs.Add(new AuditLog
+            {
+                Category = AuditLogCategories.Schedule,
+                Action = $"自动执行定时任务 Join {schedule.JoinMapping.SendJoinNumber}",
+                Target = $"教室「{schedule.RoomName}」· 定时任务「{schedule.Name}」",
+                Actor = "系统",
+                StatusCode = auditStatusCode,
+                OccurredAtUtc = execution.CompletedAtUtc.Value,
+            });
 
             await db.SaveChangesAsync(CancellationToken.None);
         }

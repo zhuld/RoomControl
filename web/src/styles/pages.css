@@ -203,6 +203,74 @@
   overscroll-behavior: contain;
 }
 
+/* 手动任务按钮：一个任务一个按钮，直接显示控制点与教室范围。 */
+.manual-task-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: var(--space-3);
+}
+
+.manual-task-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
+}
+
+.manual-task-button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.manual-task-button:disabled {
+  cursor: not-allowed;
+  background: var(--surface-subtle);
+  box-shadow: none;
+}
+
+.manual-task-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.manual-task-meta {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+.manual-task-rooms {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-2xs);
+  color: var(--text-faint);
+}
+
+.manual-task-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: 4px;
+}
+
 .attention-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

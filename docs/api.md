@@ -17,10 +17,11 @@
 - [11. 数字控制点](#11-数字控制点)
 - [12. 控制指令](#12-控制指令)
 - [13. 定时任务](#13-定时任务)
-- [14. 操作日志](#14-操作日志)
-- [15. 实时推送（SignalR）](#15-实时推送signalr)
-- [16. 数据模型](#16-数据模型)
-- [17. 业务规则与生命周期](#17-业务规则与生命周期)
+- [14. 手动任务](#14-手动任务)
+- [15. 操作日志](#15-操作日志)
+- [16. 实时推送（SignalR）](#16-实时推送signalr)
+- [17. 数据模型](#17-数据模型)
+- [18. 业务规则与生命周期](#18-业务规则与生命周期)
 
 ## 1. 基础约定
 
@@ -110,6 +111,7 @@
 - 操作对象在请求执行前解析，因此删除操作仍能记录被删除对象及其所属教室。
 - 创建类请求优先使用响应 `Location` 头解析新对象。
 - 设备上报引起的电平变化与中控上下线由后台写入，操作者分别为「设备」和「系统」。
+- 定时任务由 Quartz 后台触发，不经过上述中间件；每次自动执行（成功或失败）与停机期间错过的一次性任务都会以 `schedule` 分类写入审计记录，操作者为「系统」。
 - 审计写入失败只记录服务端告警，不影响原请求结果。
 - 系统每天凌晨 3 点（服务器本地时间）按「日志保留天数」清理过期记录，启动时也会清理一次；默认保留 60 天，设为 `0` 表示永久保留。
 
@@ -159,6 +161,12 @@
 | POST | `/api/schedules/groups/{groupId}/resume` | operator / admin | 恢复整组任务 |
 | DELETE | `/api/schedules/{scheduleId}` | operator / admin | 删除单个任务目标 |
 | GET | `/api/schedules/{scheduleId}/executions` | 已登录 | 单个任务目标的执行记录 |
+| GET | `/api/manual-tasks` | 已登录 | 全部手动任务及目标 |
+| POST | `/api/manual-tasks` | operator / admin | 创建手动任务 |
+| PUT | `/api/manual-tasks/{taskId}` | operator / admin | 修改手动任务 |
+| DELETE | `/api/manual-tasks/{taskId}` | operator / admin | 删除手动任务 |
+| POST | `/api/manual-tasks/{taskId}/run` | operator / admin | 立即向全部目标教室下发 |
+| GET | `/api/manual-tasks/{taskId}/executions` | 已登录 | 手动任务执行记录 |
 | GET | `/api/logs` | 已登录 | 操作日志 |
 | GET | `/api/logs/settings` | admin | 读取日志保留天数 |
 | PUT | `/api/logs/settings` | admin | 更新日志保留天数并立即清理 |
@@ -765,7 +773,108 @@
 
 `status` 取值：`Pending`（执行中）、`Succeeded`、`Failed`。失败原因（如中控离线）写入 `error`，不自动补发。任务目标不存在时返回空数组。
 
-## 14. 操作日志
+每次自动执行还会写入一条 `schedule` 分类的操作记录（动作如「自动执行定时任务 Join 12」，操作者为「系统」，结果码为 `200` 或 `503`），停机期间错过的一次性任务记为「定时任务未自动执行」。
+
+## 14. 手动任务
+
+手动任务把一个控制点在多间教室的同名映射聚合为一个按钮，显示在「系统总览」的「手动任务」面板。点击按钮后立即向全部目标教室下发一次脉冲，不按时间调度。
+
+### 任务定义请求
+
+创建（`POST /api/manual-tasks`）与修改（`PUT /api/manual-tasks/{taskId}`）共用同一结构：
+
+```json
+{
+  "joinMappingIds": ["…控制点1…", "…控制点2…"],
+  "name": "全场上课",
+  "confirmBeforeRun": true
+}
+```
+
+| 字段 | 类型 | 约束 |
+| --- | --- | --- |
+| `joinMappingIds` | GUID[] | 至少一项；重复项自动去重；所有控制点必须同名 |
+| `name` | string | 必填，≤ 120 字符 |
+| `confirmBeforeRun` | bool | 执行前是否要求二次确认，默认 `true` |
+
+响应（创建 `201 Created`，`Location: /api/manual-tasks/{taskId}`；修改 `200 OK`）：
+
+```json
+{
+  "id": "…",
+  "name": "全场上课",
+  "joinName": "上课",
+  "confirmBeforeRun": true,
+  "sortOrder": 0,
+  "targets": [
+    {
+      "id": "…目标1…",
+      "joinMappingId": "…控制点1…",
+      "roomId": "…教室1…",
+      "roomName": "R101",
+      "joinName": "上课",
+      "controllerId": "…中控1…",
+      "isOnline": true
+    }
+  ]
+}
+```
+
+### `GET /api/manual-tasks`
+
+任意登录用户。返回全部手动任务（按 `sortOrder`、名称排序）及目标；`targets[].roomName` 与 `joinName` 为创建时的名称快照，控制点删除后 `joinMappingId`、`roomId` 与 `controllerId` 为 `null`。
+
+### `PUT /api/manual-tasks/{taskId}`
+
+`operator` 或 `admin`。以请求中的 `joinMappingIds` 覆盖目标集合，名称与确认设置一并更新；执行记录保留。任务不存在返回 `404`。
+
+### `DELETE /api/manual-tasks/{taskId}`
+
+`operator` 或 `admin`。删除任务、全部目标与执行记录，返回 `204`。
+
+### `POST /api/manual-tasks/{taskId}/run`
+
+`operator` 或 `admin`。逐个目标教室下发脉冲并请求刷新状态；单间失败不影响其余教室。与定时任务一致，**不受使能 Join 限制**，只要求中控在线。
+
+```json
+{
+  "runId": "…",
+  "taskName": "全场上课",
+  "startedAtUtc": "2026-11-25T03:00:00+00:00",
+  "completedAtUtc": "2026-11-25T03:00:02+00:00",
+  "succeededCount": 5,
+  "failedCount": 1,
+  "targets": [
+    { "targetId": "…", "roomName": "R101", "joinName": "上课", "status": "Succeeded", "error": null },
+    { "targetId": "…", "roomName": "R102", "joinName": "上课", "status": "Failed", "error": "The room controller is offline." }
+  ]
+}
+```
+
+任务没有目标或不存在时分别返回 `409` 与 `404`。
+
+### `GET /api/manual-tasks/{taskId}/executions`
+
+任意登录用户。返回最近 100 次执行摘要，按开始时间倒序：
+
+```json
+[
+  {
+    "id": "…",
+    "manualTaskId": "…",
+    "startedAtUtc": "2026-11-25T03:00:00+00:00",
+    "completedAtUtc": "2026-11-25T03:00:02+00:00",
+    "succeededCount": 5,
+    "failedCount": 1,
+    "status": "Partial",
+    "error": "R102：The room controller is offline."
+  }
+]
+```
+
+`status` 取值：`Succeeded`（全部成功）、`Partial`（部分失败）、`Failed`（全部失败）。`error` 汇总失败教室与原因。
+
+## 15. 操作日志
 
 ### `GET /api/logs`
 
@@ -784,8 +893,8 @@
 | --- | --- |
 | `authentication` | 登录、退出、修改密码；对象栏记录来源 IP |
 | `configuration` | 站点、楼栋/楼层、教室、中控、控制点、账号变更 |
-| `control` | 人工下发脉冲 |
-| `schedule` | 定时任务创建、修改、暂停、恢复、删除 |
+| `control` | 人工下发脉冲（含手动任务执行） |
+| `schedule` | 定时任务创建、修改、暂停、恢复、删除，以及后台自动执行结果与停机错过的记录 |
 | `state` | 设备上报引起的电平变化（仅在真正变化时记录） |
 | `connection` | 中控连接成功/断开 |
 
@@ -825,7 +934,7 @@
 - 响应返回保存后的值，形如 `{ "retentionDays": 30 }`。
 - 清理任务每天凌晨 3 点（服务器本地时间）执行，应用启动时也会清理一次；保留天数在「配置与接入 · 站点设置」中设置。
 
-## 15. 实时推送（SignalR）
+## 16. 实时推送（SignalR）
 
 - 地址：`/hubs/control`，使用与 REST 相同的 Cookie 会话。
 - 客户端只需加入关心的教室分组，服务端按分组广播，避免无关教室的状态推送到所有终端。
@@ -869,7 +978,7 @@
 }
 ```
 
-## 16. 数据模型
+## 17. 数据模型
 
 ### Room
 
@@ -913,6 +1022,10 @@
 
 字段见[定时任务](#13-定时任务)。任务定义中的 `roomName`、`joinName` 为创建时的名称快照，控制点删除后 `joinMappingId` 与 `joinMapping` 可能为空，但历史执行记录仍保留可读信息。
 
+### ManualTask / ManualTaskExecution
+
+字段见[手动任务](#14-手动任务)。`targets[].roomName`、`joinName` 为创建时的名称快照；执行摘要按每次按钮点击保存一条，包含成功/失败数量与失败原因汇总。
+
 ### UserDto
 
 | 字段 | 类型 | 说明 |
@@ -924,16 +1037,17 @@
 | `isActive` | bool | 是否启用 |
 | `createdAt` | datetime | 创建时间（UTC） |
 
-## 17. 业务规则与生命周期
+## 18. 业务规则与生命周期
 
-- **接入顺序**：站点品牌 → 楼栋/楼层 → 教室 → 中控 → 控制点 → 自动任务。教室只能引用已定义的楼栋与楼层；重命名楼栋/楼层会同步更新教室快照，仍有教室时禁止删除楼栋/楼层。
+- **接入顺序**：站点品牌 → 楼栋/楼层 → 教室 → 中控 → 控制点 → 自动任务 → 手动任务。教室只能引用已定义的楼栋与楼层；重命名楼栋/楼层会同步更新教室快照，仍有教室时禁止删除楼栋/楼层。
 - **一台中控对应一间教室**：唯一约束；接入第二台中控返回 `409`。
 - **状态快照**：每个 `(控制器, Join 类型, Join 编号)` 只保存最近一次值。从未上报或服务启动后尚未收到回报时按低电平处理，不会出现“未知”状态；服务重启时清除全部在线标记并将快照重置为低电平。中控断开时保留最后一次状态与上报时间，重连后使能 Join 先重置为低电平、等待设备重新上报，普通状态 Join 由随后的状态回放刷新。
 - **状态回放纠偏**：中控全量回放只上报高电平 Join；平台在回放结束标记后，把本次窗口内未上报的状态接收 Join 置为低电平并推送更新，使能 Join 不受影响。
-- **删除级联**：删除控制点会删除其定时任务；删除中控会删除其控制点、快照和定时任务；删除教室会删除中控、控制点、快照和定时任务。执行记录随所属任务目标一起删除。
+- **删除级联**：删除控制点会删除其定时任务与手动任务目标；删除中控会删除其控制点、快照和定时任务，并移除手动任务中的对应目标；删除教室会删除中控、控制点、快照和定时任务。手动任务因此失去全部目标时会一并删除。执行记录随所属任务一起删除。
 - **一次性任务**：必须设置未来时间。平台停机期间到期的一次性任务在下次启动时记为失败（`error` 说明未自动补发），不再触发。执行完成后自动停用。
 - **每周任务**：按服务器本地时间与星期掩码重复；每次执行完成后按完成时刻重算下一次。恢复暂停任务时同样重算。
-- **使能 Join**：只限制 `POST /api/joins/{mappingId}/pulse` 等人工操作，定时任务不受限，只要求中控在线。
+- **手动任务**：一个任务只对应同名控制点，可覆盖多间教室；点击总览按钮立即逐个下发，单间失败不影响其余教室，结果按次保存。任务可配置执行前二次确认。
+- **使能 Join**：只限制 `POST /api/joins/{mappingId}/pulse` 等人工单点操作，定时任务与手动任务不受限，只要求中控在线。
 - **密码与账号**：密码使用 PBKDF2-SHA256（210,000 次迭代、每账号独立随机盐）存储，长度限制为 6–128 个字符；登录时对不存在账号也执行同样的 KDF 与固定时间比较，避免通过响应差异判断账号是否存在，超长输入在 KDF 之前直接拒绝。初始管理员仅在数据库无任何账号时创建。
 
 ## 版本与兼容性

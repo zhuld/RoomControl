@@ -28,6 +28,7 @@ import {
   type Density,
   type JoinMapping,
   type LoginAccount,
+  type ManualTask,
   type Room,
   type Schedule,
   type SettingsSection,
@@ -44,6 +45,7 @@ const startupFailed = ref(false)
 const busy = ref(false)
 const rooms = ref<Room[]>([])
 const schedules = ref<Schedule[]>([])
+const manualTasks = ref<ManualTask[]>([])
 const selectedRoomId = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -256,6 +258,10 @@ function handleAutomationChanged() {
   void loadSnapshot()
 }
 
+function handleManualTasksChanged() {
+  void loadManualTasks()
+}
+
 function handleSettingsSection(section: SettingsSection) {
   settingsSection.value = canAccessSettingsSection(section, currentUser.value?.role)
     ? section
@@ -353,11 +359,15 @@ async function loadSchedules() {
   schedules.value = await readJson<Schedule[]>('/api/schedules')
 }
 
-// 计划任务由后台执行，前端没有实时事件；定期刷新以更新下次执行时间与逾期状态。
+async function loadManualTasks() {
+  manualTasks.value = await readJson<ManualTask[]>('/api/manual-tasks')
+}
+
+// 计划任务与手动任务由后台或他人修改时前端没有事件；定期刷新以同步任务按钮与逾期状态。
 async function refreshSchedulesInBackground() {
   if (!authenticated.value || document.hidden) return
   try {
-    await loadSchedules()
+    await Promise.all([loadSchedules(), loadManualTasks()])
   } catch {
     // 后台刷新失败时保留现有数据，下一次轮询继续重试。
   }
@@ -440,7 +450,7 @@ async function bootstrap() {
 
 async function loadSnapshot() {
   try {
-    await Promise.all([loadRooms(), loadSchedules()])
+    await Promise.all([loadRooms(), loadSchedules(), loadManualTasks()])
     snapshotError.value = ''
   } catch (error) {
     snapshotError.value = toErrorMessage(error)
@@ -505,6 +515,7 @@ async function logout() {
     currentUser.value = null
     rooms.value = []
     schedules.value = []
+    manualTasks.value = []
     snapshotError.value = ''
     username.value = ''
     password.value = ''
@@ -838,8 +849,9 @@ onBeforeUnmount(() => {
         </div>
 
         <OverviewWorkspace v-if="workspace === 'overview'" :rooms="rooms" :schedules="schedules"
-          :current-user="currentUser" :now="currentDateTime" @select-room="openRoom"
-          @open-automation="openAutomation" @open-settings="openSettings" />
+          :manual-tasks="manualTasks" :current-user="currentUser" :now="currentDateTime"
+          @select-room="openRoom" @open-automation="openAutomation" @open-settings="openSettings"
+          @notify="handleSettingsNotify" />
 
         <OperateWorkspace v-else-if="workspace === 'operate'" :rooms="rooms" :selected-room-id="selectedRoomId"
           :current-user="currentUser" :hub-state="hubState" :last-hub-event-at="lastHubEventAt"
@@ -850,12 +862,12 @@ onBeforeUnmount(() => {
 
         <SettingsPage v-else-if="workspace === 'settings'" :rooms="rooms" :branding="branding" :theme="theme"
           :density="density" :section="settingsSection" :current-user="currentUser" :focus-room-id="settingsFocusRoomId"
-          :debug-enabled="debugEnabled" :schedules="schedules" :selected-room-id="selectedRoomId"
-          :automation-target="automationTarget" :now="currentDateTime"
+          :debug-enabled="debugEnabled" :schedules="schedules" :manual-tasks="manualTasks"
+          :selected-room-id="selectedRoomId" :automation-target="automationTarget" :now="currentDateTime"
           @rooms-changed="handleRoomsChanged" @branding-saved="handleBrandingSaved"
           @theme-changed="handleThemeChanged" @density-changed="density = $event"
           @debug-changed="debugEnabled = $event" @notify="handleSettingsNotify"
-          @automation-changed="handleAutomationChanged"
+          @automation-changed="handleAutomationChanged" @manual-tasks-changed="handleManualTasksChanged"
           @section-changed="handleSettingsSection" />
 
         <LogsPage v-else-if="workspace === 'audit'" />

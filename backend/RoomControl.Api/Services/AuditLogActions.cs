@@ -40,6 +40,10 @@ public static partial class AuditLogActions
         ["DELETE /api/schedules/{scheduleId}"] = "删除定时任务",
         ["POST /api/schedules/groups/{groupId}/pause"] = "暂停定时任务",
         ["POST /api/schedules/groups/{groupId}/resume"] = "恢复定时任务",
+        ["POST /api/manual-tasks"] = "创建手动任务",
+        ["PUT /api/manual-tasks/{taskId}"] = "更新手动任务",
+        ["DELETE /api/manual-tasks/{taskId}"] = "删除手动任务",
+        ["POST /api/manual-tasks/{taskId}/run"] = "执行手动任务",
     };
 
     public static string NormalizeRoute(string route) => RouteConstraint().Replace(route, "{$1}");

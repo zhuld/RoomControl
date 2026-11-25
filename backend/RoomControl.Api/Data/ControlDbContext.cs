@@ -13,6 +13,9 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
     public DbSet<JoinSnapshot> JoinSnapshots => Set<JoinSnapshot>();
     public DbSet<ControlSchedule> Schedules => Set<ControlSchedule>();
     public DbSet<ScheduleExecution> ScheduleExecutions => Set<ScheduleExecution>();
+    public DbSet<ManualTask> ManualTasks => Set<ManualTask>();
+    public DbSet<ManualTaskTarget> ManualTaskTargets => Set<ManualTaskTarget>();
+    public DbSet<ManualTaskExecution> ManualTaskExecutions => Set<ManualTaskExecution>();
     public DbSet<SiteSettings> SiteSettings => Set<SiteSettings>();
     public DbSet<Building> Buildings => Set<Building>();
     public DbSet<Floor> Floors => Set<Floor>();
@@ -73,6 +76,25 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
             .HasForeignKey(execution => execution.ScheduleId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<ManualTask>()
+            .HasMany(task => task.Targets)
+            .WithOne(target => target.ManualTask)
+            .HasForeignKey(target => target.ManualTaskId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // 控制点被删除时目标保留快照但无法执行；接口会在删除前清理引用它的目标。
+        modelBuilder.Entity<ManualTaskTarget>()
+            .HasOne(target => target.JoinMapping)
+            .WithMany()
+            .HasForeignKey(target => target.JoinMappingId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<ManualTaskExecution>()
+            .HasOne(execution => execution.ManualTask)
+            .WithMany()
+            .HasForeignKey(execution => execution.ManualTaskId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         modelBuilder.Entity<JoinSnapshot>()
             .HasKey(snapshot => new { snapshot.ControllerId, snapshot.Kind, snapshot.JoinNumber });
 
@@ -83,6 +105,13 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
         modelBuilder.Entity<ScheduleExecution>()
             .HasIndex(execution => new { execution.ScheduleId, execution.ScheduledAtUtc })
             .IsUnique();
+
+        modelBuilder.Entity<ManualTaskTarget>()
+            .HasIndex(target => target.ManualTaskId);
+        modelBuilder.Entity<ManualTaskTarget>()
+            .HasIndex(target => target.JoinMappingId);
+        modelBuilder.Entity<ManualTaskExecution>()
+            .HasIndex(execution => new { execution.ManualTaskId, execution.StartedAtUtc });
 
         modelBuilder.Entity<Room>().Property(room => room.Name).HasMaxLength(120);
         modelBuilder.Entity<Room>().Property(room => room.Building).HasMaxLength(60);
@@ -101,6 +130,12 @@ public sealed class ControlDbContext(DbContextOptions<ControlDbContext> options)
         modelBuilder.Entity<JoinMapping>().Property(join => join.StateJoinNumber).HasDefaultValue(1);
         modelBuilder.Entity<ControlSchedule>().Property(schedule => schedule.Name).HasMaxLength(120);
         modelBuilder.Entity<ScheduleExecution>().Property(execution => execution.Error).HasMaxLength(2000);
+        modelBuilder.Entity<ManualTask>().Property(task => task.Name).HasMaxLength(120);
+        modelBuilder.Entity<ManualTask>().Property(task => task.JoinName).HasMaxLength(120);
+        modelBuilder.Entity<ManualTaskTarget>().Property(target => target.RoomName).HasMaxLength(120);
+        modelBuilder.Entity<ManualTaskTarget>().Property(target => target.JoinName).HasMaxLength(120);
+        modelBuilder.Entity<ManualTaskExecution>().Property(execution => execution.Status).HasMaxLength(16);
+        modelBuilder.Entity<ManualTaskExecution>().Property(execution => execution.Error).HasMaxLength(2000);
         modelBuilder.Entity<AuditLog>().Property(log => log.Category).HasMaxLength(AuditLog.CategoryMaxLength);
         modelBuilder.Entity<AuditLog>().Property(log => log.Action).HasMaxLength(AuditLog.ActionMaxLength);
         // 对象名称包含楼栋、楼层、教室与多个控制点名称，需为长名称留出空间。
