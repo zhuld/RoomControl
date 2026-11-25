@@ -189,12 +189,8 @@ function receiptLabel(status: CommandReceipt['status']) {
     <div class="operate-layout" :class="{ 'is-rail-open': receiptRailOpen }">
       <aside class="panel room-finder" aria-label="选择教室">
         <div class="room-finder-head">
-          <RoomCascader
-            stacked
-            :rooms="rooms"
-            :model-value="selectedRoomId"
-            @update:model-value="selectRoomFromCascader"
-          />
+          <RoomCascader stacked :rooms="rooms" :model-value="selectedRoomId"
+            @update:model-value="selectRoomFromCascader" />
           <!-- <div class="room-finder-filters" role="group" aria-label="按状态筛选">
             <button
               v-for="option in roomStatusFilters"
@@ -210,8 +206,7 @@ function receiptLabel(status: CommandReceipt['status']) {
           </div> -->
         </div>
 
-        <RoomTree :groups="roomGroups" :selected-id="selectedRoomId" label="教室列表"
-          @select="emit('selectRoom', $event)">
+        <RoomTree :groups="roomGroups" :selected-id="selectedRoomId" label="教室列表" @select="emit('selectRoom', $event)">
           <template #status="{ room }">
             <span class="dot" :class="{
               'is-online': roomStatus(room) === 'online',
@@ -224,28 +219,14 @@ function receiptLabel(status: CommandReceipt['status']) {
       </aside>
 
       <main class="operate-main">
-        <EmptyState
-          v-if="!rooms.length"
-          icon="room"
-          title="还没有教室"
-          description="先由管理员创建教室并接入中控，之后才能下发指令。"
-        >
-          <button
-            v-if="canManage"
-            type="button"
-            class="btn btn-primary empty-action"
-            @click="emit('openSettings', 'rooms', '')"
-          >
+        <EmptyState v-if="!rooms.length" icon="room" title="还没有教室" description="先由管理员创建教室并接入中控，之后才能下发指令。">
+          <button v-if="canManage" type="button" class="btn btn-primary empty-action"
+            @click="emit('openSettings', 'rooms', '')">
             前往配置
           </button>
         </EmptyState>
 
-        <EmptyState
-          v-else-if="!selectedRoom"
-          icon="room"
-          title="选择一间教室开始操作"
-          description="从左侧列表按楼栋或搜索定位教室。"
-        />
+        <EmptyState v-else-if="!selectedRoom" icon="room" title="选择一间教室开始操作" description="从左侧列表按楼栋或搜索定位教室。" />
 
         <template v-else>
           <section class="room-hero" aria-label="教室状态">
@@ -256,12 +237,9 @@ function receiptLabel(status: CommandReceipt['status']) {
               <h1>{{ selectedRoom.name }}</h1>
               <div class="room-hero-meta">
                 <span class="meta-item">
-                  <StatusPill
-                    :tone="controller ? (controller.isOnline ? 'success' : 'danger') : 'warning'"
-                    :label="controller ? (controller.isOnline ? '中控在线' : '中控离线') : '未接入中控'"
-                    dot
-                    :pulse="controller?.isOnline"
-                  />
+                  <StatusPill :tone="controller ? (controller.isOnline ? 'success' : 'danger') : 'warning'"
+                    :label="controller ? (controller.isOnline ? '中控在线' : '中控离线') : '未接入中控'" dot
+                    :pulse="controller?.isOnline" />
                 </span>
                 <template v-if="controller">
                   <span class="meta-item mono">{{ controller.name }}</span>
@@ -272,38 +250,22 @@ function receiptLabel(status: CommandReceipt['status']) {
               </div>
             </div>
             <div class="room-hero-actions">
-              <StatusPill
-                v-if="hubState === 'connected'"
-                tone="success"
-                :label="lastHubEventAt ? `实时事件 ${formatRelative(lastHubEventAt, now.getTime())}` : '实时同步正常'"
-                dot
-              />
+              <StatusPill v-if="hubState === 'connected'" tone="success"
+                :label="lastHubEventAt ? `实时事件 ${formatRelative(lastHubEventAt, now.getTime())}` : '实时同步正常'" dot />
               <StatusPill v-else-if="hubState === 'connecting'" tone="warning" label="实时连接中" dot pulse />
               <StatusPill v-else tone="danger" label="实时同步断开" dot />
-              <button
-                v-if="canManage"
-                type="button"
-                class="btn btn-outline btn-sm"
-                @click="emit('openSettings', 'controllers', selectedRoom.id)"
-              >
+              <button v-if="canManage" type="button" class="btn btn-outline btn-sm"
+                @click="emit('openSettings', 'controllers', selectedRoom.id)">
                 <UiIcon name="settings" :size="15" />中控配置
               </button>
-              <button
-            type="button"
-            class="btn btn-quiet"
-            :class="{ 'is-active': receiptRailOpen }"
-            :aria-expanded="receiptRailOpen"
-            aria-controls="operate-receipts"
-            :title="receiptRailOpen ? '收起操作回执' : '展开操作回执'"
-            @click="receiptRailOpen = !receiptRailOpen"
-          >
-            <UiIcon name="inbox" :size="16" />操作回执
-            <span
-              v-if="receipts.length"
-              class="btn-count"
-              :class="{ 'is-danger': failedReceiptCount > 0 }"
-            >{{ receipts.length }}</span>
-          </button>
+              <button type="button" class="btn btn-quiet" :class="{ 'is-active': receiptRailOpen }"
+                :aria-expanded="receiptRailOpen" aria-controls="operate-receipts"
+                :title="receiptRailOpen ? '收起操作回执' : '展开操作回执'" @click="receiptRailOpen = !receiptRailOpen">
+                <UiIcon name="inbox" :size="16" />操作回执
+                <span v-if="receipts.length" class="btn-count" :class="{ 'is-danger': failedReceiptCount > 0 }">{{
+                  receipts.length
+                  }}</span>
+              </button>
             </div>
           </section>
 
@@ -323,12 +285,8 @@ function receiptLabel(status: CommandReceipt['status']) {
                 {{ canManage ? '配置地址、端口与 IPID 后，后台会自动连接并同步 Join 状态。' : '请联系管理员完成中控接入。' }}
               </p>
             </div>
-            <button
-              v-if="canManage"
-              type="button"
-              class="btn btn-outline btn-sm"
-              @click="emit('openSettings', 'controllers', selectedRoom.id)"
-            >
+            <button v-if="canManage" type="button" class="btn btn-outline btn-sm"
+              @click="emit('openSettings', 'controllers', selectedRoom.id)">
               去接入
             </button>
           </div>
@@ -356,73 +314,44 @@ function receiptLabel(status: CommandReceipt['status']) {
 
             <div v-if="joins.length" class="panel-body">
               <div class="command-grid">
-                <article
-                  v-for="join in joins"
-                  :key="join.id"
-                  class="command-card"
-                  :class="{
-                    'is-on': join.stateSnapshot.digitalValue,
-                    'is-disabled': gatingReason(join) !== null,
-                    'is-sending': isSending(join),
-                  }"
-                >
-                  <button
-                    type="button"
-                    class="command-main"
-                    :disabled="commandDisabled(join)"
+                <article v-for="join in joins" :key="join.id" class="command-card" :class="{
+                  'is-on': join.stateSnapshot.digitalValue,
+                  'is-disabled': gatingReason(join) !== null,
+                  'is-sending': isSending(join),
+                }">
+                  <button type="button" class="command-main" :disabled="commandDisabled(join)"
                     :title="gatingReason(join) ?? `发送「${join.name}」指令`"
-                    @click="emit('sendCommand', selectedRoom, join)"
-                  >
+                    @click="emit('sendCommand', selectedRoom, join)">
                     <div class="command-top">
                       <span class="command-name">{{ join.name }}</span>
                       <span class="command-top-right">
                         <span v-if="commandCode(join)" class="command-code">{{ commandCode(join) }}</span>
-                        <span
-                          v-if="join.showConfirmationPopup"
-                          class="command-guard"
-                          title="下发前需二次确认"
-                          aria-label="下发前需二次确认"
-                        >
-                          <UiIcon name="shield" :size="13" />
+                        <span v-if="join.showConfirmationPopup" class="command-guard" title="下发前需二次确认"
+                          aria-label="下发前需二次确认">
+                          <UiIcon name="check" :size="13" />
                         </span>
                       </span>
                     </div>
                   </button>
                   <footer class="command-foot">
-                    <span
-                      v-if="planFor(join)"
-                      class="command-plan"
-                      :title="`${planFor(join)?.name} · ${planFor(join)?.countdown}`"
-                    >
+                    <span v-if="planFor(join)" class="command-plan"
+                      :title="`${planFor(join)?.name} · ${planFor(join)?.countdown}`">
                       <span class="command-plan-time">{{ planFor(join)?.countdown }}</span>
                       <span class="command-plan-name">{{ planFor(join)?.name }}</span>
                     </span>
                     <span v-else class="command-plan is-empty">无定时任务</span>
-                    <button
-                      type="button"
-                      class="command-schedule"
-                      title="为此控制点创建定时任务"
-                      @click="emit('scheduleCommand', selectedRoom, join)"
-                    >
+                    <span v-if="planFor(join)" class="command-schedule">
                       <UiIcon name="clock" :size="12" />
-                    </button>
+                    </span>
                   </footer>
                 </article>
               </div>
             </div>
 
-            <EmptyState
-              v-else
-              icon="bolt"
-              title="这间教室还没有控制点"
-              :description="controller ? '在中控配置中添加发送、状态与使能 Join 映射后，即可在此下发指令。' : '先完成中控接入，再添加控制点。'"
-            >
-              <button
-                v-if="canManage"
-                type="button"
-                class="btn btn-primary empty-action"
-                @click="emit('openSettings', 'controllers', selectedRoom.id)"
-              >
+            <EmptyState v-else icon="bolt" title="这间教室还没有控制点"
+              :description="controller ? '在中控配置中添加发送、状态与使能 Join 映射后，即可在此下发指令。' : '先完成中控接入，再添加控制点。'">
+              <button v-if="canManage" type="button" class="btn btn-primary empty-action"
+                @click="emit('openSettings', 'controllers', selectedRoom.id)">
                 添加控制点
               </button>
             </EmptyState>
@@ -437,22 +366,12 @@ function receiptLabel(status: CommandReceipt['status']) {
             <h2>操作回执</h2>
           </div>
           <div class="receipt-rail-actions">
-            <button
-              v-if="receipts.length"
-              type="button"
-              class="btn btn-ghost btn-sm"
-              title="清空当前会话回执"
-              @click="emit('clearReceipts')"
-            >
+            <button v-if="receipts.length" type="button" class="btn btn-ghost btn-sm" title="清空当前会话回执"
+              @click="emit('clearReceipts')">
               清空
             </button>
-            <button
-              type="button"
-              class="btn btn-ghost btn-sm receipt-rail-close"
-              title="收起操作回执"
-              aria-label="收起操作回执"
-              @click="receiptRailOpen = false"
-            >
+            <button type="button" class="btn btn-ghost btn-sm receipt-rail-close" title="收起操作回执" aria-label="收起操作回执"
+              @click="receiptRailOpen = false">
               <UiIcon name="x" :size="14" />
             </button>
           </div>
@@ -472,12 +391,7 @@ function receiptLabel(status: CommandReceipt['status']) {
             </div>
           </article>
         </div>
-        <EmptyState
-          v-else
-          icon="inbox"
-          title="本会话尚无回执"
-          description="发送指令后，这里会显示发送中、已发送或失败原因。"
-        />
+        <EmptyState v-else icon="inbox" title="本会话尚无回执" description="发送指令后，这里会显示发送中、已发送或失败原因。" />
 
         <footer class="receipt-rail-foot">
           本次浏览会话内的下发结果，按时间倒序，用于即时核对。服务端审计记录可在「操作记录」中查询。

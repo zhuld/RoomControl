@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { HubConnectionBuilder, type HubConnection } from '@microsoft/signalr'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { readJson, request, toErrorMessage } from './api'
+import { ApiError, readJson, request, toErrorMessage } from './api'
 import LogsPage from './components/LogsPage.vue'
 import OperateWorkspace from './components/OperateWorkspace.vue'
 import OverviewWorkspace from './components/OverviewWorkspace.vue'
@@ -469,7 +469,12 @@ async function login() {
     workspace.value = 'overview'
   } catch (error) {
     authenticated.value = false
-    showError(error)
+    // 登录接口的 401 表示账号或密码无效，通用提示容易误导为会话过期。
+    showError(
+      error instanceof ApiError && error.status === 401
+        ? new Error('用户名或密码错误，或账号已被锁定/禁用。')
+        : error,
+    )
   } finally {
     busy.value = false
   }

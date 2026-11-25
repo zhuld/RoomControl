@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { readJson, toErrorMessage } from '../api'
+import { describeStatusLabel, readJson, toErrorMessage } from '../api'
 import { formatClock, formatDateTime, formatRelative } from '../lib/format'
 import { actionSlotKey } from '../lib/layout'
 import type { AuditLog } from '../types'
@@ -252,11 +252,6 @@ function countForCategory(category: string) {
   return categoryCounts.value.get(category) ?? 0
 }
 
-function statusLabel(log: AuditLog) {
-  if (log.statusCode <= 0) return '—'
-  return log.statusCode >= 400 ? `失败 ${log.statusCode}` : `完成 ${log.statusCode}`
-}
-
 onMounted(() => {
   void loadLogs()
   refreshTimer = setInterval(refreshInBackground, AUTO_REFRESH_MS)
@@ -362,7 +357,8 @@ onBeforeUnmount(() => {
               <td>
                 <span v-if="log.statusCode > 0" class="log-status" :class="{ 'is-failed': log.statusCode >= 400 }">
                   <span class="dot" :class="log.statusCode >= 400 ? 'is-danger' : 'is-success'"></span>
-                  {{ statusLabel(log) }}
+                  {{ describeStatusLabel(log.statusCode) }}
+                  <span class="log-status-code">{{ log.statusCode }}</span>
                 </span>
                 <span v-else class="log-status is-pending">—</span>
               </td>

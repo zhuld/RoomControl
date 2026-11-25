@@ -622,7 +622,7 @@
 
 .command-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(192px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
   gap: var(--space-3);
 }
 
@@ -1682,7 +1682,7 @@
 
 .join-config-row {
   display: grid;
-  grid-template-columns: auto minmax(90px, 1fr) minmax(0, 1.6fr) auto;
+  grid-template-columns: auto minmax(60px, 1fr) minmax(100px, 1.6fr) auto;
   gap: 10px;
   align-items: center;
   padding: 7px 9px;
@@ -1804,15 +1804,6 @@
     max-height: 220px;
   }
 
-  /* 窄屏改为两列：第三、四项（Join 编号与操作按钮）独占整行，避免横向溢出。 */
-  .join-config-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .join-config-row> :nth-child(3),
-  .join-config-row> :nth-child(4) {
-    grid-column: 1 / -1;
-  }
 
   .join-config-actions {
     justify-content: flex-start;
@@ -2006,6 +1997,12 @@
 }
 
 .log-status.is-pending {
+  color: var(--text-faint);
+}
+
+.log-status-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
   color: var(--text-faint);
 }
 
