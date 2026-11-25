@@ -868,7 +868,7 @@
 @media (max-width: 1420px) {
   .operate-layout,
   .operate-layout.is-rail-open {
-    grid-template-columns: 200px minmax(0, 1fr);
+    grid-template-columns: 180px minmax(0, 1fr);
   }
 
   .receipt-rail {
@@ -1201,7 +1201,7 @@
 /* 配置与接入 */
 .settings-layout {
   display: grid;
-  grid-template-columns: 226px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: var(--gap);
   align-items: start;
 }
@@ -1621,7 +1621,7 @@
 
 .controller-layout {
   display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: var(--gap);
   align-items: start;
 }
@@ -1649,7 +1649,6 @@
 }
 
 .controller-form-actions {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: var(--space-2);

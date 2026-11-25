@@ -381,15 +381,16 @@ a:hover {
 }
 
 .rail-collapse {
-  flex: 0 0 auto;
+  flex: 1 0 auto;
   display: grid;
-  place-items: center;
+  place-items: center ;
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--rail-muted);
+  margin: 0 4px
 }
 
 .rail-collapse:hover {

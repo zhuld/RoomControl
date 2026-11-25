@@ -1245,7 +1245,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                   </label>
                   <div class="controller-form-actions">
                     <button class="btn btn-primary" :disabled="busy">
-                      {{ configuredRoom.controller ? '保存中控配置' : '保存并连接' }}
+                      {{ configuredRoom.controller ? '保存配置' : '保存并连接' }}
                     </button>
                     <button v-if="configuredRoom.controller" type="button" class="btn btn-danger-quiet btn-sm"
                       :disabled="busy" @click="deleteController">

@@ -15,7 +15,6 @@ const icons: Record<string, string[]> = {
   search: ['M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z', 'M21 21l-4.3-4.3'],
   refresh: ['M20 11a8 8 0 1 0-.6 4', 'M20 4v7h-7'],
   check: ['M20 6 9 17l-5-5'],
-  alert: ['M12 3 2 21h20z', 'M12 9v5', 'M12 17h.01'],
   x: ['M18 6 6 18', 'M6 6l12 12'],
   plus: ['M12 5v14', 'M5 12h14'],
   'chevron-right': ['M9 6l6 6-6 6'],
@@ -33,6 +32,8 @@ const icons: Record<string, string[]> = {
   inbox: ['M4 4h16v16H4z', 'M4 13h5l2 3h2l2-3h5'],
   calendar: ['M4 6h16v15H4z', 'M8 3v4', 'M16 3v4', 'M4 11h16'],
   dot: ['M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z'],
+  alert: ['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z', 'M12 9v4', 'M12 17h.01'],
+  warning: ['M9 12l2 2 4-4', 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'],
 }
 
 const props = withDefaults(
@@ -48,18 +49,8 @@ const paths = computed(() => icons[props.name] ?? icons.dot)
 </script>
 
 <template>
-  <svg
-    :width="size"
-    :height="size"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    :stroke-width="strokeWidth"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-    focusable="false"
-  >
+  <svg :width="size" :height="size" viewBox="0 0 24 24" fill="none" stroke="currentColor" :stroke-width="strokeWidth"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
     <path v-for="(path, index) in paths" :key="index" :d="path" />
   </svg>
 </template>

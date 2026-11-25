@@ -4,11 +4,9 @@ import { formatClock, formatRelative } from '../lib/format'
 import {
   buildingOf,
   collator,
-  countRooms,
   floorOf,
   groupRoomsByBuilding,
   roomStatus,
-  roomStatusFilters,
   type StatusFilter,
 } from '../lib/rooms'
 import { receiptStatuses } from '../types'
@@ -79,10 +77,6 @@ const roomGroups = computed(() => {
     .sort((left, right) => collator.compare(left.name, right.name))
   return groupRoomsByBuilding(visibleRooms)
 })
-
-function filterCount(status: StatusFilter) {
-  return countRooms(props.rooms, status)
-}
 
 function joinOnCount(room: Room) {
   return room.controller?.joins.filter((join) => join.stateSnapshot.digitalValue).length ?? 0
@@ -328,7 +322,7 @@ function receiptLabel(status: CommandReceipt['status']) {
                         <span v-if="commandCode(join)" class="command-code">{{ commandCode(join) }}</span>
                         <span v-if="join.showConfirmationPopup" class="command-guard" title="下发前需二次确认"
                           aria-label="下发前需二次确认">
-                          <UiIcon name="check" :size="13" />
+                          <UiIcon name="alert" :size="13" />
                         </span>
                       </span>
                     </div>
