@@ -52,7 +52,6 @@ const props = defineProps<{
   section: SettingsSection
   currentUser: CurrentUser | null
   focusRoomId?: string
-  debugEnabled: boolean
   schedules: Schedule[]
   manualTasks: ManualTask[]
   selectedRoomId: string
@@ -66,7 +65,6 @@ const emit = defineEmits<{
   notify: [payload: { message: string; isError: boolean }]
   themeChanged: [theme: ThemeName]
   densityChanged: [density: Density]
-  debugChanged: [enabled: boolean]
   sectionChanged: [section: SettingsSection]
   automationChanged: []
   manualTasksChanged: []
@@ -489,10 +487,6 @@ function selectTheme(value: ThemeName) {
 
 function selectDensity(value: Density) {
   emit('densityChanged', value)
-}
-
-function onDebugChange(event: Event) {
-  emit('debugChanged', (event.target as HTMLInputElement).checked)
 }
 
 async function createBuilding() {
@@ -1008,19 +1002,6 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                 </div>
               </div>
             </form>
-
-            <hr class="divider" />
-
-            <div class="settings-section-head is-flush">
-              <div>
-                <h3>技术信息显示</h3>
-                <p class="panel-sub">仅在当前浏览器显示，不改变中控配置。</p>
-              </div>
-            </div>
-            <label class="checkbox">
-              <input type="checkbox" name="debugEnabled" :checked="debugEnabled" @change="onDebugChange" />
-              在操作台控制点卡片上显示 Join 编号（T / R / E）
-            </label>
 
             <hr class="divider" />
 

@@ -33,7 +33,6 @@ const props = defineProps<{
   currentUser: CurrentUser | null
   hubState: 'connecting' | 'connected' | 'disconnected'
   lastHubEventAt: string | null
-  debugEnabled: boolean
   receipts: CommandReceipt[]
   schedules: Schedule[]
   now: Date
@@ -138,11 +137,6 @@ function gatingReason(join: JoinMapping): string | null {
 
 function commandDisabled(join: JoinMapping) {
   return gatingReason(join) !== null || isSending(join)
-}
-
-function commandCode(join: JoinMapping) {
-  if (!props.debugEnabled) return ''
-  return `T${join.sendJoinNumber} · R${join.stateJoinNumber} · E${join.enableJoinNumber}`
 }
 
 const hubBanner = computed(() => {
@@ -284,8 +278,6 @@ function receiptLabel(status: CommandReceipt['status']) {
           </div>
 
           <section class="panel" aria-label="设备控制">
-
-
             <div v-if="joins.length" class="panel-body control-stage">
               <!-- 视频窗口预留位：接入教室摄像头后在此替换为实时画面。 -->
               <figure class="control-video" aria-label="教室视频画面">
@@ -308,12 +300,11 @@ function receiptLabel(status: CommandReceipt['status']) {
                     'is-sending': isSending(join),
                   }">
                     <button type="button" class="command-main" :disabled="commandDisabled(join)"
-                      :title="gatingReason(join) ?? `发送「${join.name}」指令\n\r数字脉冲 ${join.sendJoinNumber}`"
+                      :title="gatingReason(join) ?? `发送「${join.name}」指令\n发送数字Join： ${join.sendJoinNumber}\n状态数字Join： ${join.stateJoinNumber}\n使能数字Join： ${join.enableJoinNumber}`"
                       @click="emit('sendCommand', selectedRoom, join)">
                       <div class="command-top">
                         <span class="command-name">{{ join.name }}</span>
                         <span class="command-top-right">
-                          <span v-if="commandCode(join)" class="command-code">{{ commandCode(join) }}</span>
                           <span v-if="join.showConfirmationPopup" class="command-guard" title="下发前需二次确认"
                             aria-label="下发前需二次确认">
                             <UiIcon name="alert" :size="13" />

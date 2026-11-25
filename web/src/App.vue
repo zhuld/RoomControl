@@ -74,7 +74,6 @@ const density = ref<Density>('comfortable')
 // 各工作区的页头操作统一传送到顶部栏。
 const actionSlot = ref<HTMLElement | null>(null)
 provide(actionSlotKey, actionSlot)
-const debugEnabled = ref(localStorage.getItem('roomcontrol.debug') === '1')
 const currentDateTime = ref(new Date())
 let clockInterval: ReturnType<typeof setInterval> | undefined
 let toastTimeout: ReturnType<typeof setTimeout> | undefined
@@ -165,10 +164,6 @@ watch(
     applyDensity()
   },
 )
-
-watch(debugEnabled, (enabled) => {
-  localStorage.setItem('roomcontrol.debug', enabled ? '1' : '0')
-})
 
 watch(workspace, (value) => {
   localStorage.setItem('roomcontrol.workspace', value)
@@ -854,18 +849,18 @@ onBeforeUnmount(() => {
 
         <OperateWorkspace v-else-if="workspace === 'operate'" :rooms="rooms" :selected-room-id="selectedRoomId"
           :current-user="currentUser" :hub-state="hubState" :last-hub-event-at="lastHubEventAt"
-          :debug-enabled="debugEnabled" :receipts="receipts" :schedules="schedules"
+          :receipts="receipts" :schedules="schedules"
           :now="currentDateTime" @select-room="selectedRoomId = $event" @send-command="sendDigitalPulse"
           @schedule-command="scheduleCommand" @open-settings="openSettings"
           @clear-receipts="clearReceipts" />
 
         <SettingsPage v-else-if="workspace === 'settings'" :rooms="rooms" :branding="branding" :theme="theme"
           :density="density" :section="settingsSection" :current-user="currentUser" :focus-room-id="settingsFocusRoomId"
-          :debug-enabled="debugEnabled" :schedules="schedules" :manual-tasks="manualTasks"
+          :schedules="schedules" :manual-tasks="manualTasks"
           :selected-room-id="selectedRoomId" :automation-target="automationTarget" :now="currentDateTime"
           @rooms-changed="handleRoomsChanged" @branding-saved="handleBrandingSaved"
           @theme-changed="handleThemeChanged" @density-changed="density = $event"
-          @debug-changed="debugEnabled = $event" @notify="handleSettingsNotify"
+          @notify="handleSettingsNotify"
           @automation-changed="handleAutomationChanged" @manual-tasks-changed="handleManualTasksChanged"
           @section-changed="handleSettingsSection" />
 

@@ -12,7 +12,7 @@ RoomControl 是面向单站点内网部署的教室/会议室集中控制平台�
 - **状态持久化**：数据库保存 Join 最新快照、最后上报时间、自动任务和执行记录；在线连接保存在后端进程内。中控断开后状态会标记离线，界面保留最近一次状态及时间。API 完全启动（开始监听并完成数据库初始化）后才建立中控连接，避免启动阶段的连接失败记录干扰排查。
 - **数据库**：SQLite，适合单站点内网部署，无需单独安装数据库服务。添加其他品牌时实现独立控制器适配器，不改动教室/API/前端模型。
 - **CIP 首期**：TCP 客户端仅支持 CIP Raw，对接现有 CIP 模拟器。协议实现以模拟器代码为互操作性依据，不代表通过真实设备认证。
-- **协议与接口文档**：中控协议说明集中维护在 [docs/controller-protocols/](./docs/controller-protocols/)，新增协议时请同时登记索引并添加对应 Markdown 文件；REST 与 SignalR 契约、字段约束和错误码见 [docs/api.md](./docs/api.md)。
+- **协议与接口文档**：中控协议说明集中维护在 [docs/controller-protocols/](./docs/controller-protocols/)，新增协议时请同时登记索引并添加对应 Markdown 文件；REST 与 SignalR 契约、字段约束和错误码见 [docs/api.md](./docs/api.md)；数据库表结构、索引与删除行为见 [docs/database.md](./docs/database.md)。
 
 ## 本机开发（Windows）
 
@@ -121,7 +121,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ## 功能与 API
 
-REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健康检查为 `/health`。所有接口共用同源 HttpOnly Cookie 会话，JSON 属性名为 camelCase、枚举序列化为字符串，错误统一返回 ProblemDetails。完整的请求/响应示例、字段约束、权限矩阵、限流规则、SignalR 事件与业务规则见 **[docs/api.md](./docs/api.md)**。
+REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健康检查为 `/health`。所有接口共用同源 HttpOnly Cookie 会话，JSON 属性名为 camelCase、枚举序列化为字符串，错误统一返回 ProblemDetails。完整的请求/响应示例、字段约束、权限矩阵、限流规则、SignalR 事件与业务规则见 **[docs/api.md](./docs/api.md)**；数据库表结构、约束与删除行为见 [docs/database.md](./docs/database.md)。
 
 | 分类 | 端点 | 权限 |
 | --- | --- | --- |

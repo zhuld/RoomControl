@@ -84,7 +84,7 @@ export const settingsSections = [
     value: 'branding',
     eyebrow: '站点设置',
     title: '站点设置',
-    description: '维护登录页与侧栏使用的名称、Logo、操作日志保留策略与浏览器技术信息显示。',
+    description: '维护登录页与侧栏使用的名称、Logo 与操作日志保留策略。',
   },
   {
     value: 'locations',
