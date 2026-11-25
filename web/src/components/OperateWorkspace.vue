@@ -181,23 +181,10 @@ function receiptLabel(status: CommandReceipt['status']) {
 <template>
   <div class="workspace-inner">
     <div class="operate-layout" :class="{ 'is-rail-open': receiptRailOpen }">
-      <aside class="panel room-finder" aria-label="选择教室">
+      <aside v-if="rooms.length" class="panel room-finder" aria-label="选择教室">
         <div class="room-finder-head">
           <RoomCascader stacked :rooms="rooms" :model-value="selectedRoomId"
             @update:model-value="selectRoomFromCascader" />
-          <!-- <div class="room-finder-filters" role="group" aria-label="按状态筛选">
-            <button
-              v-for="option in roomStatusFilters"
-              :key="option.value"
-              type="button"
-              class="chip"
-              :class="{ active: statusFilter === option.value }"
-              :aria-pressed="statusFilter === option.value"
-              @click="statusFilter = option.value"
-            >
-              {{ option.label }}<span class="chip-count">{{ filterCount(option.value) }}</span>
-            </button>
-          </div> -->
         </div>
 
         <RoomTree :groups="roomGroups" :selected-id="selectedRoomId" label="教室列表" @select="emit('selectRoom', $event)">

@@ -767,7 +767,7 @@ onBeforeUnmount(() => {
           </p>
           <label class="field">
             密码
-            <input name="password" v-model="password" class="input" type="password" maxlength="128" autocomplete="current-password" required />
+            <input name="password" placeholder="输入密码" v-model="password" class="input" type="password" maxlength="128" autocomplete="current-password" required />
           </label>
           <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
           <button class="btn btn-primary btn-block" :disabled="busy">
