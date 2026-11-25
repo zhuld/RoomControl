@@ -432,7 +432,6 @@ async function runManualTask(task: ManualTask) {
     <section v-if="canOperate" class="panel section-gap" aria-label="手动任务">
       <header class="panel-head">
         <div class="panel-head-copy">
-          <p class="eyebrow">一键下发</p>
           <h2>手动任务</h2>
           <p class="panel-sub">每个按钮对应多间教室的一个控制点，点击后同时下发。</p>
         </div>

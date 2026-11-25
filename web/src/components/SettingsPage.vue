@@ -73,6 +73,7 @@ const emit = defineEmits<{
 interface SetupStep {
   value: SettingsSection
   title: string
+  icon: string
   summary: string
   done: boolean
 }
@@ -215,6 +216,7 @@ const setupSteps = computed<SetupStep[]>(() => {
   return settingsSections.map((section) => ({
     value: section.value,
     title: section.title,
+    icon: section.icon,
     ...progress[section.value],
   }))
 })
@@ -855,13 +857,17 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
         <button v-for="(step) in visibleSteps" :key="step.value" type="button" class="setup-step"
           :class="{ active: activeSection === step.value }"
           :aria-current="activeSection === step.value ? 'step' : undefined" @click="jumpTo(step.value)">
-          <span class="step-no">
-            <UiIcon v-if="step.done" name="check" :size="12" />
-            <UiIcon v-else name="alert" :size="12" />
+          <span class="setup-step-icon" aria-hidden="true">
+            <UiIcon :name="step.icon" :size="16" />
           </span>
           <span class="setup-step-copy">
             <strong>{{ step.title }}</strong>
             <span>{{ step.summary }}</span>
+          </span>
+          <span class="setup-step-state" :class="{ 'is-pending': !step.done }"
+            :title="step.done ? '已完成配置' : '待补齐'">
+            <UiIcon :name="step.done ? 'check' : 'alert'" :size="12" />
+            <span class="sr-only">{{ step.done ? '已完成配置' : '待补齐' }}</span>
           </span>
         </button>
       </nav>

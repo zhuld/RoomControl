@@ -866,18 +866,36 @@
   flex-wrap: wrap;
 }
 
-.step-no {
-  width: 20px;
-  height: 20px;
+.setup-step-icon {
+  width: 26px;
+  height: 26px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   background: var(--surface-inset);
   color: var(--text-muted);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+}
+
+.setup-step:hover .setup-step-icon {
+  color: var(--text-secondary);
+}
+
+.setup-step.active .setup-step-icon {
+  background: var(--accent-border);
+  color: var(--accent-strong);
+}
+
+.setup-step-state {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  color: var(--text-faint);
+}
+
+.setup-step-state.is-pending {
+  color: var(--warning);
 }
 
 /* 内联加载与键位提示 */
