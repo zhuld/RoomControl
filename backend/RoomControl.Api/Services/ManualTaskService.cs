@@ -8,6 +8,7 @@ namespace RoomControl.Api.Services;
 public sealed class ManualTaskService(
     IDbContextFactory<ControlDbContext> contextFactory,
     IControlCommandSender connectionService,
+    AuditLogWriter auditLogWriter,
     ILogger<ManualTaskService> logger)
 {
     /// <summary>读取全部手动任务及其目标，供设置页与总览按钮渲染。</summary>
@@ -101,12 +102,16 @@ public sealed class ManualTaskService(
             .ToListAsync(cancellationToken);
     }
 
-    /// <summary>逐个教室下发脉冲并记录汇总；单间失败不影响其余教室。</summary>
-    public async Task<ManualTaskRunResult> RunAsync(Guid taskId, CancellationToken cancellationToken)
+    /// <summary>逐个教室下发脉冲并记录汇总；单间失败不影响其余教室，每条指令单独写入操作记录。</summary>
+    public async Task<ManualTaskRunResult> RunAsync(
+        Guid taskId,
+        string actor,
+        CancellationToken cancellationToken)
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var task = await db.ManualTasks.AsNoTracking()
             .Include(item => item.Targets)
+            .ThenInclude(target => target.JoinMapping)
             .SingleOrDefaultAsync(item => item.Id == taskId, cancellationToken)
             ?? throw new KeyNotFoundException("Manual task was not found.");
         if (task.Targets.Count == 0)
@@ -126,9 +131,17 @@ public sealed class ManualTaskService(
                     target.JoinName,
                     "Failed",
                     "控制点已删除。"));
+                await TryWriteCommandAuditAsync(
+                    task,
+                    target,
+                    null,
+                    "执行手动任务（控制点已删除）",
+                    AuditLogResults.TargetMissing,
+                    actor);
                 continue;
             }
 
+            var sendJoinNumber = target.JoinMapping?.SendJoinNumber;
             try
             {
                 // 手动任务由总览按钮触发，与自动任务一致，不受使能 Join 限制。
@@ -139,6 +152,13 @@ public sealed class ManualTaskService(
                     target.JoinName,
                     "Succeeded",
                     null));
+                await TryWriteCommandAuditAsync(
+                    task,
+                    target,
+                    sendJoinNumber,
+                    "执行手动任务",
+                    AuditLogResults.CommandAccepted,
+                    actor);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -149,6 +169,13 @@ public sealed class ManualTaskService(
                     target.JoinName,
                     "Failed",
                     exception.Message));
+                await TryWriteCommandAuditAsync(
+                    task,
+                    target,
+                    sendJoinNumber,
+                    "执行手动任务",
+                    AuditLogResults.FromException(exception),
+                    actor);
             }
         }
 
@@ -229,6 +256,33 @@ public sealed class ManualTaskService(
             .Where(item => taskIds.Contains(item.Id) && !item.Targets.Any())
             .ToListAsync(cancellationToken);
         await DeleteTasksAsync(db, emptyTasks, cancellationToken);
+    }
+
+    /// <summary>操作记录是旁路留痕：写入失败只记服务端日志，不影响其余教室继续下发。</summary>
+    private async Task TryWriteCommandAuditAsync(
+        ManualTask task,
+        ManualTaskTarget target,
+        int? sendJoinNumber,
+        string action,
+        int statusCode,
+        string actor)
+    {
+        try
+        {
+            await auditLogWriter.WriteAsync(
+                AuditLogCategories.Control,
+                sendJoinNumber is { } number ? $"{action} Join {number}" : action,
+                $"教室「{target.RoomName}」· 控制点「{target.JoinName}」· 手动任务「{task.Name}」",
+                actor,
+                statusCode);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(
+                exception,
+                "Failed to write command audit log for manual task {TaskId}.",
+                task.Id);
+        }
     }
 
     private static async Task<ManualTask> GetAsync(

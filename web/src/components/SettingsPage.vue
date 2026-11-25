@@ -595,7 +595,7 @@ async function saveRoom(room: Room) {
 }
 
 async function deleteRoom(room: Room) {
-  if (!(await confirmAction(`删除教室「${room.name}」及其中控、控制点？关联的定时任务会一并删除。`))) return
+  if (!(await confirmAction(`删除教室「${room.name}」及其中控、控制点？关联的自动任务会一并删除。`))) return
   await run(async () => {
     await request(`/api/rooms/${room.id}`, { method: 'DELETE' })
     if (configuredRoomId.value === room.id) configuredRoomId.value = ''
@@ -632,7 +632,7 @@ async function saveController() {
 async function deleteController() {
   const controller = configuredRoom.value?.controller
   if (!controller) return
-  if (!(await confirmAction(`移除中控「${controller.name}」及其控制点？关联的定时任务会一并删除。`))) return
+  if (!(await confirmAction(`移除中控「${controller.name}」及其控制点？关联的自动任务会一并删除。`))) return
   await run(async () => {
     await request(`/api/controllers/${controller.id}`, { method: 'DELETE' })
     emit('roomsChanged')
@@ -701,7 +701,7 @@ async function submitJoin() {
 }
 
 async function deleteJoin(join: JoinMapping) {
-  if (!(await confirmAction(`删除控制点「${join.name}」？关联的定时任务会一并删除。`))) return
+  if (!(await confirmAction(`删除控制点「${join.name}」？关联的自动任务会一并删除。`))) return
   await run(async () => {
     await request(`/api/joins/${join.id}`, { method: 'DELETE' })
     emit('roomsChanged')
@@ -931,9 +931,9 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             :current-user="currentUser" :selected-room-id="selectedRoomId" :target="automationTarget" :now="now"
             @changed="emit('automationChanged')" @notify="emit('notify', $event)" />
 
-          <ManualTasksWorkspace v-if="activeSection === 'manual-tasks'" :rooms="rooms"
-            :manual-tasks="manualTasks" :current-user="currentUser" :selected-room-id="selectedRoomId"
-            @changed="emit('manualTasksChanged')" @notify="emit('notify', $event)" />
+          <ManualTasksWorkspace v-if="activeSection === 'manual-tasks'" :rooms="rooms" :manual-tasks="manualTasks"
+            :current-user="currentUser" :selected-room-id="selectedRoomId" @changed="emit('manualTasksChanged')"
+            @notify="emit('notify', $event)" />
 
           <div v-if="activeSection === 'appearance'" class="panel-body stack">
             <div class="stack">
@@ -967,8 +967,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
               </div>
               <div class="segmented" role="radiogroup" aria-label="显示密度">
                 <button v-for="option in densityOptions" :key="option.value" type="button"
-                  :class="{ active: density === option.value }" role="radio"
-                  :aria-checked="density === option.value" @click="selectDensity(option.value)">
+                  :class="{ active: density === option.value }" role="radio" :aria-checked="density === option.value"
+                  @click="selectDensity(option.value)">
                   {{ option.label }}
                 </button>
               </div>
@@ -1216,8 +1216,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                       <template v-else>尚未接入中控</template>
                     </p>
                   </div>
-                  <StatusPill :tone="roomStatusTone(configuredRoom)" :label="roomStatusLabel(configuredRoom)"
-                    dot />
+                  <StatusPill :tone="roomStatusTone(configuredRoom)" :label="roomStatusLabel(configuredRoom)" dot />
                 </div>
 
                 <div v-if="configuredRoom.controller?.lastError" class="banner is-warning" role="status">
@@ -1378,7 +1377,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
       <section class="dialog is-wide" role="dialog" aria-modal="true" aria-labelledby="copy-join-title">
         <h2 id="copy-join-title">{{ copyingAll ? '全部复制控制点到教室' : '复制控制点到教室' }}</h2>
         <p v-if="copyingAll">
-          将复制当前教室的全部控制点。目标教室原有控制点会全部删除，关联的定时任务会一并删除。
+          将复制当前教室的全部控制点。目标教室原有控制点会全部删除，关联的自动任务会一并删除。
         </p>
         <p v-else>
           将“{{ copyingJoin?.name }}”复制到选中的教室；若发送 Join 冲突，将覆盖目标教室中的同 Join 控制点。
@@ -1412,8 +1411,9 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
       </section>
     </div>
 
-    <ConfirmDialog :open="confirmation !== null" :title="confirmation?.title ?? ''" :message="confirmation?.message ?? ''"
-      :confirm-label="confirmation?.actionLabel ?? '确认'" :tone="confirmation?.tone ?? 'danger'"
-      @cancel="resolveConfirmation(false)" @confirm="resolveConfirmation(true)" />
+    <ConfirmDialog :open="confirmation !== null" :title="confirmation?.title ?? ''"
+      :message="confirmation?.message ?? ''" :confirm-label="confirmation?.actionLabel ?? '确认'"
+      :tone="confirmation?.tone ?? 'danger'" @cancel="resolveConfirmation(false)"
+      @confirm="resolveConfirmation(true)" />
   </div>
 </template>

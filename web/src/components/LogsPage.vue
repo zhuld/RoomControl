@@ -14,7 +14,7 @@ const categories = [
   { value: 'connection', label: '连接' },
   { value: 'control', label: '控制' },
   { value: 'state', label: '状态' },
-  { value: 'schedule', label: '定时任务' },
+  { value: 'schedule', label: '任务' },
 ]
 
 // 操作列显示可读动作；原始接口保留在悬停提示里，便于排查。
@@ -46,12 +46,12 @@ const actionLabels: Record<string, string> = {
   'DELETE /api/joins/{mappingId}': '删除控制点',
   'POST /api/joins/{mappingId}/copy': '复制控制点到教室',
   'POST /api/joins/{mappingId}/pulse': '发送',
-  'POST /api/schedules': '创建定时任务',
-  'PUT /api/schedules/groups/{groupId}': '更新定时任务',
-  'DELETE /api/schedules/groups/{groupId}': '删除定时任务',
-  'DELETE /api/schedules/{scheduleId}': '删除定时任务',
-  'POST /api/schedules/groups/{groupId}/pause': '暂停定时任务',
-  'POST /api/schedules/groups/{groupId}/resume': '恢复定时任务',
+  'POST /api/schedules': '创建自动任务',
+  'PUT /api/schedules/groups/{groupId}': '更新自动任务',
+  'DELETE /api/schedules/groups/{groupId}': '删除自动任务',
+  'DELETE /api/schedules/{scheduleId}': '删除自动任务',
+  'POST /api/schedules/groups/{groupId}/pause': '暂停自动任务',
+  'POST /api/schedules/groups/{groupId}/resume': '恢复自动任务',
 }
 
 function normalizeAction(action: string) {
@@ -72,8 +72,25 @@ const AUTO_REFRESH_STORAGE_KEY = 'roomcontrol.audit.autorefresh'
 const selectedCategory = ref('')
 const actionSlot = inject(actionSlotKey, ref<HTMLElement | null>(null))
 const searchText = ref('')
-const dateFrom = ref('')
-const dateTo = ref('')
+
+// 打开页面时默认只读取近 3 天（含今天）的记录，避免一次拉取全部保留日志。
+const DEFAULT_RANGE_DAYS = 3
+
+function toDateInputValue(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+function resolveDefaultRange() {
+  const today = new Date()
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (DEFAULT_RANGE_DAYS - 1))
+  return { from: toDateInputValue(start), to: toDateInputValue(today) }
+}
+
+const defaultRange = resolveDefaultRange()
+const dateFrom = ref(defaultRange.from)
+const dateTo = ref(defaultRange.to)
 // 每页固定行数，管理员可按需要切换；选择保存在当前浏览器。
 const PAGE_SIZE_OPTIONS = [20, 50, 100, 200]
 const PAGE_SIZE_STORAGE_KEY = 'roomcontrol.audit.pagesize'
@@ -135,6 +152,14 @@ const filteredLogs = computed(() => {
 
 const failureCount = computed(
   () => filteredLogs.value.filter((log) => log.statusCode >= 400).length,
+)
+
+// 默认日期区间不算用户筛选，空状态文案据此区分「没有记录」与「筛选无结果」。
+const hasCustomFilters = computed(
+  () =>
+    Boolean(selectedCategory.value || searchText.value) ||
+    dateFrom.value !== defaultRange.from ||
+    dateTo.value !== defaultRange.to,
 )
 
 const totalPages = computed(
@@ -214,9 +239,23 @@ async function loadLogs(options: { silent?: boolean } = {}) {
   }
 }
 
+// 跨天后让默认区间跟随到新的「近 3 天」；用户改过日期时保留其选择。
+function followDefaultRange() {
+  if (dateFrom.value !== defaultRange.from || dateTo.value !== defaultRange.to) return false
+  const next = resolveDefaultRange()
+  if (next.from === defaultRange.from && next.to === defaultRange.to) return false
+  defaultRange.from = next.from
+  defaultRange.to = next.to
+  dateFrom.value = next.from
+  dateTo.value = next.to
+  return true
+}
+
 function refreshInBackground() {
   // 正在表格内选择文本时暂停自动刷新，避免重渲染清除已选内容。
   if (!autoRefresh.value || document.hidden || pointerDownInTable || hasLogTableSelection()) return
+  // 区间已跟随新日期时由日期监听触发读取，这里不再重复请求。
+  if (followDefaultRange()) return
   void loadLogs({ silent: true })
 }
 
@@ -325,11 +364,10 @@ onBeforeUnmount(() => {
       <div v-if="loading && !logs.length" class="audit-message" role="status">
         <span class="loading-inline"><span class="spinner"></span>正在加载操作记录…</span>
       </div>
-      <EmptyState v-else-if="!filteredLogs.length" icon="audit"
-        :title="searchText || selectedCategory || dateFrom || dateTo ? '没有符合条件的记录' : '暂无操作记录'"
-        :description="searchText || selectedCategory || dateFrom || dateTo
+      <EmptyState v-else-if="!filteredLogs.length" icon="audit" :title="hasCustomFilters ? '没有符合条件的记录' : '近 3 天暂无操作记录'"
+        :description="hasCustomFilters
           ? '调整分类、搜索词或日期区间后再试。'
-          : '完成登录、配置或控制操作后会在此出现。'" />
+          : '清除日期区间或调整起始日期可查看更早的记录。'" />
       <div v-else class="table-wrap audit-table-wrap" @pointerdown="handleTablePointerDown">
         <table class="table audit-table">
           <thead>

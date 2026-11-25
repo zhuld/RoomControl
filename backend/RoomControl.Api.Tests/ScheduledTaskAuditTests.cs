@@ -10,13 +10,13 @@ using RoomControl.Api.Services;
 
 namespace RoomControl.Api.Tests;
 
-/// <summary>验证定时任务后台执行按任务组写入一条操作记录，并保留逐教室执行记录。</summary>
+/// <summary>验证自动任务后台执行按每条下发指令写入操作记录，并保留逐教室执行记录。</summary>
 public sealed class ScheduledControlJobTests
 {
     private static readonly DateTimeOffset ScheduledAtUtc = new(2026, 11, 24, 8, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task ExecuteWritesExecutionAndSingleAuditRecord()
+    public async Task ExecuteWritesExecutionAndCommandAuditRecord()
     {
         await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc, targetCount: 1);
         var job = CreateJob(harness);
@@ -31,13 +31,14 @@ public sealed class ScheduledControlJobTests
 
         var log = Assert.Single(await db.AuditLogs.ToListAsync());
         Assert.Equal(AuditLogCategories.Schedule, log.Category);
-        Assert.Equal(ScheduleAudit.ExecutedAction, log.Action);
+        Assert.Equal("自动执行自动任务 Join 7", log.Action);
         Assert.Equal("系统", log.Actor);
-        Assert.Equal("教室「A101」 · 定时任务「一键上课」", log.Target);
+        Assert.Equal(StatusCodes.Status202Accepted, log.StatusCode);
+        Assert.Equal("教室「A101」· 控制点「上课」· 自动任务「一键上课」", log.Target);
     }
 
     [Fact]
-    public async Task GroupExecutionWritesOneAuditRecordForAllTargets()
+    public async Task GroupExecutionWritesOneAuditRecordPerTarget()
     {
         await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc, targetCount: 2);
         var job = CreateJob(harness);
@@ -52,13 +53,26 @@ public sealed class ScheduledControlJobTests
         await using var db = await harness.ContextFactory.CreateDbContextAsync();
         Assert.Equal(2, await db.ScheduleExecutions.CountAsync());
 
-        var log = Assert.Single(await db.AuditLogs.ToListAsync());
-        Assert.Equal(ScheduleAudit.ExecutedAction, log.Action);
-        Assert.Equal("教室「A101」等 2 间 · 定时任务「一键上课」", log.Target);
+        var logs = await db.AuditLogs.ToListAsync();
+        Assert.Equal(2, logs.Count);
+        Assert.All(logs, log =>
+        {
+            Assert.Equal(AuditLogCategories.Schedule, log.Category);
+            Assert.Equal("自动执行自动任务 Join 7", log.Action);
+            Assert.Equal("系统", log.Actor);
+            Assert.Equal(StatusCodes.Status202Accepted, log.StatusCode);
+        });
+        Assert.Equal(
+            new[]
+            {
+                "教室「A101」· 控制点「上课」· 自动任务「一键上课」",
+                "教室「A102」· 控制点「上课」· 自动任务「一键上课」"
+            },
+            logs.Select(log => log.Target).OrderBy(target => target, StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
-    public async Task FailedExecuteStillWritesSingleAuditRecord()
+    public async Task FailedExecuteStillWritesCommandAuditRecordForEveryTarget()
     {
         await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc, targetCount: 2);
         harness.Sender.Failing.Add(harness.Targets[0].MappingId);
@@ -75,13 +89,20 @@ public sealed class ScheduledControlJobTests
         Assert.Equal("Failed", failed.Status);
         Assert.Equal("中控离线", failed.Error);
 
-        var log = Assert.Single(await db.AuditLogs.ToListAsync());
-        Assert.Equal(ScheduleAudit.ExecutedAction, log.Action);
-        Assert.Equal("系统", log.Actor);
+        var logs = await db.AuditLogs.ToListAsync();
+        Assert.Equal(2, logs.Count);
+        var failedLog = logs.Single(log => log.Target.Contains("A101", StringComparison.Ordinal));
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, failedLog.StatusCode);
+        var succeededLog = logs.Single(log => log.Target.Contains("A102", StringComparison.Ordinal));
+        Assert.Equal(StatusCodes.Status202Accepted, succeededLog.StatusCode);
     }
 
     private static ScheduledControlJob CreateJob(Harness harness) =>
-        new(harness.ContextFactory, harness.Sender, NullLogger<ScheduledControlJob>.Instance);
+        new(
+            harness.ContextFactory,
+            harness.Sender,
+            new AuditLogWriter(harness.ContextFactory, TimeProvider.System),
+            NullLogger<ScheduledControlJob>.Instance);
 
     private sealed class Harness : IAsyncDisposable
     {
@@ -310,7 +331,7 @@ public sealed class MissedOneTimeScheduleTests(QuartzSchedulerFixture quartz)
             Assert.Equal(ScheduleAudit.MissedAction, log.Action);
             Assert.Equal("系统", log.Actor);
             Assert.Equal(StatusCodes.Status503ServiceUnavailable, log.StatusCode);
-            Assert.Equal("教室「A101」等 2 间 · 定时任务「一次性上课」", log.Target);
+            Assert.Equal("教室「A101」等 2 间 · 自动任务「一次性上课」", log.Target);
         }
     }
 }

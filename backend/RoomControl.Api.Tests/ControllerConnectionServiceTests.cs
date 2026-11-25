@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using RoomControl.Api.Data;
 using RoomControl.Api.Hubs;
@@ -47,6 +48,21 @@ public sealed class ControllerConnectionServiceTests
         Assert.Equal(new[] { 5 }, harness.Adapter.Pulses);
     }
 
+    [Fact]
+    public async Task Connect_StartsOnlyAfterApplicationStarted()
+    {
+        var lifetime = new TestApplicationLifetime();
+        await using var harness = await Harness.CreateAsync(lifetime: lifetime);
+
+        // 宿主启动完成前不建立中控连接。
+        var early = await Task.WhenAny(harness.Adapter.Running, Task.Delay(TimeSpan.FromMilliseconds(300)));
+        Assert.NotSame(harness.Adapter.Running, early);
+
+        lifetime.MarkStarted();
+
+        await harness.Adapter.Running.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;
@@ -55,12 +71,14 @@ public sealed class ControllerConnectionServiceTests
             SqliteConnection connection,
             ControllerConnectionService service,
             TestAdapters.Adapter adapter,
-            Guid mappingId)
+            Guid mappingId,
+            TestApplicationLifetime lifetime)
         {
             _connection = connection;
             Service = service;
             Adapter = adapter;
             MappingId = mappingId;
+            Lifetime = lifetime;
         }
 
         public ControllerConnectionService Service { get; }
@@ -69,7 +87,11 @@ public sealed class ControllerConnectionServiceTests
 
         public Guid MappingId { get; }
 
-        public static async Task<Harness> CreateAsync(bool enableHigh = false)
+        public TestApplicationLifetime Lifetime { get; }
+
+        public static async Task<Harness> CreateAsync(
+            bool enableHigh = false,
+            TestApplicationLifetime? lifetime = null)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -108,14 +130,22 @@ public sealed class ControllerConnectionServiceTests
                 contextFactory,
                 new TestHubContext(),
                 NullLogger<ControllerStateStore>.Instance);
+            lifetime ??= TestApplicationLifetime.Started();
             var service = new ControllerConnectionService(
                 contextFactory,
                 new TestAdapters.Factory(adapter),
                 stateStore,
+                lifetime,
                 NullLogger<ControllerConnectionService>.Instance);
 
             await service.StartAsync(CancellationToken.None);
-            var harness = new Harness(connection, service, adapter, mappingId);
+            var harness = new Harness(connection, service, adapter, mappingId, lifetime);
+            if (!lifetime.IsStarted)
+            {
+                // 未启动的宿主下不等待连接，由用例自行验证"启动前不连接"。
+                return harness;
+            }
+
             try
             {
                 // 适配器进入运行循环时连接已注册，此时再发起脉冲请求才代表真实的在线场景。
@@ -149,6 +179,33 @@ public sealed class ControllerConnectionServiceTests
             await Service.StopAsync(CancellationToken.None);
             Service.Dispose();
             await _connection.DisposeAsync();
+        }
+    }
+
+    /// <summary>可控的宿主生命周期，用于验证启动完成前不会连接中控。</summary>
+    private sealed class TestApplicationLifetime : IHostApplicationLifetime
+    {
+        private readonly CancellationTokenSource _started = new();
+
+        public bool IsStarted => _started.IsCancellationRequested;
+
+        public CancellationToken ApplicationStarted => _started.Token;
+
+        public CancellationToken ApplicationStopping => CancellationToken.None;
+
+        public CancellationToken ApplicationStopped => CancellationToken.None;
+
+        public void MarkStarted() => _started.Cancel();
+
+        public void StopApplication()
+        {
+        }
+
+        public static TestApplicationLifetime Started()
+        {
+            var lifetime = new TestApplicationLifetime();
+            lifetime.MarkStarted();
+            return lifetime;
         }
     }
 

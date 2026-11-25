@@ -480,6 +480,61 @@ public sealed class SchemaUpgraderTests
     }
 
     [Fact]
+    public async Task UpgradeMovesManualTaskChangesToScheduleCategory()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                """
+                CREATE TABLE "Rooms" ("Id" TEXT NOT NULL, "Building" TEXT NOT NULL, "Floor" TEXT NOT NULL);
+                CREATE TABLE "AuditLogs" (
+                    "Id" TEXT NOT NULL CONSTRAINT "PK_AuditLogs" PRIMARY KEY,
+                    "Category" TEXT NOT NULL,
+                    "Action" TEXT NOT NULL,
+                    "Target" TEXT NOT NULL DEFAULT '',
+                    "Actor" TEXT NOT NULL,
+                    "StatusCode" INTEGER NOT NULL,
+                    "OccurredAtUtc" INTEGER NOT NULL
+                );
+                INSERT INTO "AuditLogs" ("Id", "Category", "Action", "Actor", "StatusCode", "OccurredAtUtc")
+                VALUES
+                    ('manual-create', 'configuration', 'POST /api/manual-tasks', 'admin', 201, 0),
+                    ('manual-update', 'configuration', '更新手动任务', 'admin', 200, 0),
+                    ('room-update', 'configuration', '更新教室', 'admin', 200, 0);
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        var options = new DbContextOptionsBuilder<ControlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        await using var db = new ControlDbContext(options);
+        await SchemaUpgrader.UpgradeAsync(db, CancellationToken.None);
+
+        // 旧版接口模板与可读动作名两种形式的记录都迁移到任务分类；其他配置记录保持不变。
+        await using var legacy = connection.CreateCommand();
+        legacy.CommandText =
+            """
+            SELECT "Category" FROM "AuditLogs"
+            WHERE "Id" IN ('manual-create', 'manual-update')
+            ORDER BY "Id"
+            """;
+        await using (var reader = await legacy.ExecuteReaderAsync())
+        {
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("schedule", reader.GetString(0));
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("schedule", reader.GetString(0));
+        }
+
+        await using var other = connection.CreateCommand();
+        other.CommandText = "SELECT \"Category\" FROM \"AuditLogs\" WHERE \"Id\" = 'room-update'";
+        Assert.Equal("configuration", (string)(await other.ExecuteScalarAsync())!);
+    }
+
+    [Fact]
     public async Task UpgradeAddsSortOrderColumnDefaultingToZero()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");

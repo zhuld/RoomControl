@@ -96,7 +96,7 @@ export const settingsSections = [
     value: 'rooms',
     eyebrow: '教室',
     title: '教室管理',
-    description: '维护教室名称与所在位置。定时任务按服务器本地时间执行。',
+    description: '维护教室名称与所在位置。自动任务按服务器本地时间执行。',
   },
   {
     value: 'controllers',

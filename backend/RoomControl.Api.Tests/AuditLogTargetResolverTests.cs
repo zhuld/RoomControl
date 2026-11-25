@@ -118,7 +118,7 @@ public sealed class AuditLogTargetResolverTests
         var resolver = new AuditLogTargetResolver(new TestDbContextFactory(options));
 
         Assert.Equal(
-            "教室「A101」 · 定时任务「上课铃」",
+            "教室「A101」 · 自动任务「上课铃」",
             (await resolver.ResolveLocationAsync($"/api/schedules/groups/{groupId}"))?.Label);
     }
 

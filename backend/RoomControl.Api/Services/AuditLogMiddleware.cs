@@ -94,22 +94,23 @@ public sealed class AuditLogMiddleware(
          HttpMethods.IsPatch(method) ||
          HttpMethods.IsDelete(method));
 
-    private static string GetCategory(string path)
+    internal static string GetCategory(string path)
     {
         if (path.StartsWith("/api/auth/", StringComparison.OrdinalIgnoreCase))
         {
             return AuditLogCategories.Authentication;
         }
+        // 自动任务与手动任务的改动都归入「任务」分类，界面按同一栏筛选。
         if (path.StartsWith("/api/schedules", StringComparison.OrdinalIgnoreCase))
         {
             return AuditLogCategories.Schedule;
         }
-        // 手动任务的执行属于人工下发，定义变更归入配置。
+        // 手动任务的执行属于人工下发，其余定义变更与自动任务一样记入任务分类。
         if (path.StartsWith("/api/manual-tasks", StringComparison.OrdinalIgnoreCase))
         {
             return path.EndsWith("/run", StringComparison.OrdinalIgnoreCase)
                 ? AuditLogCategories.Control
-                : AuditLogCategories.Configuration;
+                : AuditLogCategories.Schedule;
         }
         if (path.EndsWith("/pulse", StringComparison.OrdinalIgnoreCase))
         {

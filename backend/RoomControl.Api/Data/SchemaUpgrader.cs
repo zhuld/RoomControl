@@ -170,6 +170,16 @@ public static class SchemaUpgrader
                 await db.Database.ExecuteSqlRawAsync(
                     "UPDATE \"AuditLogs\" SET \"Category\" = 'connection' WHERE \"Category\" = 'state' AND \"Action\" IN ('中控连接成功', '中控连接断开')",
                     cancellationToken);
+                // 手动任务的改动已并入「任务」分类（存储值仍为 schedule），旧记录同步迁移。
+                // 兼容早期的接口模板形式与之后的可读动作名。
+                await db.Database.ExecuteSqlRawAsync(
+                    """
+                    UPDATE "AuditLogs" SET "Category" = 'schedule'
+                    WHERE "Category" = 'configuration'
+                      AND ("Action" LIKE '%/api/manual-tasks%'
+                           OR "Action" IN ('创建手动任务', '更新手动任务', '删除手动任务'))
+                    """,
+                    cancellationToken);
             }
 
             var scheduleColumns = await ReadSqliteColumnsAsync(db, "Schedules", cancellationToken);
@@ -344,6 +354,10 @@ public static class SchemaUpgrader
             END $$;
             UPDATE "AuditLogs" SET "Category" = 'state' WHERE "Category" = 'control' AND "Action" LIKE '状态变更%';
             UPDATE "AuditLogs" SET "Category" = 'connection' WHERE "Category" = 'state' AND "Action" IN ('中控连接成功', '中控连接断开');
+            UPDATE "AuditLogs" SET "Category" = 'schedule'
+            WHERE "Category" = 'configuration'
+              AND ("Action" LIKE '%/api/manual-tasks%'
+                   OR "Action" IN ('创建手动任务', '更新手动任务', '删除手动任务'));
             UPDATE "JoinSnapshots" SET "DigitalValue" = false WHERE "DigitalValue" IS NULL;
             ALTER TABLE IF EXISTS "Schedules" DROP COLUMN IF EXISTS "TargetValue";
             ALTER TABLE IF EXISTS "Schedules" ADD COLUMN IF NOT EXISTS "GroupId" uuid NULL;

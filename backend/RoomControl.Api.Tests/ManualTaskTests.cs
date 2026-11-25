@@ -75,7 +75,7 @@ public sealed class ManualTaskTests
             false,
             CancellationToken.None);
 
-        var result = await harness.Service.RunAsync(task.Id, CancellationToken.None);
+        var result = await harness.Service.RunAsync(task.Id, "operator1", CancellationToken.None);
 
         Assert.Equal(2, result.SucceededCount);
         Assert.Equal(0, result.FailedCount);
@@ -87,6 +87,25 @@ public sealed class ManualTaskTests
         Assert.Equal("Succeeded", execution.Status);
         Assert.Equal(2, execution.SucceededCount);
         Assert.Null(execution.Error);
+
+        await using var db = await harness.ContextFactory.CreateDbContextAsync();
+        var logs = await db.AuditLogs.ToListAsync();
+        Assert.Equal(2, logs.Count);
+        Assert.All(logs, log =>
+        {
+            Assert.Equal(AuditLogCategories.Control, log.Category);
+            Assert.Equal("执行手动任务 Join 1", log.Action);
+            Assert.Equal("operator1", log.Actor);
+            Assert.Equal(202, log.StatusCode);
+            Assert.Contains("手动任务「一键上课」", log.Target, StringComparison.Ordinal);
+        });
+        Assert.Equal(
+            new[]
+            {
+                "教室「A101」· 控制点「上课」· 手动任务「一键上课」",
+                "教室「A102」· 控制点「上课」· 手动任务「一键上课」"
+            },
+            logs.Select(log => log.Target).OrderBy(target => target, StringComparer.Ordinal).ToArray());
     }
 
     [Fact]
@@ -100,7 +119,7 @@ public sealed class ManualTaskTests
             CancellationToken.None);
         harness.Sender.Failing.Add(harness.MappingIds[0]);
 
-        var result = await harness.Service.RunAsync(task.Id, CancellationToken.None);
+        var result = await harness.Service.RunAsync(task.Id, "operator1", CancellationToken.None);
 
         Assert.Equal(1, result.SucceededCount);
         Assert.Equal(1, result.FailedCount);
@@ -110,6 +129,16 @@ public sealed class ManualTaskTests
         var execution = Assert.Single(executions);
         Assert.Equal("Partial", execution.Status);
         Assert.Contains("中控离线", execution.Error);
+
+        await using var db = await harness.ContextFactory.CreateDbContextAsync();
+        var logs = await db.AuditLogs.ToListAsync();
+        Assert.Equal(2, logs.Count);
+        Assert.Equal(
+            503,
+            logs.Single(log => log.Target.Contains("A101", StringComparison.Ordinal)).StatusCode);
+        Assert.Equal(
+            202,
+            logs.Single(log => log.Target.Contains("A102", StringComparison.Ordinal)).StatusCode);
     }
 
     [Fact]
@@ -146,6 +175,7 @@ public sealed class ManualTaskTests
             Service = new ManualTaskService(
                 contextFactory,
                 sender,
+                new AuditLogWriter(contextFactory, TimeProvider.System),
                 NullLogger<ManualTaskService>.Instance);
         }
 

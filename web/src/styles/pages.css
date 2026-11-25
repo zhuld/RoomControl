@@ -198,7 +198,7 @@
 .attention-list {
   border-top: 1px solid var(--border);
   /* 待处理项较多时限制高度，避免总览首屏被无限拉长；超出后内部滚动。 */
-  max-height: min(50dvh, 420px);
+  max-height: min(40dvh, 320px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -444,14 +444,14 @@
 /* 教室操作台 */
 .operate-layout {
   display: grid;
-  grid-template-columns: 258px minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: var(--gap);
   align-items: start;
 }
 
 /* 回执默认收起，展开后才占用第三列。 */
 .operate-layout.is-rail-open {
-  grid-template-columns: 258px minmax(0, 1fr) 296px;
+  grid-template-columns: 180px minmax(0, 1fr) 206px;
 }
 
 .room-finder,
@@ -743,7 +743,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  min-height: 58px;
+  
   padding: 11px 13px;
   border: 0;
   background: transparent;
@@ -934,16 +934,6 @@
 
 /* 中等宽度下回执栏改为整行铺满，避免主操作区被三列挤窄。 */
 @media (max-width: 1420px) {
-  .operate-layout,
-  .operate-layout.is-rail-open {
-    grid-template-columns: 180px minmax(0, 1fr);
-  }
-
-  .receipt-rail {
-    grid-column: 1 / -1;
-    position: static;
-    max-height: 280px;
-  }
 
   .receipt-list {
     display: grid;
@@ -956,19 +946,14 @@
 }
 
 @media (max-width: 1040px) {
-  .operate-layout,
-  .operate-layout.is-rail-open {
-    grid-template-columns: minmax(0, 1fr);
-  }
 
   .room-finder {
     position: static;
     max-height: none;
   }
 
-  .room-list {
-    max-height: 248px;
-  }
+
+
 }
 
 /* 自动任务 */

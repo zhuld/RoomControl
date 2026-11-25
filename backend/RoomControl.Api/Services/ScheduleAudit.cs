@@ -4,11 +4,18 @@ using RoomControl.Api.Models;
 
 namespace RoomControl.Api.Services;
 
-/// <summary>定时任务后台留痕：整个任务组每次触发只由组内一个目标写一条记录，避免多教室刷屏。</summary>
+/// <summary>自动任务后台留痕：自动执行按每条下发指令记录，停机错过的一次性任务按任务组记录一条。</summary>
 internal static class ScheduleAudit
 {
-    public const string ExecutedAction = "自动执行定时任务";
-    public const string MissedAction = "定时任务未自动执行（平台停机期间到期）";
+    public const string ExecutedAction = "自动执行自动任务";
+    public const string MissedAction = "自动任务未自动执行（平台停机期间到期）";
+
+    /// <summary>每条下发指令的动作文本，带上发送 Join 编号，便于与人工发送记录对照。</summary>
+    public static string FormatCommandAction(int sendJoinNumber) => $"{ExecutedAction} Join {sendJoinNumber}";
+
+    /// <summary>逐教室的命令记录对象：教室、控制点与任务名称，任务删除后仍可识别来源。</summary>
+    public static string FormatCommandTarget(ControlSchedule schedule) =>
+        $"教室「{schedule.RoomName}」· 控制点「{schedule.JoinName}」· 自动任务「{schedule.Name}」";
 
     /// <summary>判断当前目标是否为组内首个目标，并生成整组的可读对象名称。</summary>
     public static async Task<(bool IsLeader, string Target)> ResolveGroupAsync(
@@ -34,6 +41,6 @@ internal static class ScheduleAudit
             1 => $"教室「{roomNames[0]}」",
             _ => $"教室「{roomNames[0]}」等 {roomNames.Length} 间",
         };
-        return (leaderId == schedule.Id, $"{scope} · 定时任务「{schedule.Name}」");
+        return (leaderId == schedule.Id, $"{scope} · 自动任务「{schedule.Name}」");
     }
 }

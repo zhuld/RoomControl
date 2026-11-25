@@ -12,6 +12,7 @@ public sealed class ControllerConnectionService(
     IDbContextFactory<ControlDbContext> contextFactory,
     IControllerAdapterFactory adapterFactory,
     ControllerStateStore stateStore,
+    IHostApplicationLifetime applicationLifetime,
     ILogger<ControllerConnectionService> logger) : BackgroundService, IControlCommandSender
 {
     private readonly ConcurrentDictionary<Guid, IControllerAdapter> _connectedAdapters = new();
@@ -71,6 +72,14 @@ public sealed class ControllerConnectionService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // 等宿主完成启动再连中控：启动阶段服务尚未就绪，过早连接会与数据库初始化争用，
+        // 并可能在中控真正可用前写入误导性的连接记录。
+        await WaitForApplicationStartedAsync(stoppingToken);
+        if (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         // 进程重启后内存连接均已断开，先修正数据库中的在线状态，再周期性对齐配置。
         try
         {
@@ -113,6 +122,28 @@ public sealed class ControllerConnectionService(
         foreach (var controllerId in _workers.Keys.ToArray())
         {
             await StopWorkerAsync(controllerId);
+        }
+    }
+
+    /// <summary>宿主启动完成（服务已监听、后台任务已就绪）后才继续；停机时立即返回。</summary>
+    private async Task WaitForApplicationStartedAsync(CancellationToken stoppingToken)
+    {
+        // ApplicationStarted 在全部托管服务启动后触发，因此这里等待不会阻塞宿主启动本身。
+        if (applicationLifetime.ApplicationStarted.IsCancellationRequested)
+        {
+            return;
+        }
+
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            stoppingToken,
+            applicationLifetime.ApplicationStarted);
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // 启动完成或进程停机都会走到这里，由调用方按 stoppingToken 判断。
         }
     }
 

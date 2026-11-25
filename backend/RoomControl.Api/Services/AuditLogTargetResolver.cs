@@ -81,96 +81,96 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
         switch (resource)
         {
             case "joins":
-            {
-                // 控制点日志同时记录所属教室和 Join 编号，便于定位是哪个教室的哪条指令。
-                var join = await db.JoinMappings.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => new { item.Name, item.SendJoinNumber, Room = item.Controller.Room })
-                    .SingleOrDefaultAsync();
-                return join is null
-                    ? new AuditTarget($"控制点 {id}")
-                    : new AuditTarget(
-                        $"{AuditLogFormatting.FormatRoom(join.Room)}· 控制点「{join.Name}」",
-                        $"Join {join.SendJoinNumber}");
-            }
-            case "schedules":
-            {
-                var schedule = await db.Schedules.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => new { item.Name, item.RoomName })
-                    .SingleOrDefaultAsync();
-                return schedule is null
-                    ? new AuditTarget($"定时任务 {id}")
-                    : new AuditTarget($"教室「{schedule.RoomName}」· 定时任务「{schedule.Name}」");
-            }
-            case "manual-tasks":
-            {
-                var task = await db.ManualTasks.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => new
-                    {
-                        item.Name,
-                        RoomNames = item.Targets.Select(target => target.RoomName).ToList()
-                    })
-                    .SingleOrDefaultAsync();
-                if (task is null)
                 {
-                    return new AuditTarget($"手动任务 {id}");
+                    // 控制点日志同时记录所属教室和 Join 编号，便于定位是哪个教室的哪条指令。
+                    var join = await db.JoinMappings.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => new { item.Name, item.SendJoinNumber, Room = item.Controller.Room })
+                        .SingleOrDefaultAsync();
+                    return join is null
+                        ? new AuditTarget($"控制点 {id}")
+                        : new AuditTarget(
+                            $"{AuditLogFormatting.FormatRoom(join.Room)}· 控制点「{join.Name}」",
+                            $"Join {join.SendJoinNumber}");
                 }
+            case "schedules":
+                {
+                    var schedule = await db.Schedules.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => new { item.Name, item.RoomName })
+                        .SingleOrDefaultAsync();
+                    return schedule is null
+                        ? new AuditTarget($"自动任务 {id}")
+                        : new AuditTarget($"教室「{schedule.RoomName}」· 自动任务「{schedule.Name}」");
+                }
+            case "manual-tasks":
+                {
+                    var task = await db.ManualTasks.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => new
+                        {
+                            item.Name,
+                            RoomNames = item.Targets.Select(target => target.RoomName).ToList()
+                        })
+                        .SingleOrDefaultAsync();
+                    if (task is null)
+                    {
+                        return new AuditTarget($"手动任务 {id}");
+                    }
 
-                var scope = task.RoomNames.Count > 1
-                    ? $"教室「{task.RoomNames[0]}」等 {task.RoomNames.Count} 间"
-                    : $"教室「{task.RoomNames.FirstOrDefault() ?? "—"}」";
-                return new AuditTarget($"{scope} · 手动任务「{task.Name}」");
-            }
+                    var scope = task.RoomNames.Count > 1
+                        ? $"教室「{task.RoomNames[0]}」等 {task.RoomNames.Count} 间"
+                        : $"教室「{task.RoomNames.FirstOrDefault() ?? "—"}」";
+                    return new AuditTarget($"{scope} · 手动任务「{task.Name}」");
+                }
             case "controllers":
-            {
-                var controller = await db.Controllers.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => new { item.Name, Room = item.Room })
-                    .SingleOrDefaultAsync();
-                return controller is null
-                    ? new AuditTarget($"中控 {id}")
-                    : new AuditTarget(
-                        $"{AuditLogFormatting.FormatRoom(controller.Room)}· 中控「{controller.Name}」");
-            }
+                {
+                    var controller = await db.Controllers.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => new { item.Name, Room = item.Room })
+                        .SingleOrDefaultAsync();
+                    return controller is null
+                        ? new AuditTarget($"中控 {id}")
+                        : new AuditTarget(
+                            $"{AuditLogFormatting.FormatRoom(controller.Room)}· 中控「{controller.Name}」");
+                }
             case "groups":
                 return await ResolveScheduleGroupAsync(id);
             case "rooms":
-            {
-                var room = await db.Rooms.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .SingleOrDefaultAsync();
-                return room is null
-                    ? new AuditTarget($"教室 {id}")
-                    : new AuditTarget(AuditLogFormatting.FormatRoom(room));
-            }
+                {
+                    var room = await db.Rooms.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .SingleOrDefaultAsync();
+                    return room is null
+                        ? new AuditTarget($"教室 {id}")
+                        : new AuditTarget(AuditLogFormatting.FormatRoom(room));
+                }
             case "buildings":
-            {
-                var name = await db.Buildings.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => item.Name)
-                    .SingleOrDefaultAsync();
-                return name is null ? new AuditTarget($"楼栋 {id}") : new AuditTarget($"楼栋「{name}」");
-            }
+                {
+                    var name = await db.Buildings.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => item.Name)
+                        .SingleOrDefaultAsync();
+                    return name is null ? new AuditTarget($"楼栋 {id}") : new AuditTarget($"楼栋「{name}」");
+                }
             case "floors":
-            {
-                var floor = await db.Floors.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => new { item.Name, BuildingName = item.Building.Name })
-                    .SingleOrDefaultAsync();
-                return floor is null
-                    ? new AuditTarget($"楼层 {id}")
-                    : new AuditTarget($"楼层「{floor.BuildingName} · {floor.Name}」");
-            }
+                {
+                    var floor = await db.Floors.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => new { item.Name, BuildingName = item.Building.Name })
+                        .SingleOrDefaultAsync();
+                    return floor is null
+                        ? new AuditTarget($"楼层 {id}")
+                        : new AuditTarget($"楼层「{floor.BuildingName} · {floor.Name}」");
+                }
             case "users":
-            {
-                var username = await db.Users.AsNoTracking()
-                    .Where(item => item.Id == id)
-                    .Select(item => item.Username)
-                    .SingleOrDefaultAsync();
-                return username is null ? new AuditTarget($"账号 {id}") : new AuditTarget($"账号「{username}」");
-            }
+                {
+                    var username = await db.Users.AsNoTracking()
+                        .Where(item => item.Id == id)
+                        .Select(item => item.Username)
+                        .SingleOrDefaultAsync();
+                    return username is null ? new AuditTarget($"账号 {id}") : new AuditTarget($"账号「{username}」");
+                }
             default:
                 return null;
         }
@@ -186,14 +186,14 @@ public sealed class AuditLogTargetResolver(IDbContextFactory<ControlDbContext> d
             .ToListAsync();
         if (schedules.Count == 0)
         {
-            return new AuditTarget($"定时任务 {groupId}");
+            return new AuditTarget($"自动任务 {groupId}");
         }
 
         var first = schedules[0];
         var scope = schedules.Count > 1
             ? $"教室「{first.RoomName}」等 {schedules.Count} 间"
             : $"教室「{first.RoomName}」";
-        return new AuditTarget($"{scope} · 定时任务「{first.Name}」");
+        return new AuditTarget($"{scope} · 自动任务「{first.Name}」");
     }
 
     private static bool TryGetId(RouteValueDictionary values, string key, out Guid id)

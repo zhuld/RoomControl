@@ -256,7 +256,7 @@ function manualTaskTone(task: ManualTask) {
 function manualTaskLabel(task: ManualTask) {
   if (runningManualTaskId.value === task.id) return '正在下发…'
   const result = manualTaskResults[task.id]
-  if (!result) return '点击发送'
+  if (!result) return '点击执行'
   return `成功 ${result.succeededCount} / ${result.succeededCount + result.failedCount}`
 }
 
@@ -325,7 +325,7 @@ async function runManualTask(task: ManualTask) {
         <div class="kpi-copy">
           <span class="kpi-label">在线中控</span>
           <strong class="kpi-value">{{ onlineRooms.length }}<span class="text-sm muted"> / {{ configuredRooms.length
-              }}</span></strong>
+          }}</span></strong>
           <span class="kpi-detail">{{ offlineRooms.length }} 离线 · {{ unconfiguredRooms.length }} 未接入</span>
         </div>
       </article>
@@ -350,7 +350,7 @@ async function runManualTask(task: ManualTask) {
           <strong class="kpi-value">{{ activeTaskCount }}</strong>
           <span class="kpi-detail">
             {{ upcomingGroups[0] ? `下次 ${formatRelative(upcomingGroups[0].nextRunAtUtc, now.getTime())}` :
-            '暂无计划执行' }}
+              '暂无计划执行' }}
           </span>
         </div>
       </article>
@@ -421,10 +421,8 @@ async function runManualTask(task: ManualTask) {
               <strong>{{ group.name }}</strong>
               <span>{{ groupRoomsLabel(group) }} · {{ group.joinName }}</span>
             </div>
-            <StatusPill
-              :tone="overdueGroups.some((item) => item.key === group.key) ? 'danger' : 'neutral'"
-              :label="formatRelative(group.nextRunAtUtc, now.getTime())"
-            />
+            <StatusPill :tone="overdueGroups.some((item) => item.key === group.key) ? 'danger' : 'neutral'"
+              :label="formatRelative(group.nextRunAtUtc, now.getTime())" />
           </article>
         </div>
         <EmptyState v-else icon="calendar" title="没有已启用的自动任务"
@@ -457,10 +455,9 @@ async function runManualTask(task: ManualTask) {
             :title="task.targets.length ? `${task.joinName} · ${manualTaskRoomsLabel(task)}` : '还没有可执行的控制点'"
             @click="runManualTask(task)">
             <span class="manual-task-name">{{ task.name }}</span>
-            <span class="manual-task-meta">{{ task.joinName }} · {{ task.targets.length }} 间教室</span>
-            <span class="manual-task-rooms">{{ manualTaskRoomsLabel(task) }}</span>
+            <span class="manual-task-meta">{{ task.joinName }} · {{ manualTaskRoomsLabel(task) }}</span>
             <span class="manual-task-foot">
-              <StatusPill :tone="manualTaskTone(task)" :label="manualTaskLabel(task)" />
+              <span class="text-2xs muted tabular">{{ manualTaskLabel(task) }}</span>
               <span v-if="manualTaskResults[task.id]" class="text-2xs muted tabular">
                 {{ formatClock(manualTaskResults[task.id].completedAtUtc) }}
               </span>
@@ -468,10 +465,8 @@ async function runManualTask(task: ManualTask) {
           </button>
         </div>
       </div>
-      <EmptyState v-else icon="bolt" title="还没有手动任务"
-        description="进入配置与接入 · 手动任务，把多间教室的同名控制点聚合为一个总览按钮。">
-        <button type="button" class="btn btn-outline btn-sm empty-action"
-          @click="emit('openSettings', 'manual-tasks')">
+      <EmptyState v-else icon="bolt" title="还没有手动任务" description="进入配置与接入 · 手动任务，把多间教室的同名控制点聚合为一个总览按钮。">
+        <button type="button" class="btn btn-outline btn-sm empty-action" @click="emit('openSettings', 'manual-tasks')">
           创建手动任务
         </button>
       </EmptyState>
@@ -497,7 +492,9 @@ async function runManualTask(task: ManualTask) {
         <div class="room-grid">
           <button v-for="room in filteredRooms" :id="`overview-room-${room.id}`" :key="room.id" type="button"
             class="room-card" :class="`is-${roomStatus(room)}`" :disabled="!canOperate"
-            @click="emit('selectRoom', room.id)">
+            @click="emit('selectRoom', room.id)"
+            :title="room.controller ? `${room.controller.name}\n\r${room.controller.host}:${room.controller.port} · IPID ${room.controller.ipid}\n\r${buildingOf(room)} · ${floorOf(room)} · ${room.name}` : `${buildingOf(room)} · ${floorOf(room)} · ${room.name} · 尚未接入中控`">
+
             <div class="room-card-head">
               <div class="room-card-title">
                 <p class="eyebrow">{{ buildingOf(room) }} · {{ floorOf(room) }}</p>
@@ -505,14 +502,7 @@ async function runManualTask(task: ManualTask) {
               </div>
               <StatusPill :tone="roomStatusTone(room)" :label="roomStatusLabel(room)" dot />
             </div>
-            <p class="room-card-meta">
-              <template v-if="room.controller">
-                {{ room.controller.name }} · {{ room.controller.host }}:{{ room.controller.port }} · IPID {{
-                  room.controller.ipid }}
-              </template>
-              <template v-else>尚未接入中控，状态不可知</template>
-            </p>
-            <div v-if=" room.controller?.joins.length" class="room-join-list">
+            <div v-if="room.controller?.joins.length" class="room-join-list">
               <span v-for="join in room.controller.joins" :key="join.id" class="room-join"
                 :class="{ 'is-on': join.stateSnapshot.digitalValue }">
                 {{ join.name }}

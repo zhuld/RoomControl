@@ -1,5 +1,5 @@
 // RoomControl API 入口：配置数据库、认证、限流与后台服务，并注册全部 REST 端点与 SignalR Hub。
-// 端点按 品牌 → 位置 → 教室 → 中控 → 控制点 → 定时任务 → 日志 排列；字段约束与响应示例见 docs/api.md。
+// 端点按 品牌 → 位置 → 教室 → 中控 → 控制点 → 自动任务 → 日志 排列；字段约束与响应示例见 docs/api.md。
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -860,7 +860,7 @@ api.MapDelete("/controllers/{controllerId:guid}", async (
     return Results.NoContent();
 }).RequireAuthorization("AdminOnly");
 
-// Join 映射支持脉冲发送与状态/使能反馈；定时任务复用同一发送服务。
+// Join 映射支持脉冲发送与状态/使能反馈；自动任务复用同一发送服务。
 api.MapPost("/controllers/{controllerId:guid}/joins", async (
     Guid controllerId,
     JoinMappingDefinitionRequest request,
@@ -1090,7 +1090,7 @@ api.MapPost("/joins/{mappingId:guid}/pulse", async (
     return Results.Accepted();
 }).RequireAuthorization("OperatorOrAdmin");
 
-// 定时任务端点与 SignalR Hub 共用后台状态和角色授权策略。
+// 自动任务端点与 SignalR Hub 共用后台状态和角色授权策略。
 api.MapGet("/schedules", async (ScheduleService service, CancellationToken cancellationToken) =>
 {
     var schedules = await service.GetAllAsync(cancellationToken);
@@ -1253,9 +1253,11 @@ api.MapDelete("/manual-tasks/{taskId:guid}", async (
 api.MapPost("/manual-tasks/{taskId:guid}/run", async (
     Guid taskId,
     ManualTaskService service,
+    HttpContext context,
     CancellationToken cancellationToken) =>
 {
-    var result = await service.RunAsync(taskId, cancellationToken);
+    var actor = context.User.Identity?.Name ?? "anonymous";
+    var result = await service.RunAsync(taskId, actor, cancellationToken);
     return Results.Ok(result);
 }).RequireAuthorization("OperatorOrAdmin");
 

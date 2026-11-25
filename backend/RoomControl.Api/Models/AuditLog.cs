@@ -24,6 +24,8 @@ public static class AuditLogCategories
     public const string Authentication = "authentication";
     public const string Configuration = "configuration";
     public const string Control = "control";
+    // 「任务」分类：自动任务与手动任务的改动，以及自动任务的每次下发指令。
+    // 保留历史存储值 schedule，兼容既有日志记录与筛选参数。
     public const string Schedule = "schedule";
     // 设备上报引起的控制点电平变化单独归类，便于与控制指令区分。
     public const string State = "state";

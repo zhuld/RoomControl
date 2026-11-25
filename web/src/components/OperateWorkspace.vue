@@ -245,7 +245,7 @@ function receiptLabel(status: CommandReceipt['status']) {
                 <UiIcon name="inbox" :size="16" />操作回执
                 <span v-if="receipts.length" class="btn-count" :class="{ 'is-danger': failedReceiptCount > 0 }">{{
                   receipts.length
-                  }}</span>
+                }}</span>
               </button>
             </div>
           </section>
@@ -301,7 +301,7 @@ function receiptLabel(status: CommandReceipt['status']) {
                   'is-sending': isSending(join),
                 }">
                   <button type="button" class="command-main" :disabled="commandDisabled(join)"
-                    :title="gatingReason(join) ?? `发送「${join.name}」指令`"
+                    :title="gatingReason(join) ?? `发送「${join.name}」指令\n\r数字脉冲 ${join.sendJoinNumber}`"
                     @click="emit('sendCommand', selectedRoom, join)">
                     <div class="command-top">
                       <span class="command-name">{{ join.name }}</span>
@@ -320,7 +320,7 @@ function receiptLabel(status: CommandReceipt['status']) {
                       <span class="command-plan-time">{{ planFor(join)?.countdown }}</span>
                       <span class="command-plan-name">{{ planFor(join)?.name }}</span>
                     </span>
-                    <span v-else class="command-plan is-empty">无定时任务</span>
+                    <span v-else class="command-plan is-empty">无自动任务</span>
                     <span v-if="planFor(join)" class="command-schedule">
                       <UiIcon name="clock" :size="12" />
                     </span>
