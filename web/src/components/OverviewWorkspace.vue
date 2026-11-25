@@ -246,12 +246,6 @@ function manualTaskRoomsLabel(task: ManualTask) {
   return `${names.slice(0, 2).join('、')} 等 ${names.length} 间`
 }
 
-function manualTaskTone(task: ManualTask) {
-  const result = manualTaskResults[task.id]
-  if (!result) return 'neutral' as const
-  if (result.failedCount === 0) return 'success' as const
-  return result.succeededCount === 0 ? 'danger' as const : 'warning' as const
-}
 
 function manualTaskLabel(task: ManualTask) {
   if (runningManualTaskId.value === task.id) return '正在下发…'
@@ -325,7 +319,7 @@ async function runManualTask(task: ManualTask) {
         <div class="kpi-copy">
           <span class="kpi-label">在线中控</span>
           <strong class="kpi-value">{{ onlineRooms.length }}<span class="text-sm muted"> / {{ configuredRooms.length
-          }}</span></strong>
+              }}</span></strong>
           <span class="kpi-detail">{{ offlineRooms.length }} 离线 · {{ unconfiguredRooms.length }} 未接入</span>
         </div>
       </article>

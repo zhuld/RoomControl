@@ -172,6 +172,18 @@
   .login-card {
     padding: var(--space-6);
   }
+
+  .controller-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .controller-room-list {
+    max-height: 220px;
+  }
+
+  .join-config-actions {
+    justify-content: flex-start;
+  }
 }
 
 /* 系统总览 */
@@ -688,10 +700,103 @@
   margin-bottom: 0;
 }
 
-.command-grid {
+/* 设备控制区：左侧视频窗口预留位固定 16:9，右侧按钮列与视频同高并独立滚动。 */
+.control-stage {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: var(--space-4);
+}
+
+.control-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-width: 0;
+  margin: 0;
+}
+
+/* 只占位不参与高度：行高由视频的 16:9 比例决定，列表再撑满整行。 */
+.control-buttons {
+  position: relative;
+  min-width: 0;
+}
+
+.control-video-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  overflow: hidden;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: radial-gradient(120% 90% at 50% 0%, var(--surface-subtle) 0%, var(--surface) 72%);
+  color: var(--text-faint);
+}
+
+.control-video-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.control-video-empty strong {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.control-video-empty span {
+  max-width: 32ch;
+  font-size: var(--text-2xs);
+  line-height: 1.55;
+}
+
+.control-video-caption {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+.command-list {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-right: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.command-list .command-card {
+  flex: none;
+}
+
+/* 窄屏下视频在上、按钮在下，避免右侧列表被压得过窄。 */
+@media (max-width: 880px) {
+  .control-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .control-buttons {
+    position: static;
+  }
+
+  .command-list {
+    position: static;
+    inset: auto;
+    overflow: visible;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
 }
 
 .command-card {
@@ -743,7 +848,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  
+
   padding: 11px 13px;
   border: 0;
   background: transparent;
@@ -1847,23 +1952,10 @@
   }
 }
 
-@media (max-width: 880px) {
-  .controller-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .controller-room-list {
-    max-height: 220px;
-  }
-
-
-  .join-config-actions {
-    justify-content: flex-start;
-  }
-}
 
 /* 窄屏下设置表单统一降为单列，避免固定列宽撑出横向滚动。 */
 @media (max-width: 720px) {
+
   .branding-grid,
   .room-create-form {
     grid-template-columns: minmax(0, 1fr);
@@ -1874,6 +1966,42 @@
   }
 
   .auto-form .panel-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .audit-toolbar .search-field {
+    width: 100%;
+  }
+
+  .audit-date-range {
+    width: 100%;
+  }
+
+  .audit-date-range .input {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+  }
+
+  .audit-pagination {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .log-target {
+    max-width: 180px;
+  }
+
+  .room-toolbar-cascader,
+  .auto-toolbar-left .search-field {
+    width: 100%;
+    /* 覆盖桌面端的 360px 最小宽度，否则手机窄屏会撑出横向滚动。 */
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  /* 手机宽度下三级选择器堆叠，避免三个下拉框被压到只剩几个字符宽。 */
+  .room-cascader {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -2104,42 +2232,4 @@
 .user-table td:last-child {
   width: 150px;
   text-align: right;
-}
-
-@media (max-width: 720px) {
-  .audit-toolbar .search-field {
-    width: 100%;
-  }
-
-  .audit-date-range {
-    width: 100%;
-  }
-
-  .audit-date-range .input {
-    flex: 1;
-    width: auto;
-    min-width: 0;
-  }
-
-  .audit-pagination {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .log-target {
-    max-width: 180px;
-  }
-
-  .room-toolbar-cascader,
-  .auto-toolbar-left .search-field {
-    width: 100%;
-    /* 覆盖桌面端的 360px 最小宽度，否则手机窄屏会撑出横向滚动。 */
-    min-width: 0;
-    flex-basis: 100%;
-  }
-
-  /* 手机宽度下三级选择器堆叠，避免三个下拉框被压到只剩几个字符宽。 */
-  .room-cascader {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }

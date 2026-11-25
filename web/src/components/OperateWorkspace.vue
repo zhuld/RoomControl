@@ -288,44 +288,59 @@ function receiptLabel(status: CommandReceipt['status']) {
               <div class="section-lead is-flat">
                 <div>
                   <h2>设备控制</h2>
-                  <p>{{ joins.length }} 个控制点 · 点击卡片下发控制指令</p>
+                  <p>{{ joins.length }} 个控制点 · 按顺序排列，点击按钮下发控制指令</p>
                 </div>
               </div>
             </header>
 
-            <div v-if="joins.length" class="panel-body">
-              <div class="command-grid">
-                <article v-for="join in joins" :key="join.id" class="command-card" :class="{
-                  'is-on': join.stateSnapshot.digitalValue,
-                  'is-disabled': gatingReason(join) !== null,
-                  'is-sending': isSending(join),
-                }">
-                  <button type="button" class="command-main" :disabled="commandDisabled(join)"
-                    :title="gatingReason(join) ?? `发送「${join.name}」指令\n\r数字脉冲 ${join.sendJoinNumber}`"
-                    @click="emit('sendCommand', selectedRoom, join)">
-                    <div class="command-top">
-                      <span class="command-name">{{ join.name }}</span>
-                      <span class="command-top-right">
-                        <span v-if="commandCode(join)" class="command-code">{{ commandCode(join) }}</span>
-                        <span v-if="join.showConfirmationPopup" class="command-guard" title="下发前需二次确认"
-                          aria-label="下发前需二次确认">
-                          <UiIcon name="alert" :size="13" />
+            <div v-if="joins.length" class="panel-body control-stage">
+              <!-- 视频窗口预留位：接入教室摄像头后在此替换为实时画面。 -->
+              <figure class="control-video" aria-label="教室视频画面">
+                <div class="control-video-frame">
+                  <span class="control-video-caption">{{ selectedRoom.name }}</span>
+                  <span class="control-video-empty">
+                    <UiIcon name="video" :size="26" />
+                    <strong>视频窗口</strong>
+                    <span>预留画面区域，接入教室摄像头后在此显示</span>
+                  </span>
+                </div>
+              </figure>
+
+              <!-- 控制点按后端排序（SortOrder）自上而下排列在视频窗口右侧，与视频同高并独立滚动。 -->
+              <div class="control-buttons">
+                <div class="command-list">
+                  <article v-for="join in joins" :key="join.id" class="command-card" :class="{
+                    'is-on': join.stateSnapshot.digitalValue,
+                    'is-disabled': gatingReason(join) !== null,
+                    'is-sending': isSending(join),
+                  }">
+                    <button type="button" class="command-main" :disabled="commandDisabled(join)"
+                      :title="gatingReason(join) ?? `发送「${join.name}」指令\n\r数字脉冲 ${join.sendJoinNumber}`"
+                      @click="emit('sendCommand', selectedRoom, join)">
+                      <div class="command-top">
+                        <span class="command-name">{{ join.name }}</span>
+                        <span class="command-top-right">
+                          <span v-if="commandCode(join)" class="command-code">{{ commandCode(join) }}</span>
+                          <span v-if="join.showConfirmationPopup" class="command-guard" title="下发前需二次确认"
+                            aria-label="下发前需二次确认">
+                            <UiIcon name="alert" :size="13" />
+                          </span>
                         </span>
+                      </div>
+                    </button>
+                    <footer class="command-foot">
+                      <span v-if="planFor(join)" class="command-plan"
+                        :title="`${planFor(join)?.name} · ${planFor(join)?.countdown}`">
+                        <span class="command-plan-time">{{ planFor(join)?.countdown }}</span>
+                        <span class="command-plan-name">{{ planFor(join)?.name }}</span>
                       </span>
-                    </div>
-                  </button>
-                  <footer class="command-foot">
-                    <span v-if="planFor(join)" class="command-plan"
-                      :title="`${planFor(join)?.name} · ${planFor(join)?.countdown}`">
-                      <span class="command-plan-time">{{ planFor(join)?.countdown }}</span>
-                      <span class="command-plan-name">{{ planFor(join)?.name }}</span>
-                    </span>
-                    <span v-else class="command-plan is-empty">无自动任务</span>
-                    <span v-if="planFor(join)" class="command-schedule">
-                      <UiIcon name="clock" :size="12" />
-                    </span>
-                  </footer>
-                </article>
+                      <span v-else class="command-plan is-empty">无自动任务</span>
+                      <span v-if="planFor(join)" class="command-schedule">
+                        <UiIcon name="clock" :size="12" />
+                      </span>
+                    </footer>
+                  </article>
+                </div>
               </div>
             </div>
 
