@@ -842,4 +842,9 @@ a:hover {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+
+  /* 加载圆环是"仍在处理"的必要提示，减弱为慢速旋转而不是完全静止。 */
+  .spinner {
+    animation: spin 1.6s linear infinite !important;
+  }
 }

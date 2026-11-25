@@ -36,7 +36,8 @@ public sealed class ScheduledControlJob(
             Status = "Pending"
         };
         db.ScheduleExecutions.Add(execution);
-        var auditStatusCode = 0;
+        // 同一个任务组的多个教室几乎同时触发，只由组内首个目标记录一条操作记录。
+        var audit = await ScheduleAudit.ResolveGroupAsync(db, schedule, context.CancellationToken);
 
         try
         {
@@ -46,15 +47,11 @@ public sealed class ScheduledControlJob(
                 enforceEnableJoin: false,
                 context.CancellationToken);
             execution.Status = "Succeeded";
-            auditStatusCode = StatusCodes.Status200OK;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             execution.Status = "Failed";
             execution.Error = exception.Message;
-            auditStatusCode = exception is ControllerUnavailableException
-                ? StatusCodes.Status503ServiceUnavailable
-                : StatusCodes.Status500InternalServerError;
             logger.LogWarning(exception, "Scheduled control {ScheduleId} failed.", schedule.Id);
         }
         finally
@@ -74,16 +71,18 @@ public sealed class ScheduledControlJob(
                     schedule.LocalTime);
             }
 
-            // 自动执行不经过 HTTP 审计中间件，这里补写操作记录，让发送结果可在「操作记录」中追溯。
-            db.AuditLogs.Add(new AuditLog
+            // 自动执行不经过 HTTP 审计中间件，这里补写操作记录，让任务触发可在「操作记录」中追溯。
+            if (audit.IsLeader)
             {
-                Category = AuditLogCategories.Schedule,
-                Action = $"自动执行定时任务 Join {schedule.JoinMapping.SendJoinNumber}",
-                Target = $"教室「{schedule.RoomName}」· 定时任务「{schedule.Name}」",
-                Actor = "系统",
-                StatusCode = auditStatusCode,
-                OccurredAtUtc = execution.CompletedAtUtc.Value,
-            });
+                db.AuditLogs.Add(new AuditLog
+                {
+                    Category = AuditLogCategories.Schedule,
+                    Action = ScheduleAudit.ExecutedAction,
+                    Target = audit.Target,
+                    Actor = "系统",
+                    OccurredAtUtc = execution.CompletedAtUtc.Value,
+                });
+            }
 
             await db.SaveChangesAsync(CancellationToken.None);
         }

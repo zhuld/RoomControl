@@ -10,24 +10,20 @@ using RoomControl.Api.Services;
 
 namespace RoomControl.Api.Tests;
 
-/// <summary>验证定时任务后台执行会同时写入执行记录与操作记录。</summary>
+/// <summary>验证定时任务后台执行按任务组写入一条操作记录，并保留逐教室执行记录。</summary>
 public sealed class ScheduledControlJobTests
 {
-    private const int SendJoinNumber = 7;
     private static readonly DateTimeOffset ScheduledAtUtc = new(2026, 11, 24, 8, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task ExecuteWritesExecutionAndAuditRecord()
+    public async Task ExecuteWritesExecutionAndSingleAuditRecord()
     {
-        await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc);
-        var job = new ScheduledControlJob(
-            harness.ContextFactory,
-            harness.Sender,
-            NullLogger<ScheduledControlJob>.Instance);
+        await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc, targetCount: 1);
+        var job = CreateJob(harness);
 
-        await job.Execute(new FakeJobExecutionContext(harness.ScheduleId, ScheduledAtUtc));
+        await job.Execute(new FakeJobExecutionContext(harness.Targets[0].ScheduleId, ScheduledAtUtc));
 
-        Assert.Equal(new[] { harness.MappingId }, harness.Sender.MappingIds);
+        Assert.Equal(new[] { harness.Targets[0].MappingId }, harness.Sender.MappingIds);
 
         await using var db = await harness.ContextFactory.CreateDbContextAsync();
         var execution = Assert.Single(await db.ScheduleExecutions.ToListAsync());
@@ -35,35 +31,57 @@ public sealed class ScheduledControlJobTests
 
         var log = Assert.Single(await db.AuditLogs.ToListAsync());
         Assert.Equal(AuditLogCategories.Schedule, log.Category);
+        Assert.Equal(ScheduleAudit.ExecutedAction, log.Action);
         Assert.Equal("系统", log.Actor);
-        Assert.Equal(StatusCodes.Status200OK, log.StatusCode);
-        Assert.Contains($"Join {SendJoinNumber}", log.Action);
-        Assert.Contains("一键上课", log.Target);
-        Assert.Contains("A101", log.Target);
+        Assert.Equal("教室「A101」 · 定时任务「一键上课」", log.Target);
     }
 
     [Fact]
-    public async Task FailedExecuteRecordsUnavailableControllerInAuditLog()
+    public async Task GroupExecutionWritesOneAuditRecordForAllTargets()
     {
-        await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc);
-        harness.Sender.Failing.Add(harness.MappingId);
-        var job = new ScheduledControlJob(
-            harness.ContextFactory,
-            harness.Sender,
-            NullLogger<ScheduledControlJob>.Instance);
+        await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc, targetCount: 2);
+        var job = CreateJob(harness);
 
-        await job.Execute(new FakeJobExecutionContext(harness.ScheduleId, ScheduledAtUtc));
+        foreach (var target in harness.Targets)
+        {
+            await job.Execute(new FakeJobExecutionContext(target.ScheduleId, ScheduledAtUtc));
+        }
+
+        Assert.Equal(2, harness.Sender.MappingIds.Count);
 
         await using var db = await harness.ContextFactory.CreateDbContextAsync();
-        var execution = Assert.Single(await db.ScheduleExecutions.ToListAsync());
-        Assert.Equal("Failed", execution.Status);
-        Assert.Equal("中控离线", execution.Error);
+        Assert.Equal(2, await db.ScheduleExecutions.CountAsync());
 
         var log = Assert.Single(await db.AuditLogs.ToListAsync());
-        Assert.Equal(AuditLogCategories.Schedule, log.Category);
-        Assert.Equal("系统", log.Actor);
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, log.StatusCode);
+        Assert.Equal(ScheduleAudit.ExecutedAction, log.Action);
+        Assert.Equal("教室「A101」等 2 间 · 定时任务「一键上课」", log.Target);
     }
+
+    [Fact]
+    public async Task FailedExecuteStillWritesSingleAuditRecord()
+    {
+        await using var harness = await Harness.CreateAsync(ScheduleKind.Weekly, ScheduledAtUtc, targetCount: 2);
+        harness.Sender.Failing.Add(harness.Targets[0].MappingId);
+        var job = CreateJob(harness);
+
+        foreach (var target in harness.Targets)
+        {
+            await job.Execute(new FakeJobExecutionContext(target.ScheduleId, ScheduledAtUtc));
+        }
+
+        await using var db = await harness.ContextFactory.CreateDbContextAsync();
+        var failed = await db.ScheduleExecutions.SingleAsync(
+            item => item.ScheduleId == harness.Targets[0].ScheduleId);
+        Assert.Equal("Failed", failed.Status);
+        Assert.Equal("中控离线", failed.Error);
+
+        var log = Assert.Single(await db.AuditLogs.ToListAsync());
+        Assert.Equal(ScheduleAudit.ExecutedAction, log.Action);
+        Assert.Equal("系统", log.Actor);
+    }
+
+    private static ScheduledControlJob CreateJob(Harness harness) =>
+        new(harness.ContextFactory, harness.Sender, NullLogger<ScheduledControlJob>.Instance);
 
     private sealed class Harness : IAsyncDisposable
     {
@@ -72,24 +90,23 @@ public sealed class ScheduledControlJobTests
         private Harness(
             SqliteConnection connection,
             IDbContextFactory<ControlDbContext> contextFactory,
-            Guid mappingId,
-            Guid scheduleId)
+            IReadOnlyList<(Guid ScheduleId, Guid MappingId)> targets)
         {
             _connection = connection;
             ContextFactory = contextFactory;
-            MappingId = mappingId;
-            ScheduleId = scheduleId;
+            Targets = targets;
         }
 
         public IDbContextFactory<ControlDbContext> ContextFactory { get; }
 
         public FakeSender Sender { get; } = new();
 
-        public Guid MappingId { get; }
+        public IReadOnlyList<(Guid ScheduleId, Guid MappingId)> Targets { get; }
 
-        public Guid ScheduleId { get; }
-
-        public static async Task<Harness> CreateAsync(ScheduleKind kind, DateTimeOffset runAtUtc)
+        public static async Task<Harness> CreateAsync(
+            ScheduleKind kind,
+            DateTimeOffset runAtUtc,
+            int targetCount)
         {
             var connection = new SqliteConnection("Data Source=:memory:");
             await connection.OpenAsync();
@@ -97,45 +114,55 @@ public sealed class ScheduledControlJobTests
                 .UseSqlite(connection)
                 .Options;
             var contextFactory = new TestContextFactory(options);
-            var mappingId = Guid.NewGuid();
-            var scheduleId = Guid.NewGuid();
+            var groupId = Guid.NewGuid();
+            var targets = new List<(Guid, Guid)>();
 
             await using (var db = await contextFactory.CreateDbContextAsync())
             {
                 await db.Database.EnsureCreatedAsync();
-                var room = new Room { Name = "A101" };
-                var controller = new Controller { Room = room, Name = "A101-CIP", Host = "localhost" };
-                room.Controller = controller;
-                var mapping = new JoinMapping
+                for (var index = 0; index < targetCount; index++)
                 {
-                    Id = mappingId,
-                    Controller = controller,
-                    Name = "上课",
-                    Kind = JoinKind.Digital,
-                    SendJoinNumber = SendJoinNumber,
-                    StateJoinNumber = 2
-                };
-                controller.JoinMappings.Add(mapping);
-                db.Rooms.Add(room);
-                db.Schedules.Add(new ControlSchedule
-                {
-                    Id = scheduleId,
-                    JoinMapping = mapping,
-                    JoinMappingId = mapping.Id,
-                    RoomName = room.Name,
-                    JoinName = mapping.Name,
-                    Name = "一键上课",
-                    Kind = kind,
-                    Enabled = true,
-                    RunAtUtc = kind == ScheduleKind.Once ? runAtUtc : null,
-                    WeekdayMask = kind == ScheduleKind.Weekly ? 127 : 0,
-                    LocalTime = kind == ScheduleKind.Weekly ? new TimeSpan(8, 30, 0) : TimeSpan.Zero,
-                    NextRunAtUtc = runAtUtc
-                });
+                    var room = new Room { Name = $"A10{index + 1}" };
+                    var controller = new Controller
+                    {
+                        Room = room,
+                        Name = $"{room.Name}-CIP",
+                        Host = "localhost"
+                    };
+                    room.Controller = controller;
+                    var mapping = new JoinMapping
+                    {
+                        Controller = controller,
+                        Name = "上课",
+                        Kind = JoinKind.Digital,
+                        SendJoinNumber = 7,
+                        StateJoinNumber = 2
+                    };
+                    controller.JoinMappings.Add(mapping);
+                    db.Rooms.Add(room);
+                    var schedule = new ControlSchedule
+                    {
+                        GroupId = groupId,
+                        JoinMapping = mapping,
+                        JoinMappingId = mapping.Id,
+                        RoomName = room.Name,
+                        JoinName = mapping.Name,
+                        Name = "一键上课",
+                        Kind = kind,
+                        Enabled = true,
+                        RunAtUtc = kind == ScheduleKind.Once ? runAtUtc : null,
+                        WeekdayMask = kind == ScheduleKind.Weekly ? 127 : 0,
+                        LocalTime = kind == ScheduleKind.Weekly ? new TimeSpan(8, 30, 0) : TimeSpan.Zero,
+                        NextRunAtUtc = runAtUtc
+                    };
+                    db.Schedules.Add(schedule);
+                    targets.Add((schedule.Id, mapping.Id));
+                }
+
                 await db.SaveChangesAsync();
             }
 
-            return new Harness(connection, contextFactory, mappingId, scheduleId);
+            return new Harness(connection, contextFactory, targets);
         }
 
         public async ValueTask DisposeAsync() => await _connection.DisposeAsync();
@@ -215,12 +242,12 @@ public sealed class ScheduledControlJobTests
     }
 }
 
-/// <summary>验证停机期间到期的一次性任务在恢复时写入失败执行记录与操作记录。</summary>
+/// <summary>验证停机期间到期的一次性任务在恢复时按任务组写入一条操作记录。</summary>
 [Collection(QuartzCollection.Name)]
 public sealed class MissedOneTimeScheduleTests(QuartzSchedulerFixture quartz)
 {
     [Fact]
-    public async Task RestoreRecordsMissedScheduleInAuditLog()
+    public async Task RestoreRecordsMissedGroupInSingleAuditLog()
     {
         await using var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
@@ -228,53 +255,62 @@ public sealed class MissedOneTimeScheduleTests(QuartzSchedulerFixture quartz)
         services.AddDbContextFactory<ControlDbContext>(options => options.UseSqlite(connection));
         using var provider = services.BuildServiceProvider();
         var contextFactory = provider.GetRequiredService<IDbContextFactory<ControlDbContext>>();
+        var groupId = Guid.NewGuid();
 
-        Guid scheduleId;
         await using (var db = await contextFactory.CreateDbContextAsync())
         {
             await db.Database.EnsureCreatedAsync();
-            var room = new Room { Name = "A101" };
-            var controller = new Controller { Room = room, Name = "A101-CIP", Host = "localhost" };
-            room.Controller = controller;
-            var mapping = new JoinMapping
+            foreach (var roomName in new[] { "A101", "A102" })
             {
-                Controller = controller,
-                Name = "上课",
-                Kind = JoinKind.Digital,
-                SendJoinNumber = 1,
-                StateJoinNumber = 2
-            };
-            controller.JoinMappings.Add(mapping);
-            var schedule = new ControlSchedule
-            {
-                JoinMapping = mapping,
-                JoinMappingId = mapping.Id,
-                RoomName = room.Name,
-                JoinName = mapping.Name,
-                Name = "一次性上课",
-                Kind = ScheduleKind.Once,
-                Enabled = true,
-                RunAtUtc = DateTimeOffset.UtcNow.AddMinutes(-30)
-            };
-            db.Rooms.Add(room);
-            db.Schedules.Add(schedule);
+                var room = new Room { Name = roomName };
+                var controller = new Controller
+                {
+                    Room = room,
+                    Name = $"{roomName}-CIP",
+                    Host = "localhost"
+                };
+                room.Controller = controller;
+                var mapping = new JoinMapping
+                {
+                    Controller = controller,
+                    Name = "上课",
+                    Kind = JoinKind.Digital,
+                    SendJoinNumber = 1,
+                    StateJoinNumber = 2
+                };
+                controller.JoinMappings.Add(mapping);
+                db.Rooms.Add(room);
+                db.Schedules.Add(new ControlSchedule
+                {
+                    GroupId = groupId,
+                    JoinMapping = mapping,
+                    JoinMappingId = mapping.Id,
+                    RoomName = room.Name,
+                    JoinName = mapping.Name,
+                    Name = "一次性上课",
+                    Kind = ScheduleKind.Once,
+                    Enabled = true,
+                    RunAtUtc = DateTimeOffset.UtcNow.AddMinutes(-30)
+                });
+            }
+
             await db.SaveChangesAsync();
-            scheduleId = schedule.Id;
         }
 
         await quartz.CreateService(contextFactory).RestoreAsync(CancellationToken.None);
 
         await using (var db = await contextFactory.CreateDbContextAsync())
         {
-            var execution = await db.ScheduleExecutions.SingleAsync(item => item.ScheduleId == scheduleId);
-            Assert.Equal("Failed", execution.Status);
+            Assert.Equal(2, await db.ScheduleExecutions.CountAsync());
+            Assert.All(await db.ScheduleExecutions.ToListAsync(), execution =>
+                Assert.Equal("Failed", execution.Status));
 
-            var log = await db.AuditLogs.SingleAsync();
+            var log = Assert.Single(await db.AuditLogs.ToListAsync());
             Assert.Equal(AuditLogCategories.Schedule, log.Category);
+            Assert.Equal(ScheduleAudit.MissedAction, log.Action);
             Assert.Equal("系统", log.Actor);
             Assert.Equal(StatusCodes.Status503ServiceUnavailable, log.StatusCode);
-            Assert.Contains("未自动执行", log.Action);
-            Assert.Contains("一次性上课", log.Target);
+            Assert.Equal("教室「A101」等 2 间 · 定时任务「一次性上课」", log.Target);
         }
     }
 }
