@@ -30,19 +30,19 @@ const buildingOptions = computed(() =>
 const floorOptions = computed(() =>
   selectedBuilding.value
     ? [...new Set(props.rooms.filter((room) => buildingOf(room) === selectedBuilding.value).map(floorOf))].sort(
-        collator.compare,
-      )
+      collator.compare,
+    )
     : [],
 )
 
 const roomOptions = computed(() =>
   selectedBuilding.value && selectedFloor.value
     ? props.rooms
-        .filter(
-          (room) =>
-            buildingOf(room) === selectedBuilding.value && floorOf(room) === selectedFloor.value,
-        )
-        .sort((left, right) => collator.compare(left.name, right.name))
+      .filter(
+        (room) =>
+          buildingOf(room) === selectedBuilding.value && floorOf(room) === selectedFloor.value,
+      )
+      .sort((left, right) => collator.compare(left.name, right.name))
     : [],
 )
 
@@ -122,54 +122,21 @@ function onFloorChange(event: Event) {
   emitRoom(selectedRoom.value)
 }
 
-function onRoomChange(event: Event) {
-  selectedRoom.value = (event.target as HTMLSelectElement).value
-  emitRoom(selectedRoom.value)
-}
 </script>
 
 <template>
-  <div
-    class="room-cascader"
-    :class="{ 'is-stacked': stacked }"
-    role="group"
-    aria-label="教室选择"
-  >
-    <select
-      name="selectedBuilding"
-      class="select"
-      :value="selectedBuilding"
-      aria-label="楼栋"
-      @change="onBuildingChange"
-    >
+  <div class="room-cascader" :class="{ 'is-stacked': stacked }" role="group" aria-label="教室选择">
+    <select name="selectedBuilding" class="select" :value="selectedBuilding" aria-label="楼栋" @change="onBuildingChange">
       <option value="" :disabled="!allowAll">{{ allowAll ? '全部楼栋' : '选择楼栋' }}</option>
       <option v-for="building in buildingOptions" :key="building" :value="building">
         {{ building }}
       </option>
     </select>
 
-    <select
-      name="selectedFloor"
-      class="select"
-      :value="selectedFloor"
-      aria-label="楼层"
-      :disabled="!selectedBuilding"
-      @change="onFloorChange"
-    >
+    <select name="selectedFloor" class="select" :value="selectedFloor" aria-label="楼层" :disabled="!selectedBuilding"
+      @change="onFloorChange">
       <option value="" :disabled="!allowAll">{{ allowAll ? '全部楼层' : '选择楼层' }}</option>
       <option v-for="floor in floorOptions" :key="floor" :value="floor">{{ floor }}</option>
-    </select>
-
-    <select
-      name="selectedRoom"
-      class="select"
-      :value="selectedRoom"
-      aria-label="教室"
-      :disabled="!selectedFloor"
-      @change="onRoomChange"
-    >
-      <option value="" :disabled="!allowAll">{{ allowAll ? '全部教室' : '选择教室' }}</option>
-      <option v-for="room in roomOptions" :key="room.id" :value="room.id">{{ room.name }}</option>
     </select>
   </div>
 </template>

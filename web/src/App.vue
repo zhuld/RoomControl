@@ -67,7 +67,7 @@ let automationToken = 0
 
 const canOperate = computed(() => currentUser.value?.role !== 'viewer')
 
-const activeWorkspaceLabel = computed(() => workspaceMeta[workspace.value].label)
+const activeWorkspace = computed(() => workspaceMeta[workspace.value])
 
 const theme = ref<ThemeName>('pine')
 const density = ref<Density>('comfortable')
@@ -790,12 +790,11 @@ onBeforeUnmount(() => {
         <BrandLogo :logo-data-url="branding.logoDataUrl" :label="branding.displayName" :title="branding.displayName" />
         <span class="brand-copy">
           <strong>{{ branding.displayName }}</strong>
-          <span>{{ branding.subtitle }}</span>
         </span>
       </div>
-
-      <div class="topbar-context">
-        <strong>{{ activeWorkspaceLabel }}</strong>
+      <UiIcon class="rail-icon" :name="activeWorkspace.icon" />
+      <div class="topbar-context">        
+        <strong>{{ activeWorkspace.label }}</strong>
       </div>
 
       <div class="topbar-actions">

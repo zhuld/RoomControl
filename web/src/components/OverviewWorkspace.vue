@@ -307,7 +307,7 @@ async function runManualTask(task: ManualTask) {
 <template>
   <div class="workspace-inner">
 
-    <section class="kpi-grid overview-summary" aria-label="站点概况">
+    <section v-if="canOperate" class="kpi-grid overview-summary" aria-label="站点概况">
       <article class="kpi is-accent">
         <span class="kpi-icon">
           <UiIcon name="room" :size="17" />
@@ -329,7 +329,7 @@ async function runManualTask(task: ManualTask) {
           <span class="kpi-detail">{{ offlineRooms.length }} 离线 · {{ unconfiguredRooms.length }} 未接入</span>
         </div>
       </article>
-      <article v-if="canOperate" class="kpi" :class="attentionCount ? 'is-danger' : 'is-success'">
+      <article class="kpi" :class="attentionCount ? 'is-danger' : 'is-success'">
         <span class="kpi-icon">
           <UiIcon name="alert" :size="17" />
         </span>

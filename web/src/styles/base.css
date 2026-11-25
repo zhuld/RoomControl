@@ -256,8 +256,7 @@ a:hover {
 }
 
 .topbar-context strong {
-  font-size: var(--text-lg);
-  font-weight: 600;
+  font-size: var(--text-xl);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -817,10 +816,6 @@ a:hover {
 
 @media (max-width: 720px) {
   .status-cluster .status-item {
-    display: none;
-  }
-
-  .topbar-context span {
     display: none;
   }
 
