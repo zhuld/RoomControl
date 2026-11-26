@@ -637,10 +637,14 @@
 }
 
 .room-hero-title {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto;
+  gap: var(--space-2);
   min-width: 0;
 }
 
 .room-hero-title h1 {
+  grid-column: 1 / 2;
   margin-top: 2px;
   font-size: var(--text-3xl);
   letter-spacing: -0.02em;
