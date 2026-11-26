@@ -752,14 +752,14 @@ onBeforeUnmount(() => {
             </select>
             <input name="username" v-else v-model="username" class="input" maxlength="60" autocomplete="username" required />
           </label>
-          <p v-if="selectedLoginRole" class="login-role">
+          <div v-if="selectedLoginRole" class="login-role">
             <strong>{{ selectedLoginRole.label }}</strong>
             <span>{{ selectedLoginRole.description }}</span>
-          </p>
-          <p v-else class="login-role">
+          </div>
+          <div v-else class="login-role">
             <strong>提示</strong>
             <span>请联系管理员确认账号权限</span>
-          </p>
+          </div>
           <label class="field">
             密码
             <input name="password" placeholder="输入密码" v-model="password" class="input" type="password" maxlength="128" autocomplete="current-password" required />
