@@ -1370,15 +1370,6 @@
   padding: var(--space-3);
 }
 
-.setup-nav-title {
-  padding: 0 8px var(--space-2);
-  font-size: var(--text-2xs);
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
 .setup-step {
   display: flex;
   align-items: center;
@@ -1930,7 +1921,13 @@
     padding: 6px;
   }
 
-  .setup-nav-title {
+  .setup-step .setup-step-icon {
+    display: none;
+  }
+  .setup-step .setup-step-state{
+    display: none;
+  }
+  .setup-step .setup-step-copy span {
     display: none;
   }
 
@@ -1947,7 +1944,9 @@
   .room-row-actions {
     justify-content: flex-start;
   }
+
 }
+
 
 
 /* 窄屏下设置表单统一降为单列，避免固定列宽撑出横向滚动。 */

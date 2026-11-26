@@ -1173,6 +1173,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           <div v-if="activeSection === 'controllers'" class="panel-body">
             <div class="controller-layout">
               <div class="controller-room-list">
+                <strong class="panel-head">选择教室</strong>
                 <div v-if="sortedRooms.length" class="controller-search">
                   <RoomCascader stacked :rooms="rooms" :model-value="configuredRoomId"
                     @update:model-value="configuredRoomId = $event" />
@@ -1286,7 +1287,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                         <strong>{{ join.name }}</strong>
                         <span class="join-kind">
                           发送 {{ join.sendJoinNumber }} · 状态 {{ join.stateJoinNumber }} · 使能
-                          {{ join.enableJoinNumber }} · {{ join.showConfirmationPopup ? '需确认' : '直接下发' }}
+                          {{ join.enableJoinNumber }} · {{ join.showConfirmationPopup ? '需确认' : '直接发送' }}
                         </span>
                         <div class="join-config-actions">
                           <button class="btn btn-quiet btn-sm" @click="openCopyJoin(join)">复制到教室</button>

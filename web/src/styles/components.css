@@ -394,8 +394,9 @@
 }
 
 .kpi {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  align-items: center;
   gap: var(--space-3);
   padding: var(--space-4);
   background: var(--surface);
@@ -452,6 +453,7 @@
 
 .kpi-value {
   display: block;
+  min-width: 60px;
   margin-top: 2px;
   font-size: var(--text-2xl);
   font-weight: 650;

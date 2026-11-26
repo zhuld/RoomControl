@@ -308,9 +308,9 @@ async function runManualTask(task: ManualTask) {
         </span>
         <div class="kpi-copy">
           <span class="kpi-label">教室</span>
-          <strong class="kpi-value">{{ rooms.length }}</strong>
           <span class="kpi-detail">{{ buildingCount }} 栋 · {{ floorCount }} 个楼层</span>
         </div>
+        <strong class="kpi-value">{{ rooms.length }}</strong>
       </article>
       <article class="kpi" :class="onlineRooms.length === configuredRooms.length ? 'is-success' : 'is-warning'">
         <span class="kpi-icon">
@@ -318,10 +318,10 @@ async function runManualTask(task: ManualTask) {
         </span>
         <div class="kpi-copy">
           <span class="kpi-label">在线中控</span>
-          <strong class="kpi-value">{{ onlineRooms.length }}<span class="text-sm muted"> / {{ configuredRooms.length
-              }}</span></strong>
           <span class="kpi-detail">{{ offlineRooms.length }} 离线 · {{ unconfiguredRooms.length }} 未接入</span>
         </div>
+        <strong class="kpi-value">{{ onlineRooms.length }}<span class="text-sm muted"> / {{ configuredRooms.length
+        }}</span></strong>
       </article>
       <article class="kpi" :class="attentionCount ? 'is-danger' : 'is-success'">
         <span class="kpi-icon">
@@ -329,11 +329,11 @@ async function runManualTask(task: ManualTask) {
         </span>
         <div class="kpi-copy">
           <span class="kpi-label">需要处理</span>
-          <strong class="kpi-value">{{ attentionCount }}</strong>
           <span class="kpi-detail">
             {{ !rooms.length ? '先完成教室接入' : attentionCount ? '按严重程度排序' : '当前没有待处理项' }}
           </span>
         </div>
+        <strong class="kpi-value">{{ attentionCount }}</strong>
       </article>
       <article class="kpi is-info">
         <span class="kpi-icon">
@@ -341,12 +341,12 @@ async function runManualTask(task: ManualTask) {
         </span>
         <div class="kpi-copy">
           <span class="kpi-label">启用任务</span>
-          <strong class="kpi-value">{{ activeTaskCount }}</strong>
           <span class="kpi-detail">
             {{ upcomingGroups[0] ? `下次 ${formatRelative(upcomingGroups[0].nextRunAtUtc, now.getTime())}` :
               '暂无计划执行' }}
           </span>
         </div>
+        <strong class="kpi-value">{{ activeTaskCount }}</strong>
       </article>
     </section>
 
@@ -354,7 +354,6 @@ async function runManualTask(task: ManualTask) {
       <section class="panel" aria-label="需要处理">
         <header class="panel-head">
           <div class="panel-head-copy">
-            <p class="eyebrow">异常优先</p>
             <h2>需要处理</h2>
             <p class="panel-sub">离线、未接入与逾期任务按风险排序，处理完成后自动移出。</p>
           </div>
@@ -396,7 +395,6 @@ async function runManualTask(task: ManualTask) {
       <section class="panel" aria-label="即将自动执行">
         <header class="panel-head">
           <div class="panel-head-copy">
-            <p class="eyebrow">计划</p>
             <h2>即将自动执行</h2>
             <p class="panel-sub">按计划时间排序，仅显示已启用任务。</p>
           </div>

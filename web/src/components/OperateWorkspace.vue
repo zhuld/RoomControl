@@ -176,6 +176,7 @@ function receiptLabel(status: CommandReceipt['status']) {
   <div class="workspace-inner">
     <div class="operate-layout" :class="{ 'is-rail-open': receiptRailOpen }">
       <aside v-if="rooms.length" class="panel room-finder" aria-label="选择教室">
+        <strong class="panel-head">选择教室</strong>
         <div class="room-finder-head">
           <RoomCascader stacked :rooms="rooms" :model-value="selectedRoomId"
             @update:model-value="selectRoomFromCascader" />

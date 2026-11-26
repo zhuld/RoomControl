@@ -340,7 +340,6 @@ function executionLabel(status: string) {
               </div>
               <div class="auto-task-cell">
                 {{ task.joinName }}
-                <span>{{ task.confirmBeforeRun ? '执行前二次确认' : '点击后立即执行' }}</span>
               </div>
               <div>
                 <StatusPill :tone="task.confirmBeforeRun ? 'info' : 'neutral'"
