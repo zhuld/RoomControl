@@ -323,7 +323,7 @@ onBeforeUnmount(() => {
     </Teleport>
 
     <section class="panel" aria-label="操作记录">
-      <header class="panel-toolbar audit-toolbar">
+      <div class="panel-toolbar">
         <div class="audit-toolbar-left">
           <div class="chip-row" role="group" aria-label="按分类筛选">
             <button v-for="category in categories" :key="category.value" type="button" class="chip"
@@ -350,7 +350,7 @@ onBeforeUnmount(() => {
               aria-label="搜索对象、操作者或操作" />
           </div>
         </div>
-      </header>
+      </div>
 
       <div v-if="errorMessage" class="banner is-danger audit-banner" role="alert">
         <UiIcon name="alert" :size="16" />
@@ -360,49 +360,45 @@ onBeforeUnmount(() => {
           <p v-if="logs.length">下方仍显示上一次成功读取的记录。</p>
         </div>
       </div>
-
+      <div class="main-table-head audit-table">
+        <div>时间</div>
+        <div>分类</div>
+        <div>对象</div>
+        <div>操作</div>
+        <div>操作者</div>
+        <div>结果</div>
+      </div>
       <div v-if="loading && !logs.length" class="audit-message" role="status">
         <span class="loading-inline"><span class="spinner"></span>正在加载操作记录…</span>
       </div>
+
       <EmptyState v-else-if="!filteredLogs.length" icon="audit" :title="hasCustomFilters ? '没有符合条件的记录' : '近 3 天暂无操作记录'"
         :description="hasCustomFilters
           ? '调整分类、搜索词或日期区间后再试。'
           : '清除日期区间或调整起始日期可查看更早的记录。'" />
+
       <div v-else class="table-wrap audit-table-wrap" @pointerdown="handleTablePointerDown">
-        <table class="table audit-table">
-          <thead>
-            <tr>
-              <th>时间</th>
-              <th>分类</th>
-              <th>对象</th>
-              <th>操作</th>
-              <th>操作者</th>
-              <th>结果</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="log in pagedLogs" :key="log.id">
-              <td class="log-time">
-                <span class="is-strong">{{ formatDateTime(log.occurredAtUtc) }}</span>
-                <span class="block text-2xs muted">{{ formatRelative(log.occurredAtUtc) }}</span>
-              </td>
-              <td>
-                <span class="log-category" :class="`category-${log.category}`">{{ categoryLabel(log.category) }}</span>
-              </td>
-              <td><span class="log-target" :title="log.target">{{ log.target || '—' }}</span></td>
-              <td class="log-action" :title="log.action">{{ actionLabel(log.action) }}</td>
-              <td>{{ log.actor }}</td>
-              <td>
-                <span v-if="log.statusCode > 0" class="log-status" :class="{ 'is-failed': log.statusCode >= 400 }">
-                  <span class="dot" :class="log.statusCode >= 400 ? 'is-danger' : 'is-success'"></span>
-                  {{ describeStatusLabel(log.statusCode) }}
-                  <span class="log-status-code">{{ log.statusCode }}</span>
-                </span>
-                <span v-else class="log-status is-pending">—</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+        <div v-for="log in pagedLogs" :key="log.id" class="main-table-body audit-table">
+          <div class="log-time">
+            <span class="is-strong">{{ formatDateTime(log.occurredAtUtc) }}</span>
+            <span class="block text-2xs muted">{{ formatRelative(log.occurredAtUtc) }}</span>
+          </div>
+          <div>
+            <span class="log-category" :class="`category-${log.category}`">{{ categoryLabel(log.category) }}</span>
+          </div>
+          <div><span class="log-target" :title="log.target">{{ log.target || '—' }}</span></div>
+          <div class="log-action" :title="log.action">{{ actionLabel(log.action) }}</div>
+          <div>{{ log.actor }}</div>
+          <div>
+            <span v-if="log.statusCode > 0" class="log-status" :class="{ 'is-failed': log.statusCode >= 400 }">
+              <span class="dot" :class="log.statusCode >= 400 ? 'is-danger' : 'is-success'"></span>
+              {{ describeStatusLabel(log.statusCode) }}
+              <span class="log-status-code">{{ log.statusCode }}</span>
+            </span>
+            <span v-else class="log-status is-pending">—</span>
+          </div>
+        </div>
       </div>
 
       <footer class="panel-foot audit-foot">

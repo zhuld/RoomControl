@@ -256,7 +256,8 @@
 }
 
 .panel-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -933,6 +934,7 @@ kbd {
 
 /* 搜索框 */
 .search-field {
+  width: 140px;
   position: relative;
   min-width: 0;
 }

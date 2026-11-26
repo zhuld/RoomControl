@@ -1,5 +1,26 @@
 /* 页面层：只承载任务流布局，组件视觉全部来自 components.css。 */
 
+/* 单行控件栏：内容过多时换行，避免挤压输入框。 */
+.auto-toolbar-left,
+.audit-toolbar-left,
+.audit-toolbar-right,
+.audit-pagination,
+.controller-form-actions,
+.date-time-row,
+.location-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.auto-toolbar-right,
+.audit-date-range {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* 登录 */
 .login-screen {
   position: relative;
@@ -222,7 +243,7 @@
 /* 手动任务按钮：一个任务一个按钮，直接显示控制点与教室范围。 */
 .manual-task-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, 180px);
   gap: var(--space-3);
 }
 
@@ -262,20 +283,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
-}
-
-.manual-task-meta {
-  font-size: var(--text-2xs);
-  color: var(--text-muted);
-}
-
-.manual-task-rooms {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--text-2xs);
-  color: var(--text-faint);
 }
 
 .manual-task-foot {
@@ -375,7 +382,8 @@
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast), background var(--motion-fast);
 }
 
-.room-card:hover:not(:disabled) {
+.room-card:hover:not(:disabled),
+.command-card:hover {
   border-color: var(--border-strong);
   box-shadow: var(--shadow-md);
 }
@@ -417,16 +425,9 @@
   white-space: nowrap;
 }
 
-.room-card-meta {
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.room-join-list {
+/* 标签行：多个小元素在空间不足时换行。 */
+.room-join-list,
+.weekday-picker {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
@@ -451,10 +452,9 @@
   color: var(--success-text);
 }
 
-
-
 /* 教室操作台 */
-.operate-layout {
+.operate-layout,
+.controller-layout {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
   gap: var(--gap);
@@ -469,7 +469,7 @@
 .room-finder,
 .receipt-rail {
   position: sticky;
-  top: 0;
+  top: var(--space-4);
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - var(--topbar-height) - var(--space-9));
@@ -491,18 +491,6 @@
 .room-finder-head .room-cascader .select {
   height: 32px;
   font-size: var(--text-xs);
-}
-
-.room-finder-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.room-finder-filters .chip {
-  height: 24px;
-  padding: 0 8px;
-  font-size: var(--text-2xs);
 }
 
 .room-list {
@@ -600,7 +588,10 @@
   min-width: 0;
 }
 
-.room-item-copy strong {
+/* 列表行主标题：单行省略，保证行高稳定。 */
+.room-item-copy strong,
+.receipt-copy strong,
+.auto-task-title strong {
   display: block;
   font-size: var(--text-sm);
   font-weight: 600;
@@ -616,7 +607,9 @@
   white-space: nowrap;
 }
 
-.operate-main {
+/* 主内容列：纵向堆叠面板。 */
+.operate-main,
+.setup-main {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
@@ -679,29 +672,6 @@
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-
-.section-lead {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-3);
-}
-
-.section-lead h2 {
-  font-size: var(--text-lg);
-}
-
-.section-lead p {
-  margin-top: 2px;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.section-lead.is-flat {
-  margin-bottom: 0;
 }
 
 /* 设备控制区：左侧视频窗口预留位固定 16:9，右侧按钮列与视频同高并独立滚动。 */
@@ -813,11 +783,6 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
-}
-
-.command-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
 }
 
 .command-card.is-on {
@@ -981,15 +946,6 @@
   min-width: 0;
 }
 
-.receipt-copy strong {
-  display: block;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .receipt-copy span {
   font-size: var(--text-2xs);
   color: var(--text-muted);
@@ -1057,63 +1013,69 @@
 
 /* 自动任务 */
 .automation-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--gap);
-  align-items: start;
-}
-
-/* 自动任务总是嵌入设置面板：工具栏紧贴面板头，去掉浮动圆角与列表间隙。 */
-.automation-layout>.stack {
-  gap: 0;
-}
-
-.auto-toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.auto-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.auto-toolbar-left .search-field {
-  width: 240px;
-}
-
-.auto-list {
-  display: flex;
-  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .auto-task {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.5fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 3fr);
   border-bottom: 1px solid var(--border);
 }
 
-.auto-task.is-focus {
+.auto-task.is-focus,
+.auto-task.is-drag-over {
   box-shadow: inset 3px 0 0 var(--accent);
   background: var(--accent-soft);
 }
 
 .auto-room-filter {
-  width: 180px;
+  width: 100px;
 }
 
 .auto-task:last-child {
   border-bottom: 0;
 }
 
-.auto-task-main {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
+.main-table-head {
+  display: grid;
+  gap: var(--space-3);
+  padding: 8px 14px;
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.main-table-body,
+.room-row {
+  display: grid;
   gap: var(--space-3);
   align-items: center;
-  padding: 11px var(--card-pad);
+  min-height: var(--row-h);
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.manual-task {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 3fr);
+}
+
+.user-table {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1.5fr);
+}
+
+.room-table {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.5fr);
+}
+
+.audit-table {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 4fr) minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .auto-task-title {
@@ -1145,29 +1107,6 @@
   opacity: 0.45;
 }
 
-.auto-task.is-drag-over {
-  background: var(--accent-soft);
-  box-shadow: inset 3px 0 0 var(--accent);
-}
-
-.auto-task-title strong {
-  display: block;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.auto-task-title span {
-  display: block;
-  font-size: var(--text-2xs);
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .auto-task-cell {
   min-width: 0;
   font-size: var(--text-xs);
@@ -1180,7 +1119,10 @@
   color: var(--text-faint);
 }
 
-.auto-task-actions {
+/* 表格行操作按钮：右对齐并允许换行。 */
+.auto-task-actions,
+.room-row-actions,
+.join-config-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1232,7 +1174,8 @@
   font-weight: 600;
 }
 
-.room-option-copy span {
+.room-option-copy span,
+.setup-step-copy span {
   font-size: var(--text-2xs);
   color: var(--text-faint);
 }
@@ -1262,20 +1205,7 @@
   gap: var(--space-3);
 }
 
-.weekday-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
 /* 执行时间：小时与分钟分别用下拉框，避免原生时间控件的浏览器差异。 */
-.date-time-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
 .date-time-row .input[type='date'] {
   width: 160px;
 }
@@ -1359,20 +1289,11 @@
   overflow-wrap: anywhere;
 }
 
-.execution-empty {
+.execution-empty,
+.empty-history {
   padding: var(--space-3) 0;
   font-size: var(--text-xs);
   color: var(--text-muted);
-}
-
-@media (max-width: 860px) {
-  .auto-task-main {
-    gap: 6px;
-  }
-
-  .auto-task-actions {
-    justify-content: flex-start;
-  }
 }
 
 /* 配置与接入 */
@@ -1385,7 +1306,7 @@
 
 .setup-nav {
   position: sticky;
-  top: 0;
+  top: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1428,21 +1349,9 @@
   font-weight: 600;
 }
 
-.setup-step-copy span {
-  font-size: var(--text-2xs);
-  color: var(--text-faint);
-}
-
 .setup-step.active .setup-step-copy span {
   color: var(--accent-strong);
   opacity: 0.75;
-}
-
-.setup-main {
-  display: flex;
-  flex-direction: column;
-  gap: var(--gap);
-  min-width: 0;
 }
 
 .settings-section-head {
@@ -1528,12 +1437,6 @@
   max-height: none;
 }
 
-.empty-history {
-  padding: var(--space-3) 0;
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
 .health-list {
   display: grid;
   gap: 6px;
@@ -1571,8 +1474,8 @@
 
 .logo-preview .brand-logo,
 .logo-preview .brand-mark {
-  width: 56px;
-  height: 56px;
+  width: 66px;
+  height: 66px;
   border-radius: var(--radius-md);
 }
 
@@ -1624,13 +1527,6 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-subtle);
-}
-
-.location-head {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .location-head strong {
@@ -1703,7 +1599,8 @@
   color: var(--danger-text);
 }
 
-.floor-add {
+.floor-add,
+.copy-targets-actions {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1715,45 +1612,8 @@
   font-size: var(--text-xs);
 }
 
-.room-create-form {
-  display: grid;
-  /* 列数与表单子元素一致：教室名称、楼栋、楼层、提交按钮。 */
-  grid-template-columns: minmax(140px, 1.3fr) minmax(110px, 1fr) minmax(110px, 1fr) auto;
-  gap: var(--space-2);
-  align-items: end;
-  margin-bottom: var(--space-4);
-}
-
-.room-table {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.room-table-head {
-  display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) minmax(120px, 1.2fr) 80px auto;
-  gap: var(--space-3);
-  padding: 8px 14px;
-  background: var(--surface-subtle);
-  border-bottom: 1px solid var(--border);
-  font-size: var(--text-2xs);
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
 .room-row {
-  display: grid;
   grid-template-columns: minmax(120px, 1.4fr) minmax(120px, 1.2fr) 80px auto;
-  gap: var(--space-3);
-  align-items: center;
-  min-height: var(--row-h);
-  padding: 7px 14px;
-  border-bottom: 1px solid var(--border);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
 }
 
 .room-row:last-child {
@@ -1779,21 +1639,6 @@
   min-width: 0;
 }
 
-.room-row-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
-.controller-layout {
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: var(--gap);
-  align-items: start;
-}
-
 .controller-room-list {
   max-height: 500px;
   overflow-y: auto;
@@ -1814,13 +1659,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));
   gap: var(--space-3);
-}
-
-.controller-form-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .join-config {
@@ -1891,14 +1729,6 @@
   overflow-wrap: anywhere;
 }
 
-.join-config-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
 .join-number-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
@@ -1911,12 +1741,6 @@
   justify-content: space-between;
   gap: var(--space-2);
   margin: var(--space-3) 0 var(--space-2);
-}
-
-.copy-targets-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .copy-targets {
@@ -1971,13 +1795,10 @@
 
 }
 
-
-
 /* 窄屏下设置表单统一降为单列，避免固定列宽撑出横向滚动。 */
 @media (max-width: 720px) {
 
-  .branding-grid,
-  .room-create-form {
+  .branding-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1987,10 +1808,6 @@
 
   .auto-form .panel-body {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .audit-toolbar .search-field {
-    width: 100%;
   }
 
   .audit-date-range {
@@ -2012,8 +1829,7 @@
     max-width: 180px;
   }
 
-  .room-toolbar-cascader,
-  .auto-toolbar-left .search-field {
+  .room-toolbar-cascader {
     width: 100%;
     /* 覆盖桌面端的 360px 最小宽度，否则手机窄屏会撑出横向滚动。 */
     min-width: 0;
@@ -2026,25 +1842,7 @@
   }
 }
 
-/* 操作记录：布局由 .panel-toolbar 提供，这里只补充工具栏内部的左右分组。 */
-.audit-toolbar-left,
-.audit-toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-}
-
-.audit-toolbar .search-field {
-  width: 260px;
-}
-
-.audit-date-range {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
+/* 操作记录：工具栏分组在上方共享，这里补充日期范围与日志单元格。 */
 .audit-date-range>svg {
   color: var(--text-faint);
 }
@@ -2068,15 +1866,12 @@
   max-height: min(68dvh, 750px);
 }
 
-.audit-foot {
-  row-gap: var(--space-2);
+.room-table-wrap {
+  max-height: min(56dvh, 600px);
 }
 
-.audit-pagination {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+.audit-foot {
+  row-gap: var(--space-2);
 }
 
 .audit-page-size {
@@ -2098,19 +1893,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.audit-table {
-  min-width: 920px;
-  /* 显式允许选择记录文字，方便复制时间、对象或操作内容。 */
-  -webkit-user-select: text;
-  user-select: text;
-}
-
 .audit-table .log-action {
-  white-space: nowrap;
-}
-
-.user-table {
-  min-width: 580px;
+  word-wrap: break-word;
+  word-break: normal;
 }
 
 .audit-message.is-error {
@@ -2175,11 +1960,12 @@
   max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
   vertical-align: bottom;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-secondary);
+  word-wrap: break-word;
+  word-break: normal;
 }
 
 .log-status {
@@ -2210,8 +1996,8 @@
 .role-badge {
   display: inline-flex;
   align-items: center;
-  height: 20px;
-  padding: 0 7px;
+  height: 24px;
+  padding: 7px 10px;
   border: 1px solid var(--neutral-border);
   border-radius: var(--radius-full);
   background: var(--neutral-soft);

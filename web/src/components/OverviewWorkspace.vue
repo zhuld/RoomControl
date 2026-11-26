@@ -474,7 +474,6 @@ async function toggleTaskState(task: ScheduleGroup) {
             :title="task.targets.length ? `${task.joinName} · ${manualTaskRoomsLabel(task)}` : '还没有可执行的控制点'"
             @click="runManualTask(task)">
             <span class="manual-task-name">{{ task.name }}</span>
-            <span class="manual-task-meta">{{ task.joinName }} · {{ manualTaskRoomsLabel(task) }}</span>
             <span class="manual-task-foot">
               <span class="text-2xs muted tabular">{{ manualTaskLabel(task) }}</span>
               <span v-if="manualTaskResults[task.id]" class="text-2xs muted tabular">

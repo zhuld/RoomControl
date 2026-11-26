@@ -206,82 +206,67 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="user-section">
-    <div class="panel-toolbar">
-      <div class="row row-wrap">
-        <span class="text-sm muted">{{ users.length }} 个账号</span>
-        <span v-if="loading" class="loading-inline"><span class="spinner"></span>正在读取…</span>
-        <span v-else class="text-xs muted">角色变更在下次请求时立即生效</span>
+  <div class="workspace-inner">
+    <div class="automation-layout">
+      <div class="panel-toolbar">
+        <div class="row row-wrap">
+          <span class="text-sm muted">{{ users.length }} 个账号</span>
+          <span v-if="loading" class="loading-inline"><span class="spinner"></span>正在读取…</span>
+          <span v-else class="text-xs muted">角色变更在下次请求时立即生效</span>
+        </div>
+        <div class="row">
+          <button type="button" class="btn btn-quiet btn-sm" :disabled="loading" @click="loadUsers">
+            <UiIcon name="refresh" :size="14" />刷新
+          </button>
+          <button v-if="canManageUsers" type="button" class="btn btn-primary btn-sm" @click="openCreateForm">
+            <UiIcon name="plus" :size="14" />添加用户
+          </button>
+        </div>
       </div>
-      <div class="row">
-        <button type="button" class="btn btn-quiet btn-sm" :disabled="loading" @click="loadUsers">
-          <UiIcon name="refresh" :size="14" />刷新
-        </button>
-        <button v-if="canManageUsers" type="button" class="btn btn-primary btn-sm" @click="openCreateForm">
-          <UiIcon name="plus" :size="14" />添加用户
-        </button>
-      </div>
-    </div>
 
-    <div v-if="loadError" class="banner is-danger user-load-error" role="alert">
-      <UiIcon name="alert" :size="16" />
-      <div>
-        <strong>用户列表读取失败</strong>
-        <p>{{ loadError }}</p>
+      <div v-if="loadError" class="banner is-danger user-load-error" role="alert">
+        <UiIcon name="alert" :size="16" />
+        <div>
+          <strong>用户列表读取失败</strong>
+          <p>{{ loadError }}</p>
+        </div>
+        <button type="button" class="btn btn-quiet btn-sm" :disabled="loading" @click="loadUsers">重试</button>
       </div>
-      <button type="button" class="btn btn-quiet btn-sm" :disabled="loading" @click="loadUsers">重试</button>
-    </div>
+      <div v-if="users.length">
+        <div class="main-table-head user-table">
+          <div>用户名</div>
+          <div>角色</div>
+          <div>状态</div>
+          <div>创建时间</div>
+          <div class="table-actions">操作</div>
+        </div>
+        <div class="table-wrap room-table-wrap"">
+        <div v-for="user in users" :key="user.id" class="main-table-body user-table">
+          <div>
+            <span class="is-strong">{{ user.username }}</span>
+            <span v-if="user.username === currentUser.username" class="user-self">当前账号</span>
+          </div>
+          <div>
+            <span class="role-badge" :class="roleClass(user.role)">{{ user.roleDisplayName }}</span>
+          </div>
+          <div>
+            <StatusPill :tone="user.isActive ? 'success' : 'neutral'" :label="user.isActive ? '启用' : '禁用'" dot />
+          </div>
+          <span class="text-xs muted">{{ formatDateTime(user.createdAt) }}</span>
 
-    <div v-if="users.length" class="table-wrap">
-      <table class="table user-table">
-        <thead>
-          <tr>
-            <th>用户名</th>
-            <th>角色</th>
-            <th>状态</th>
-            <th>创建时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="user in users" :key="user.id">
-            <td>
-              <span class="is-strong">{{ user.username }}</span>
-              <span v-if="user.username === currentUser.username" class="user-self">当前账号</span>
-            </td>
-            <td><span class="role-badge" :class="roleClass(user.role)">{{ user.roleDisplayName }}</span></td>
-            <td>
-              <StatusPill :tone="user.isActive ? 'success' : 'neutral'" :label="user.isActive ? '启用' : '禁用'" dot />
-            </td>
-            <td class="text-xs muted">{{ formatDateTime(user.createdAt) }}</td>
-            <td>
-              <div class="table-actions">
-                <button
-                  v-if="canManageUsers"
-                  class="btn btn-quiet btn-sm"
-                  @click="openEditForm(user)"
-                >
-                  编辑
-                </button>
-                <button
-                  v-if="canManageUsers && user.username !== currentUser.username"
-                  class="btn btn-danger-quiet btn-sm"
-                  @click="requestDelete(user)"
-                >
-                  删除
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          <div class="table-actions">
+            <button v-if="canManageUsers" class="btn btn-quiet btn-sm" @click="openEditForm(user)">
+              编辑
+            </button>
+            <button v-if="canManageUsers && user.username !== currentUser.username" class="btn btn-danger-quiet btn-sm"
+              @click="requestDelete(user)">
+              删除
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
-    <EmptyState
-      v-else-if="!loading && !loadError"
-      icon="user"
-      title="还没有账号"
-      description="添加管理员、操作员或观看员，并分配最小必要权限。"
-    >
+    <EmptyState v-else-if="!loading && !loadError" icon="user" title="还没有账号" description="添加管理员、操作员或观看员，并分配最小必要权限。">
       <button v-if="canManageUsers" type="button" class="btn btn-primary btn-sm empty-action" @click="openCreateForm">
         添加用户
       </button>
@@ -294,28 +279,13 @@ onMounted(() => {
           <div class="dialog-body form-grid">
             <label class="field">
               用户名
-              <input
-                name="username"
-                autocomplete="off"
-                v-model="editingUsername"
-                class="input"
-                placeholder="例如：operator01"
-                maxlength="60"
-                :disabled="Boolean(editingId)"
-                required
-              />
+              <input name="username" autocomplete="off" v-model="editingUsername" class="input"
+                placeholder="例如：operator01" maxlength="60" :disabled="Boolean(editingId)" required />
             </label>
             <label class="field">
               密码
-              <input
-                name="password"
-                v-model="editingPassword"
-                class="input"
-                type="password"
-                :placeholder="editingId ? '留空表示不修改密码' : '设置初始密码'"
-                minlength="6"
-                maxlength="128"
-              />
+              <input name="password" v-model="editingPassword" class="input" type="password"
+                :placeholder="editingId ? '留空表示不修改密码' : '设置初始密码'" minlength="6" maxlength="128" />
             </label>
             <label class="field">
               角色
@@ -343,14 +313,9 @@ onMounted(() => {
       </section>
     </div>
 
-    <ConfirmDialog
-      :open="pendingDelete !== null"
-      title="确认删除用户"
-      :message="pendingDelete ? `确定要删除用户“${pendingDelete.username}”吗？此操作无法撤销。` : ''"
-      confirm-label="确认删除"
-      tone="danger"
-      @cancel="pendingDelete = null"
-      @confirm="confirmDelete"
-    />
+    <ConfirmDialog :open="pendingDelete !== null" title="确认删除用户"
+      :message="pendingDelete ? `确定要删除用户“${pendingDelete.username}”吗？此操作无法撤销。` : ''" confirm-label="确认删除" tone="danger"
+      @cancel="pendingDelete = null" @confirm="confirmDelete" />
+  </div>
   </div>
 </template>

@@ -368,195 +368,187 @@ function executionLabel(status: string) {
 <template>
   <div class="workspace-inner">
     <div class="automation-layout">
-      <div class="stack">
-        <header class="panel-toolbar">
-          <div class="auto-toolbar-left">
-            <div class="search-field">
-              <UiIcon name="search" :size="15" />
-              <input name="manualTaskQuery" v-model="taskQuery" class="input" type="search"
-                placeholder="搜索任务/教室" aria-label="搜索手动任务" />
-            </div>
-            <select name="manualRoomFilter" v-model="roomFilter" class="select auto-room-filter"
-              aria-label="按教室筛选">
-              <option value="">全部教室</option>
-              <option v-for="room in roomOptions" :key="room" :value="room">{{ room }}</option>
-            </select>
+      <div class="panel-toolbar">
+        <div class="auto-toolbar-left">
+          <div class="search-field">
+            <UiIcon name="search" :size="15" />
+            <input name="manualTaskQuery" v-model="taskQuery" class="input" type="search" placeholder="搜索任务/教室"
+              aria-label="搜索手动任务" />
           </div>
-          <div class="auto-toolbar-right">
-            <span class="text-xs muted">{{ filteredTasks.length }} / {{ manualTasks.length }}</span>
-            <button type="button" class="btn btn-primary btn-sm" @click="openCreate">
-              <UiIcon name="plus" :size="14" />新建任务
-            </button>
-          </div>
-        </header>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>任务名称</th>
-              <th>教室</th>
-              <th>控制点</th>
-              <th>执行确认</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-        </table>
-        <div v-if="filteredTasks.length" class="auto-list">
-          <article v-for="task in filteredTasks" :id="`manual-task-${task.id}`" :key="task.id" class="auto-task"
-            :class="{ 'is-dragging': draggingTaskId === task.id, 'is-drag-over': dragOverTaskId === task.id }"
-            @dragover="dragTaskOver($event, task)" @dragleave="clearTaskDragOver(task)"
-            @drop="dropTask($event, task)">
-            <div class="auto-task-main">
-              <div class="auto-task-title" :class="{ 'is-sortable': canOperate }" :draggable="canOperate"
-                :title="canOperate ? '拖动调整总览按钮顺序' : undefined"
-                @dragstart="startTaskDrag($event, task)" @dragend="endTaskDrag">
-                <span v-if="canOperate" class="auto-task-grip" aria-hidden="true">
-                  <UiIcon name="drag" :size="14" />
-                </span>
-                <strong>{{ task.name }}</strong>
-                <span>手动按钮 · {{ task.joinName }}</span>
-              </div>
-              <div class="auto-task-cell">
-                {{ taskRoomsLabel(task) }}
-                <span>{{ task.targets.length }} 间教室</span>
-              </div>
-              <div class="auto-task-cell">
-                {{ task.joinName }}
-              </div>
-              <div>
-                <StatusPill :tone="task.confirmBeforeRun ? 'info' : 'neutral'"
-                  :label="task.confirmBeforeRun ? '需确认' : '直接执行'" />
-              </div>
-              <div class="auto-task-actions">
-                <button type="button" class="btn btn-quiet btn-sm" title="查看执行记录"
-                  @click="toggleHistory(task)">
-                  {{ openTaskId === task.id ? '收起' : '记录' }}
-                </button>
-                <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm" title="修改教室范围与确认设置"
-                  @click="startEdit(task)">
-                  编辑
-                </button>
-                <button v-if="canOperate" type="button" class="btn btn-danger-quiet btn-sm"
-                  title="删除任务及其执行记录" @click="requestDelete(task)">
-                  删除
-                </button>
-              </div>
-            </div>
-
-            <section v-if="openTaskId === task.id" class="execution-panel">
-              <div class="execution-head">
-                <span>执行记录</span>
-                <button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoadingId === task.id"
-                  @click="loadHistory(task, true)">
-                  <UiIcon name="refresh" :size="13" />刷新
-                </button>
-              </div>
-              <div v-if="historyLoadingId === task.id" class="loading-inline">
-                <span class="spinner"></span>正在读取执行记录…
-              </div>
-              <p v-else-if="historyError" class="execution-error" role="alert">{{ historyError }}</p>
-              <template v-else-if="historyCache[task.id]?.length">
-                <div v-for="execution in historyCache[task.id]" :key="execution.id" class="execution-row">
-                  <StatusPill :tone="executionTone(execution.status)" :label="executionLabel(execution.status)" />
-                  <span class="tabular">{{ formatDateTime(execution.startedAtUtc) }}</span>
-                  <span>
-                    <span v-if="execution.error" class="execution-error">{{ execution.error }}</span>
-                    <template v-else>
-                      成功 {{ execution.succeededCount }} 间 · 失败 {{ execution.failedCount }} 间
-                    </template>
-                  </span>
-                  <span class="text-xs muted tabular">
-                    {{ execution.completedAtUtc ? formatDateTime(execution.completedAtUtc) : '—' }}
-                  </span>
-                </div>
-              </template>
-              <p v-else class="execution-empty">暂无执行记录。点击系统总览上的按钮后，这里会显示结果。</p>
-            </section>
-          </article>
+          <select name="manualRoomFilter" v-model="roomFilter" class="select auto-room-filter" aria-label="按教室筛选">
+            <option value="">全部教室</option>
+            <option v-for="room in roomOptions" :key="room" :value="room">{{ room }}</option>
+          </select>
         </div>
-
-        <EmptyState v-else icon="bolt" title="没有符合条件的手动任务"
-          description="调整筛选条件，或新建任务把多间教室的同名控制点聚合为一个总览按钮。" />
+        <div class="auto-toolbar-right">
+          <span class="text-xs muted">{{ filteredTasks.length }} / {{ manualTasks.length }}</span>
+          <button type="button" class="btn btn-primary btn-sm" @click="openCreate">
+            <UiIcon name="plus" :size="14" />新建任务
+          </button>
+        </div>
+      </div>
+      <div class="main-table-head manual-task">
+        <div>任务名称</div>
+        <div>教室</div>
+        <div>控制点</div>
+        <div>执行确认</div>
+        <div class="table-actions">操作</div>
       </div>
 
-      <Teleport to="body">
-        <div v-if="formOpen" class="dialog-overlay auto-form-overlay" @click.self="closeForm"
-          @keydown.esc.stop.prevent="closeForm">
-          <aside id="manual-form" class="panel auto-form" role="dialog" aria-modal="true"
-            aria-labelledby="manual-form-title" tabindex="-1">
-            <header class="panel-head">
-              <div class="panel-head-copy">
-                <h2 id="manual-form-title">{{ form.mode === 'edit' ? '修改手动任务' : '新建手动任务' }}</h2>
-                <p class="panel-sub">任务创建后会在系统总览显示为一个执行按钮。</p>
-              </div>
-              <button type="button" class="btn btn-quiet btn-sm" title="关闭表单" aria-label="关闭表单" @click="closeForm">
-                <UiIcon name="x" :size="15" />
+      <div v-if="filteredTasks.length" class="table-wrap room-table-wrap">
+        <article v-for="task in filteredTasks" :id="`manual-task-${task.id}`" :key="task.id" class="auto-task"
+          :class="{ 'is-dragging': draggingTaskId === task.id, 'is-drag-over': dragOverTaskId === task.id }"
+          @dragover="dragTaskOver($event, task)" @dragleave="clearTaskDragOver(task)" @drop="dropTask($event, task)">
+          <div class="main-table-body manual-task">
+            <div class="auto-task-title" :class="{ 'is-sortable': canOperate }" :draggable="canOperate"
+              :title="canOperate ? '拖动调整总览按钮顺序' : undefined" @dragstart="startTaskDrag($event, task)"
+              @dragend="endTaskDrag">
+              <span v-if="canOperate" class="auto-task-grip" aria-hidden="true">
+                <UiIcon name="drag" :size="14" />
+              </span>
+              <strong>{{ task.name }}</strong>
+              <span>手动按钮 · {{ task.joinName }}</span>
+            </div>
+            <div class="auto-task-cell">
+              {{ taskRoomsLabel(task) }}
+              <span>{{ task.targets.length }} 间教室</span>
+            </div>
+            <div class="auto-task-cell">
+              {{ task.joinName }}
+            </div>
+            <div>
+              <StatusPill :tone="task.confirmBeforeRun ? 'info' : 'neutral'"
+                :label="task.confirmBeforeRun ? '需确认' : '直接执行'" />
+            </div>
+            <div class="auto-task-actions">
+              <button type="button" class="btn btn-quiet btn-sm" title="查看执行记录" @click="toggleHistory(task)">
+                {{ openTaskId === task.id ? '收起' : '记录' }}
               </button>
-            </header>
+              <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm" title="修改教室范围与确认设置"
+                @click="startEdit(task)">
+                编辑
+              </button>
+              <button v-if="canOperate" type="button" class="btn btn-danger-quiet btn-sm" title="删除任务及其执行记录"
+                @click="requestDelete(task)">
+                删除
+              </button>
+            </div>
+          </div>
 
-            <form v-if="schedulableRooms.length" class="panel-body" @submit.prevent="submitForm">
-              <div class="field">
-                教室（已选 {{ form.roomIds.length }} / {{ schedulableRooms.length }}）
-                <div class="room-picker">
-                  <label v-for="room in schedulableRooms" :key="room.id" class="room-option">
-                    <input name="roomIds" type="checkbox" :checked="form.roomIds.includes(room.id)"
-                      @change="toggleRoom(room.id)" />
-                    <span class="room-option-copy">
-                      <strong>{{ room.name }}</strong>
-                      <span>{{ room.building || '未分配楼栋' }} · {{ room.floor || '未分配楼层' }}</span>
-                    </span>
-                  </label>
-                </div>
-                <div class="room-picker-actions">
-                  <button type="button" class="btn btn-quiet btn-sm" @click="selectAllRooms">全选</button>
-                  <button type="button" class="btn btn-quiet btn-sm" @click="clearRooms">清空</button>
-                </div>
+          <section v-if="openTaskId === task.id" class="execution-panel">
+            <div class="execution-head">
+              <span>执行记录</span>
+              <button type="button" class="btn btn-ghost btn-sm" :disabled="historyLoadingId === task.id"
+                @click="loadHistory(task, true)">
+                <UiIcon name="refresh" :size="13" />刷新
+              </button>
+            </div>
+            <div v-if="historyLoadingId === task.id" class="loading-inline">
+              <span class="spinner"></span>正在读取执行记录…
+            </div>
+            <p v-else-if="historyError" class="execution-error" role="alert">{{ historyError }}</p>
+            <template v-else-if="historyCache[task.id]?.length">
+              <div v-for="execution in historyCache[task.id]" :key="execution.id" class="execution-row">
+                <StatusPill :tone="executionTone(execution.status)" :label="executionLabel(execution.status)" />
+                <span class="tabular">{{ formatDateTime(execution.startedAtUtc) }}</span>
+                <span>
+                  <span v-if="execution.error" class="execution-error">{{ execution.error }}</span>
+                  <template v-else>
+                    成功 {{ execution.succeededCount }} 间 · 失败 {{ execution.failedCount }} 间
+                  </template>
+                </span>
+                <span class="text-xs muted tabular">
+                  {{ execution.completedAtUtc ? formatDateTime(execution.completedAtUtc) : '—' }}
+                </span>
               </div>
-              <div>
-                <label class="field">
-                  控制点（所选教室共有）
-                  <select name="joinName" v-model="form.joinName" class="select" :disabled="!commonJoinNames.length">
-                    <option v-for="name in commonJoinNames" :key="name" :value="name">{{ name }}</option>
-                  </select>
-                </label>
-                <p v-if="form.roomIds.length && !commonJoinNames.length" class="form-note is-warning">
-                  所选教室没有同名控制点，请调整教室范围。
-                </p>
+            </template>
+            <p v-else class="execution-empty">暂无执行记录。点击系统总览上的按钮后，这里会显示结果。</p>
+          </section>
+        </article>
+      </div>
 
-                <label class="field">
-                  任务名称
-                  <input name="manualTaskName" v-model="form.name" class="input" maxlength="120"
-                    placeholder="例如：全场上课" required />
-                </label>
-
-                <label class="checkbox">
-                  <input name="confirmBeforeRun" v-model="form.confirmBeforeRun" type="checkbox" />
-                  执行前要求二次确认
-                </label>
-
-                <p class="form-note">
-                  覆盖 {{ selectedTargets.length }} 间教室；点击总览按钮时同时下发。
-                  中控离线会记为失败，失败原因保存在执行记录中。
-                </p>
-                <div class="form-actions is-start">
-                  <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">
-                    {{ formBusy ? '正在保存…' : form.mode === 'edit' ? '保存' : '创建' }}
-                  </button>
-                  <button v-if="form.mode === 'edit'" type="button" class="btn btn-quiet" @click="closeForm">
-                    取消
-                  </button>
-                </div>
-              </div>
-            </form>
-
-            <EmptyState v-else icon="connection" title="还没有可配置的控制点" description="先在配置中为教室接入中控并添加控制点。" />
-          </aside>
-        </div>
-      </Teleport>
+      <EmptyState v-else icon="bolt" title="没有符合条件的手动任务" description="调整筛选条件，或新建任务把多间教室的同名控制点聚合为一个总览按钮。" />
     </div>
 
-    <ConfirmDialog :open="pendingDelete !== null" title="删除手动任务" :message="pendingDelete
-      ? `删除「${pendingDelete.name}」将移除 ${pendingDelete.targets.length} 间教室的目标与全部执行记录，此操作不可撤销。`
-      : ''" confirm-label="确认删除" tone="danger" @cancel="pendingDelete = null" @confirm="confirmDelete" />
-    <span v-if="deleteBusy" class="sr-only" role="status">正在删除手动任务</span>
+    <Teleport to="body">
+      <div v-if="formOpen" class="dialog-overlay auto-form-overlay" @click.self="closeForm"
+        @keydown.esc.stop.prevent="closeForm">
+        <aside id="manual-form" class="panel auto-form" role="dialog" aria-modal="true"
+          aria-labelledby="manual-form-title" tabindex="-1">
+          <header class="panel-head">
+            <div class="panel-head-copy">
+              <h2 id="manual-form-title">{{ form.mode === 'edit' ? '修改手动任务' : '新建手动任务' }}</h2>
+              <p class="panel-sub">任务创建后会在系统总览显示为一个执行按钮。</p>
+            </div>
+            <button type="button" class="btn btn-quiet btn-sm" title="关闭表单" aria-label="关闭表单" @click="closeForm">
+              <UiIcon name="x" :size="15" />
+            </button>
+          </header>
+
+          <form v-if="schedulableRooms.length" class="panel-body" @submit.prevent="submitForm">
+            <div class="field">
+              教室（已选 {{ form.roomIds.length }} / {{ schedulableRooms.length }}）
+              <div class="room-picker">
+                <label v-for="room in schedulableRooms" :key="room.id" class="room-option">
+                  <input name="roomIds" type="checkbox" :checked="form.roomIds.includes(room.id)"
+                    @change="toggleRoom(room.id)" />
+                  <span class="room-option-copy">
+                    <strong>{{ room.name }}</strong>
+                    <span>{{ room.building || '未分配楼栋' }} · {{ room.floor || '未分配楼层' }}</span>
+                  </span>
+                </label>
+              </div>
+              <div class="room-picker-actions">
+                <button type="button" class="btn btn-quiet btn-sm" @click="selectAllRooms">全选</button>
+                <button type="button" class="btn btn-quiet btn-sm" @click="clearRooms">清空</button>
+              </div>
+            </div>
+            <div>
+              <label class="field">
+                控制点（所选教室共有）
+                <select name="joinName" v-model="form.joinName" class="select" :disabled="!commonJoinNames.length">
+                  <option v-for="name in commonJoinNames" :key="name" :value="name">{{ name }}</option>
+                </select>
+              </label>
+              <p v-if="form.roomIds.length && !commonJoinNames.length" class="form-note is-warning">
+                所选教室没有同名控制点，请调整教室范围。
+              </p>
+
+              <label class="field">
+                任务名称
+                <input name="manualTaskName" v-model="form.name" class="input" maxlength="120" placeholder="例如：全场上课"
+                  required />
+              </label>
+
+              <label class="checkbox">
+                <input name="confirmBeforeRun" v-model="form.confirmBeforeRun" type="checkbox" />
+                执行前要求二次确认
+              </label>
+
+              <p class="form-note">
+                覆盖 {{ selectedTargets.length }} 间教室；点击总览按钮时同时下发。
+                中控离线会记为失败，失败原因保存在执行记录中。
+              </p>
+              <div class="form-actions is-start">
+                <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">
+                  {{ formBusy ? '正在保存…' : form.mode === 'edit' ? '保存' : '创建' }}
+                </button>
+                <button v-if="form.mode === 'edit'" type="button" class="btn btn-quiet" @click="closeForm">
+                  取消
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <EmptyState v-else icon="connection" title="还没有可配置的控制点" description="先在配置中为教室接入中控并添加控制点。" />
+        </aside>
+      </div>
+    </Teleport>
   </div>
+
+  <ConfirmDialog :open="pendingDelete !== null" title="删除手动任务" :message="pendingDelete
+    ? `删除「${pendingDelete.name}」将移除 ${pendingDelete.targets.length} 间教室的目标与全部执行记录，此操作不可撤销。`
+    : ''" confirm-label="确认删除" tone="danger" @cancel="pendingDelete = null" @confirm="confirmDelete" />
+  <span v-if="deleteBusy" class="sr-only" role="status">正在删除手动任务</span>
+
 </template>

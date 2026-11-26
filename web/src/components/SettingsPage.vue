@@ -864,8 +864,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <strong>{{ step.title }}</strong>
             <span>{{ step.summary }}</span>
           </span>
-          <span class="setup-step-state" :class="{ 'is-pending': !step.done }"
-            :title="step.done ? '已完成配置' : '待补齐'">
+          <span class="setup-step-state" :class="{ 'is-pending': !step.done }" :title="step.done ? '已完成配置' : '待补齐'">
             <UiIcon :name="step.done ? 'check' : 'alert'" :size="12" />
             <span class="sr-only">{{ step.done ? '已完成配置' : '待补齐' }}</span>
           </span>
@@ -990,8 +989,9 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                     @click="brandingForm.logoDataUrl = null">
                     清除 Logo
                   </button>
+                  <span v-else class="form-note">正方形图片，不超过 200 KB。</span>
                 </div>
-                <p class="form-note">正方形图片，不超过 200 KB。</p>
+
               </div>
               <div class="branding-fields">
                 <label class="field">
@@ -1090,228 +1090,234 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <EmptyState v-else icon="room" title="尚未配置楼栋" description="添加楼栋后即可为其添加楼层，之后创建教室时选择。" />
           </div>
 
-          <div v-if="activeSection === 'rooms'" class="panel-body">
-            <form class="room-create-form" @submit.prevent="createRoom">
-              <label class="field">
-                教室名称
-                <input name="roomName" v-model="roomForm.name" class="input" placeholder="例如：A101" maxlength="120"
-                  required />
-              </label>
-              <label class="field">
-                楼栋
-                <select name="building" v-model="roomForm.building" class="select" :disabled="!buildings.length"
-                  required>
-                  <option v-if="!buildings.length" value="">请先添加楼栋</option>
-                  <option v-for="building in buildings" :key="building.id" :value="building.name">
-                    {{ building.name }}
-                  </option>
-                </select>
-              </label>
-              <label class="field">
-                楼层
-                <select name="floor" v-model="roomForm.floor" class="select" :disabled="!createFloorOptions.length"
-                  required>
-                  <option v-if="!createFloorOptions.length" value="">请先添加楼层</option>
-                  <option v-for="floor in createFloorOptions" :key="floor.id" :value="floor.name">
-                    {{ floor.name }}
-                  </option>
-                </select>
-              </label>
-              <button class="btn btn-primary" :disabled="busy || !createFloorOptions.length">添加教室</button>
-            </form>
-            <p v-if="!buildings.length" class="form-note is-warning">
-              添加教室前，请先在「楼栋与楼层」中配置楼栋和楼层。
-            </p>
+          <div v-if="activeSection === 'rooms'" class="workspace-inner">
+            <div class="automation-layout">
 
-            <div v-if="sortedRooms.length" class="room-table">
-              <div class="room-table-head">
-                <span>教室</span><span>楼栋 / 楼层</span><span>状态</span><span>操作</span>
-              </div>
-              <template v-for="room in sortedRooms" :key="room.id">
-                <div v-if="editingRoomId === room.id" class="room-row is-editing">
-                  <input name="roomName" v-model="roomEdit.name" class="input" maxlength="120" required />
-                  <div class="room-row-split">
-                    <select name="building" v-model="roomEdit.building" class="select" required>
-                      <option v-if="!buildings.some((building) => building.name === roomEdit.building)" disabled
-                        :value="roomEdit.building">
-                        {{ roomEdit.building || '请选择楼栋' }}
-                      </option>
+              <div class="panel-toolbar">
+                <div class="auto-toolbar-left">
+                  <label class="field">
+                    教室名称
+                    <input name="roomName" v-model="roomForm.name" class="input" placeholder="例如：A101" maxlength="120"
+                      required />
+                  </label>
+                  <label class="field">
+                    楼栋
+                    <select name="building" v-model="roomForm.building" class="select" :disabled="!buildings.length"
+                      required>
+                      <option v-if="!buildings.length" value="">请先添加楼栋</option>
                       <option v-for="building in buildings" :key="building.id" :value="building.name">
                         {{ building.name }}
                       </option>
                     </select>
-                    <select name="floor" v-model="roomEdit.floor" class="select" required>
-                      <option v-if="!editFloorOptions.some((floor) => floor.name === roomEdit.floor)" disabled
-                        :value="roomEdit.floor">
-                        {{ roomEdit.floor || '请选择楼层' }}
-                      </option>
-                      <option v-for="floor in editFloorOptions" :key="floor.id" :value="floor.name">
+                  </label>
+                  <label class="field">
+                    楼层
+                    <select name="floor" v-model="roomForm.floor" class="select" :disabled="!createFloorOptions.length"
+                      required>
+                      <option v-if="!createFloorOptions.length" value="">请先添加楼层</option>
+                      <option v-for="floor in createFloorOptions" :key="floor.id" :value="floor.name">
                         {{ floor.name }}
                       </option>
                     </select>
-                  </div>
-                  <span class="text-xs muted">保存立即生效</span>
-                  <div class="room-row-actions">
-                    <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveRoom(room)">保存</button>
-                    <button class="btn btn-quiet btn-sm" @click="editingRoomId = ''">取消</button>
-                  </div>
+                  </label>
                 </div>
-                <div v-else class="room-row">
-                  <strong>{{ room.name }}</strong>
-                  <span>{{ buildingOf(room) }} · {{ floorOf(room) }}</span>
-                  <StatusPill :tone="roomStatusTone(room)" :label="roomStatusLabel(room)" dot />
-                  <div class="room-row-actions">
-                    <button class="btn btn-quiet btn-sm" @click="startEditRoom(room)">编辑</button>
-                    <button class="btn btn-danger-quiet btn-sm" @click="deleteRoom(room)">删除</button>
-                  </div>
-                </div>
-              </template>
-            </div>
-            <EmptyState v-else icon="room" title="还没有教室" description="先配置楼栋与楼层，再创建教室。" />
-          </div>
-
-          <div v-if="activeSection === 'controllers'" class="panel-body">
-            <div class="controller-layout">
-              <div class="controller-room-list">
-                <strong class="panel-head">选择教室</strong>
-                <div v-if="sortedRooms.length" class="controller-search">
-                  <RoomCascader stacked :rooms="rooms" :model-value="configuredRoomId"
-                    @update:model-value="configuredRoomId = $event" />
-                </div>
-                <RoomTree :groups="controllerGroups" :selected-id="configuredRoomId" label="选择教室"
-                  @select="configuredRoomId = $event">
-                  <template #status="{ room }">
-                    <span class="dot" :class="`is-${roomStatusTone(room)}`"></span>
-                  </template>
-                  <template #meta="{ room }">{{ room.controller?.joins.length ?? 0 }}</template>
-                </RoomTree>
+                <button class="btn btn-primary" :disabled="busy || !createFloorOptions.length" @click="createRoom"">添加教室</button>
               </div>
-
-              <div v-if="configuredRoom" class="controller-panel">
-                <div class="settings-section-head is-flush">
-                  <div>
-                    <p class="eyebrow">
-                      {{ buildingOf(configuredRoom) }} / {{ floorOf(configuredRoom) }}
-                    </p>
-                    <h3>{{ configuredRoom.name }}</h3>
-                    <p class="panel-sub">
-                      <template v-if="configuredRoom.controller">
-                        {{ configuredRoom.controller.name }} · {{ configuredRoom.controller.host }}:{{
-                          configuredRoom.controller.port
-                        }}
-                        · IPID {{ configuredRoom.controller.ipid }}
-                      </template>
-                      <template v-else>尚未接入中控</template>
-                    </p>
-                  </div>
-                  <StatusPill :tone="roomStatusTone(configuredRoom)" :label="roomStatusLabel(configuredRoom)" dot />
-                </div>
-
-                <div v-if="configuredRoom.controller?.lastError" class="banner is-warning" role="status">
-                  <UiIcon name="alert" :size="16" />
-                  <div>
-                    <strong>最近一次连接错误</strong>
-                    <p>{{ configuredRoom.controller.lastError }}</p>
-                  </div>
-                </div>
-
-                <form class="controller-form-grid" @submit.prevent="saveController">
-                  <label class="field">
-                    中控类型
-                    <select name="adapterType" v-model="controllerForm.adapterType" class="select" required>
-                      <option v-for="type in controllerTypes" :key="type.key" :value="type.key">
-                        {{ type.displayName }}
-                      </option>
-                    </select>
-                  </label>
-                  <label class="field">
-                    主机地址
-                    <input name="host" v-model="controllerForm.host" class="input" required />
-                  </label>
-                  <label class="field">
-                    TCP 端口
-                    <input name="port" v-model.number="controllerForm.port" class="input" type="number" min="1"
-                      max="65535" required />
-                  </label>
-                  <label class="field">
-                    客户端 IPID
-                    <input name="ipid" v-model.number="controllerForm.ipid" class="input" type="number" min="0"
-                      max="255" required />
-                  </label>
-                  <label v-if="configuredRoom.controller" class="checkbox">
-                    <input name="enabled" v-model="controllerForm.enabled" type="checkbox" />
-                    启用连接
-                  </label>
-                  <div class="controller-form-actions">
-                    <button class="btn btn-primary" :disabled="busy">
-                      {{ configuredRoom.controller ? '保存配置' : '保存并连接' }}
-                    </button>
-                    <button v-if="configuredRoom.controller" type="button" class="btn btn-danger-quiet btn-sm"
-                      :disabled="busy" @click="deleteController">
-                      移除中控
-                    </button>
-                  </div>
-                </form>
-                <p class="form-note">保存后后台会自动重连；状态以中控实际回报为准，尚未回报时按低电平（关闭）显示。</p>
-
-                <div class="join-config">
-                  <div class="join-config-heading">
-                    <div>
-                      <h3>控制点</h3>
-                      <p class="panel-sub">拖动左侧手柄可调整操作台中的按钮顺序。</p>
+              <span v-if="!buildings.length" class="form-note is-warning">添加教室前，请先在「楼栋与楼层」中配置楼栋和楼层。</span>
+                  <div v-if="sortedRooms.length">
+                    <div class="main-table-head room-table">
+                      <span>教室</span><span>楼栋 / 楼层</span><span>状态</span><span class="table-actions">操作</span>
                     </div>
-                    <div class="row">
-                      <span class="text-xs muted">{{ configuredRoom.controller?.joins.length ?? 0 }} 个</span>
-                      <button v-if="configuredRoom.controller && joinRows.length" type="button"
-                        class="btn btn-quiet btn-sm" @click="openCopyAll">
-                        全部复制到教室
-                      </button>
-                      <button v-if="configuredRoom.controller" type="button" class="btn btn-primary btn-sm"
-                        @click="openCreateJoin">
-                        <UiIcon name="plus" :size="14" />添加控制点
-                      </button>
-                    </div>
-                  </div>
-
-                  <template v-if="configuredRoom.controller">
-                    <div v-if="joinRows.length" class="join-config-list">
-                      <div v-for="join in joinRows" :key="join.id" class="join-config-row" :class="{
-                        'is-dragging': draggingJoinId === join.id,
-                        'is-drag-over': dragOverJoinId === join.id,
-                      }" @dragover="dragJoinOver($event, join)" @dragleave="clearJoinDragOver(join)"
-                        @drop="dropJoin($event, join)">
-                        <span class="join-type-icon join-drag-handle" draggable="true" title="拖动调整控制台按钮顺序"
-                          aria-label="拖动调整顺序" @dragstart="startJoinDrag($event, join)" @dragend="endJoinDrag">
-                          <UiIcon name="drag" :size="14" />
-                        </span>
-                        <strong>{{ join.name }}</strong>
-                        <span class="join-kind">
-                          发送 {{ join.sendJoinNumber }} · 状态 {{ join.stateJoinNumber }} · 使能
-                          {{ join.enableJoinNumber }} · {{ join.showConfirmationPopup ? '需确认' : '直接发送' }}
-                        </span>
-                        <div class="join-config-actions">
-                          <button class="btn btn-quiet btn-sm" @click="openCopyJoin(join)">复制到教室</button>
-                          <button class="btn btn-quiet btn-sm" @click="openEditJoin(join)">编辑</button>
-                          <button class="btn btn-danger-quiet btn-sm" @click="deleteJoin(join)">删除</button>
+                    <div class="table-wrap room-table-wrap">
+                      <template v-for="room in sortedRooms" :key="room.id">
+                        <div v-if="editingRoomId === room.id" class="room-row is-editing">
+                          <input name="roomName" v-model="roomEdit.name" class="input" maxlength="120" required />
+                          <div class="room-row-split">
+                            <select name="building" v-model="roomEdit.building" class="select" required>
+                              <option v-if="!buildings.some((building) => building.name === roomEdit.building)" disabled
+                                :value="roomEdit.building">
+                                {{ roomEdit.building || '请选择楼栋' }}
+                              </option>
+                              <option v-for="building in buildings" :key="building.id" :value="building.name">
+                                {{ building.name }}
+                              </option>
+                            </select>
+                            <select name="floor" v-model="roomEdit.floor" class="select" required>
+                              <option v-if="!editFloorOptions.some((floor) => floor.name === roomEdit.floor)" disabled
+                                :value="roomEdit.floor">
+                                {{ roomEdit.floor || '请选择楼层' }}
+                              </option>
+                              <option v-for="floor in editFloorOptions" :key="floor.id" :value="floor.name">
+                                {{ floor.name }}
+                              </option>
+                            </select>
+                          </div>
+                          <span class="text-xs muted">保存立即生效</span>
+                          <div class="room-row-actions">
+                            <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveRoom(room)">保存</button>
+                            <button class="btn btn-quiet btn-sm" @click="editingRoomId = ''">取消</button>
+                          </div>
                         </div>
+                        <div v-else class="main-table-body room-table">
+                          <strong>{{ room.name }}</strong>
+                          <span>{{ buildingOf(room) }} · {{ floorOf(room) }}</span>
+                          <div>
+                            <StatusPill :tone="roomStatusTone(room)" :label="roomStatusLabel(room)" dot />
+                          </div>
+                          <div class="room-row-actions">
+                            <button class="btn btn-quiet btn-sm" @click="startEditRoom(room)">编辑</button>
+                            <button class="btn btn-danger-quiet btn-sm" @click="deleteRoom(room)">删除</button>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <EmptyState v-else icon="room" title="还没有教室" description="先配置楼栋与楼层，再创建教室。" />
+              </div>
+            </div>
+
+            <div v-if="activeSection === 'controllers'" class="panel-body">
+              <div class="controller-layout">
+                <div class="controller-room-list">
+                  <strong class="panel-head">选择教室</strong>
+                  <div v-if="sortedRooms.length" class="controller-search">
+                    <RoomCascader stacked :rooms="rooms" :model-value="configuredRoomId"
+                      @update:model-value="configuredRoomId = $event" />
+                  </div>
+                  <RoomTree :groups="controllerGroups" :selected-id="configuredRoomId" label="选择教室"
+                    @select="configuredRoomId = $event">
+                    <template #status="{ room }">
+                      <span class="dot" :class="`is-${roomStatusTone(room)}`"></span>
+                    </template>
+                    <template #meta="{ room }">{{ room.controller?.joins.length ?? 0 }}</template>
+                  </RoomTree>
+                </div>
+
+                <div v-if="configuredRoom" class="controller-panel">
+                  <div class="settings-section-head is-flush">
+                    <div>
+                      <p class="eyebrow">
+                        {{ buildingOf(configuredRoom) }} / {{ floorOf(configuredRoom) }}
+                      </p>
+                      <h3>{{ configuredRoom.name }}</h3>
+                      <p class="panel-sub">
+                        <template v-if="configuredRoom.controller">
+                          {{ configuredRoom.controller.name }} · {{ configuredRoom.controller.host }}:{{
+                            configuredRoom.controller.port
+                          }}
+                          · IPID {{ configuredRoom.controller.ipid }}
+                        </template>
+                        <template v-else>尚未接入中控</template>
+                      </p>
+                    </div>
+                    <StatusPill :tone="roomStatusTone(configuredRoom)" :label="roomStatusLabel(configuredRoom)" dot />
+                  </div>
+
+                  <div v-if="configuredRoom.controller?.lastError" class="banner is-warning" role="status">
+                    <UiIcon name="alert" :size="16" />
+                    <div>
+                      <strong>最近一次连接错误</strong>
+                      <p>{{ configuredRoom.controller.lastError }}</p>
+                    </div>
+                  </div>
+
+                  <form class="controller-form-grid" @submit.prevent="saveController">
+                    <label class="field">
+                      中控类型
+                      <select name="adapterType" v-model="controllerForm.adapterType" class="select" required>
+                        <option v-for="type in controllerTypes" :key="type.key" :value="type.key">
+                          {{ type.displayName }}
+                        </option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      主机地址
+                      <input name="host" v-model="controllerForm.host" class="input" required />
+                    </label>
+                    <label class="field">
+                      TCP 端口
+                      <input name="port" v-model.number="controllerForm.port" class="input" type="number" min="1"
+                        max="65535" required />
+                    </label>
+                    <label class="field">
+                      客户端 IPID
+                      <input name="ipid" v-model.number="controllerForm.ipid" class="input" type="number" min="0"
+                        max="255" required />
+                    </label>
+                    <label v-if="configuredRoom.controller" class="checkbox">
+                      <input name="enabled" v-model="controllerForm.enabled" type="checkbox" />
+                      启用连接
+                    </label>
+                    <div class="controller-form-actions">
+                      <button class="btn btn-primary" :disabled="busy">
+                        {{ configuredRoom.controller ? '保存' : '连接' }}
+                      </button>
+                      <button v-if="configuredRoom.controller" type="button" class="btn btn-danger-quiet btn-sm"
+                        :disabled="busy" @click="deleteController">
+                        移除中控
+                      </button>
+                    </div>
+                  </form>
+                  <p class="form-note">保存后后台会自动重连；状态以中控实际回报为准，尚未回报时按低电平（关闭）显示。</p>
+
+                  <div class="join-config">
+                    <div class="join-config-heading">
+                      <div>
+                        <h3>控制点</h3>
+                        <p class="panel-sub">拖动左侧手柄可调整操作台中的按钮顺序。</p>
+                      </div>
+                      <div class="row">
+                        <span class="text-xs muted">{{ configuredRoom.controller?.joins.length ?? 0 }} 个</span>
+                        <button v-if="configuredRoom.controller && joinRows.length" type="button"
+                          class="btn btn-quiet btn-sm" @click="openCopyAll">
+                          全部复制到教室
+                        </button>
+                        <button v-if="configuredRoom.controller" type="button" class="btn btn-primary btn-sm"
+                          @click="openCreateJoin">
+                          <UiIcon name="plus" :size="14" />添加控制点
+                        </button>
                       </div>
                     </div>
-                    <p v-else class="empty-history text-sm muted">
-                      该中控还没有控制点，点击「添加控制点」创建 Join 映射后即可在操作台操作。
-                    </p>
-                  </template>
 
-                  <EmptyState v-else icon="connection" title="尚未配置中控" description="先保存中控连接信息，之后即可添加 CIP 控制点。" />
+                    <template v-if="configuredRoom.controller">
+                      <div v-if="joinRows.length" class="join-config-list">
+                        <div v-for="join in joinRows" :key="join.id" class="join-config-row" :class="{
+                          'is-dragging': draggingJoinId === join.id,
+                          'is-drag-over': dragOverJoinId === join.id,
+                        }" @dragover="dragJoinOver($event, join)" @dragleave="clearJoinDragOver(join)"
+                          @drop="dropJoin($event, join)">
+                          <span class="join-type-icon join-drag-handle" draggable="true" title="拖动调整控制台按钮顺序"
+                            aria-label="拖动调整顺序" @dragstart="startJoinDrag($event, join)" @dragend="endJoinDrag">
+                            <UiIcon name="drag" :size="14" />
+                          </span>
+                          <strong>{{ join.name }}</strong>
+                          <span class="join-kind">
+                            发送 {{ join.sendJoinNumber }} · 状态 {{ join.stateJoinNumber }} · 使能
+                            {{ join.enableJoinNumber }} · {{ join.showConfirmationPopup ? '需确认' : '直接发送' }}
+                          </span>
+                          <div class="join-config-actions">
+                            <button class="btn btn-quiet btn-sm" @click="openCopyJoin(join)">复制到教室</button>
+                            <button class="btn btn-quiet btn-sm" @click="openEditJoin(join)">编辑</button>
+                            <button class="btn btn-danger-quiet btn-sm" @click="deleteJoin(join)">删除</button>
+                          </div>
+                        </div>
+                      </div>
+                      <p v-else class="empty-history text-sm muted">
+                        该中控还没有控制点，点击「添加控制点」创建 Join 映射后即可在操作台操作。
+                      </p>
+                    </template>
+
+                    <EmptyState v-else icon="connection" title="尚未配置中控" description="先保存中控连接信息，之后即可添加 CIP 控制点。" />
+                  </div>
                 </div>
-              </div>
 
-              <EmptyState v-else icon="room" title="请先添加教室" description="创建教室后才能配置中控与设备。">
-                <button type="button" class="btn btn-outline btn-sm empty-action" @click="jumpTo('rooms')">
-                  去添加教室
-                </button>
-              </EmptyState>
+                <EmptyState v-else icon="room" title="请先添加教室" description="创建教室后才能配置中控与设备。">
+                  <button type="button" class="btn btn-outline btn-sm empty-action" @click="jumpTo('rooms')">
+                    去添加教室
+                  </button>
+                </EmptyState>
+              </div>
             </div>
-          </div>
         </section>
       </main>
     </div>

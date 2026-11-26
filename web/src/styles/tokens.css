@@ -456,7 +456,9 @@
   --card-pad: 16px;
   --gap: 10px;
   --text-body: 13px;
+
   p {
     display: none;
   }
+
 }
