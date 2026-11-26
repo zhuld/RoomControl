@@ -263,7 +263,6 @@
   flex-wrap: wrap;
   padding: var(--space-3) var(--card-pad);
   border-bottom: 1px solid var(--border);
-  background: var(--surface-subtle);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
@@ -395,7 +394,7 @@
 
 .kpi {
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: 32px auto auto;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-4);
@@ -447,8 +446,9 @@
   font-size: var(--text-2xs);
   font-weight: 650;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+  text-transform: uppercase; 
   color: var(--text-faint);
+  white-space: nowrap;
 }
 
 .kpi-value {
@@ -459,8 +459,7 @@
   font-weight: 650;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: right;
   white-space: nowrap;
 }
 
@@ -469,8 +468,6 @@
   margin-top: 2px;
   font-size: var(--text-xs);
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

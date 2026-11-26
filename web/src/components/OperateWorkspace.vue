@@ -207,9 +207,9 @@ function receiptLabel(status: CommandReceipt['status']) {
         <template v-else>
           <section class="room-hero" aria-label="教室状态">
             <div class="room-hero-title">
-              <p class="eyebrow room-hero-location">
+              <span class="eyebrow room-hero-location">
                 {{ buildingOf(selectedRoom) }} / {{ floorOf(selectedRoom) }}
-              </p>
+              </span>
               <h1>{{ selectedRoom.name }}</h1>
               <div class="room-hero-meta">
                 <span class="meta-item">

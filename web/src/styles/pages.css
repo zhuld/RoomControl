@@ -1071,11 +1071,6 @@
   gap: 0;
 }
 
-.automation-layout .panel-toolbar {
-  border-top: 1px solid var(--border);
-  border-radius: 0;
-}
-
 .auto-toolbar-left {
   display: flex;
   align-items: center;
@@ -1495,7 +1490,7 @@
 }
 
 .controller-search {
-  padding: 4px 4px 8px;
+  padding: var(--space-3) var(--space-3) var(--space-2);
 }
 
 .controller-search .room-cascader {
@@ -2213,11 +2208,6 @@
   margin-left: 6px;
   font-size: var(--text-2xs);
   color: var(--text-faint);
-}
-
-.user-section .panel-toolbar {
-  border-radius: 0;
-  border-top: 1px solid var(--border);
 }
 
 .user-load-error {
