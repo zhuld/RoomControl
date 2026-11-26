@@ -43,6 +43,7 @@ public static partial class AuditLogActions
         ["POST /api/manual-tasks"] = "创建手动任务",
         ["PUT /api/manual-tasks/{taskId}"] = "更新手动任务",
         ["DELETE /api/manual-tasks/{taskId}"] = "删除手动任务",
+        ["PUT /api/manual-tasks/order"] = "调整手动任务顺序",
         ["POST /api/manual-tasks/{taskId}/run"] = "执行手动任务",
     };
 

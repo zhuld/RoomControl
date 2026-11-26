@@ -1249,6 +1249,16 @@ api.MapDelete("/manual-tasks/{taskId:guid}", async (
     return Results.NoContent();
 }).RequireAuthorization("OperatorOrAdmin");
 
+// 手动任务页拖拽排序后提交完整顺序，系统总览按钮按此顺序渲染。
+api.MapPut("/manual-tasks/order", async (
+    ReorderManualTasksRequest request,
+    ManualTaskService service,
+    CancellationToken cancellationToken) =>
+{
+    await service.ReorderAsync(request.TaskIds, cancellationToken);
+    return Results.NoContent();
+}).RequireAuthorization("OperatorOrAdmin");
+
 // 点击总览按钮时立即向全部目标教室下发一次脉冲，并逐间返回结果。
 api.MapPost("/manual-tasks/{taskId:guid}/run", async (
     Guid taskId,

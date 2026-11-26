@@ -158,6 +158,49 @@ public sealed class ManualTaskTests
         Assert.False(await db.ManualTaskTargets.AnyAsync());
     }
 
+    [Fact]
+    public async Task ReorderingTasksPersistsSubmittedOrder()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var first = await harness.Service.CreateAsync(
+            [harness.MappingIds[0]],
+            "一键上课",
+            true,
+            CancellationToken.None);
+        var second = await harness.Service.CreateAsync(
+            [harness.MappingIds[1]],
+            "一键下课",
+            true,
+            CancellationToken.None);
+
+        await harness.Service.ReorderAsync([second.Id, first.Id], CancellationToken.None);
+
+        var tasks = await harness.Service.GetAllAsync(CancellationToken.None);
+        Assert.Equal(new[] { second.Id, first.Id }, tasks.Select(task => task.Id).ToArray());
+        Assert.Equal(new[] { 0, 1 }, tasks.Select(task => task.SortOrder).ToArray());
+    }
+
+    [Fact]
+    public async Task ReorderingRequiresEveryTaskExactlyOnce()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var task = await harness.Service.CreateAsync(
+            [harness.MappingIds[0]],
+            "一键上课",
+            true,
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            harness.Service.ReorderAsync([], CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            harness.Service.ReorderAsync([task.Id, task.Id], CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            harness.Service.ReorderAsync([task.Id, Guid.NewGuid()], CancellationToken.None));
+
+        var tasks = await harness.Service.GetAllAsync(CancellationToken.None);
+        Assert.Equal(task.Id, Assert.Single(tasks).Id);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly SqliteConnection _connection;

@@ -165,6 +165,7 @@
 | GET | `/api/manual-tasks` | 已登录 | 全部手动任务及目标 |
 | POST | `/api/manual-tasks` | operator / admin | 创建手动任务 |
 | PUT | `/api/manual-tasks/{taskId}` | operator / admin | 修改手动任务 |
+| PUT | `/api/manual-tasks/order` | operator / admin | 调整手动任务顺序 |
 | DELETE | `/api/manual-tasks/{taskId}` | operator / admin | 删除手动任务 |
 | POST | `/api/manual-tasks/{taskId}/run` | operator / admin | 立即向全部目标教室下发 |
 | GET | `/api/manual-tasks/{taskId}/executions` | 已登录 | 手动任务执行记录 |
@@ -828,6 +829,16 @@
 ### `PUT /api/manual-tasks/{taskId}`
 
 `operator` 或 `admin`。以请求中的 `joinMappingIds` 覆盖目标集合，名称与确认设置一并更新；执行记录保留。任务不存在返回 `404`。
+
+### `PUT /api/manual-tasks/order`
+
+`operator` 或 `admin`。提交全部手动任务的完整顺序（配置页拖动任务名称后触发），服务端按数组下标写入 `sortOrder`，系统总览按钮随之重排，返回 `204`。
+
+```json
+{ "taskIds": ["…任务1…", "…任务2…"] }
+```
+
+`taskIds` 必须恰好包含当前全部任务各一次，否则返回 `400`；没有任何手动任务时返回 `404`。
 
 ### `DELETE /api/manual-tasks/{taskId}`
 

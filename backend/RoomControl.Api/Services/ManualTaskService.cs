@@ -89,6 +89,33 @@ public sealed class ManualTaskService(
         await DeleteTasksAsync(db, [task], cancellationToken);
     }
 
+    /// <summary>按提交的完整顺序重排全部任务，让总览按钮与设置页列表保持一致。</summary>
+    public async Task ReorderAsync(IReadOnlyList<Guid>? taskIds, CancellationToken cancellationToken)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var tasks = await db.ManualTasks.ToListAsync(cancellationToken);
+        if (tasks.Count == 0)
+        {
+            throw new KeyNotFoundException("Manual tasks were not found.");
+        }
+
+        var requestedIds = taskIds ?? [];
+        if (requestedIds.Count != tasks.Count ||
+            requestedIds.Distinct().Count() != tasks.Count ||
+            requestedIds.Any(id => tasks.All(task => task.Id != id)))
+        {
+            throw new ArgumentException("The order must contain every manual task exactly once.");
+        }
+
+        var byId = tasks.ToDictionary(task => task.Id);
+        for (var index = 0; index < requestedIds.Count; index++)
+        {
+            byId[requestedIds[index]].SortOrder = index;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
     /// <summary>读取某任务最近的执行摘要，按开始时间倒序。</summary>
     public async Task<IReadOnlyList<ManualTaskExecution>> GetExecutionsAsync(
         Guid taskId,

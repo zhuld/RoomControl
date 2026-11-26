@@ -35,6 +35,20 @@ const historyCache = reactive<Record<string, ManualTaskExecution[]>>({})
 const historyLoadingId = ref('')
 const historyError = ref('')
 
+// 拖拽排序只在本地调整顺序，保存成功后由父组件重新拉取同一顺序。
+const orderedTasks = ref<ManualTask[]>([])
+const draggingTaskId = ref('')
+const dragOverTaskId = ref('')
+
+watch(
+  () => props.manualTasks,
+  (tasks) => {
+    if (draggingTaskId.value) return
+    orderedTasks.value = [...tasks]
+  },
+  { immediate: true },
+)
+
 const formOpen = ref(false)
 const formBusy = ref(false)
 const pendingDelete = ref<ManualTask | null>(null)
@@ -62,7 +76,7 @@ const roomOptions = computed(() =>
 
 const filteredTasks = computed(() => {
   const query = taskQuery.value.trim().toLocaleLowerCase()
-  return props.manualTasks.filter((task) => {
+  return orderedTasks.value.filter((task) => {
     if (roomFilter.value && !task.targets.some((target) => target.roomName === roomFilter.value)) {
       return false
     }
@@ -234,6 +248,65 @@ function requestDelete(task: ManualTask) {
   pendingDelete.value = task
 }
 
+// 拖动任务名称调整顺序；放开时把完整顺序提交给服务端，总览按钮同步变化。
+function startTaskDrag(event: DragEvent, task: ManualTask) {
+  draggingTaskId.value = task.id
+  dragOverTaskId.value = ''
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', task.id)
+  }
+}
+
+function dragTaskOver(event: DragEvent, task: ManualTask) {
+  if (!draggingTaskId.value || draggingTaskId.value === task.id) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dragOverTaskId.value = task.id
+}
+
+function clearTaskDragOver(task: ManualTask) {
+  if (dragOverTaskId.value === task.id) dragOverTaskId.value = ''
+}
+
+function endTaskDrag() {
+  draggingTaskId.value = ''
+  dragOverTaskId.value = ''
+}
+
+function dropTask(event: DragEvent, target: ManualTask) {
+  event.preventDefault()
+  const sourceId = draggingTaskId.value
+  endTaskDrag()
+  if (!sourceId || sourceId === target.id) return
+
+  const previous = [...orderedTasks.value]
+  const tasks = [...previous]
+  // 拖动到任意可见任务的位置即可；被筛选隐藏的任务保持相对顺序。
+  const from = tasks.findIndex((task) => task.id === sourceId)
+  const to = tasks.findIndex((task) => task.id === target.id)
+  if (from < 0 || to < 0) return
+
+  tasks.splice(to, 0, tasks.splice(from, 1)[0])
+  orderedTasks.value = tasks
+  void saveTaskOrder(previous)
+}
+
+async function saveTaskOrder(previous: ManualTask[]) {
+  try {
+    await request('/api/manual-tasks/order', {
+      method: 'PUT',
+      body: JSON.stringify({ taskIds: orderedTasks.value.map((task) => task.id) }),
+    })
+    emit('notify', { message: '手动任务顺序已更新', isError: false })
+    emit('changed')
+  } catch (error) {
+    // 保存失败时恢复拖拽前的顺序，避免界面与服务端不一致。
+    orderedTasks.value = previous
+    emit('notify', { message: toErrorMessage(error), isError: true })
+  }
+}
+
 async function confirmDelete() {
   const task = pendingDelete.value
   if (!task) return
@@ -328,9 +401,17 @@ function executionLabel(status: string) {
           </thead>
         </table>
         <div v-if="filteredTasks.length" class="auto-list">
-          <article v-for="task in filteredTasks" :id="`manual-task-${task.id}`" :key="task.id" class="auto-task">
+          <article v-for="task in filteredTasks" :id="`manual-task-${task.id}`" :key="task.id" class="auto-task"
+            :class="{ 'is-dragging': draggingTaskId === task.id, 'is-drag-over': dragOverTaskId === task.id }"
+            @dragover="dragTaskOver($event, task)" @dragleave="clearTaskDragOver(task)"
+            @drop="dropTask($event, task)">
             <div class="auto-task-main">
-              <div class="auto-task-title">
+              <div class="auto-task-title" :class="{ 'is-sortable': canOperate }" :draggable="canOperate"
+                :title="canOperate ? '拖动调整总览按钮顺序' : undefined"
+                @dragstart="startTaskDrag($event, task)" @dragend="endTaskDrag">
+                <span v-if="canOperate" class="auto-task-grip" aria-hidden="true">
+                  <UiIcon name="drag" :size="14" />
+                </span>
                 <strong>{{ task.name }}</strong>
                 <span>手动按钮 · {{ task.joinName }}</span>
               </div>

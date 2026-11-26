@@ -120,7 +120,7 @@ export const settingsSections = [
     eyebrow: '手动任务',
     title: '手动任务',
     icon: 'play',
-    description: '把多间教室的同名控制点聚合为一个按钮，显示在系统总览，点击即批量下发。',
+    description: '把多间教室的同名控制点聚合为一个按钮，显示在系统总览，点击即批量下发；拖动任务名称可调整总览按钮顺序。',
   },
   {
     value: 'users',

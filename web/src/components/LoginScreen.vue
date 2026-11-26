@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ApiError, readJson, request, toErrorMessage } from '../api'
 import { userRoles, type Branding, type CurrentUser, type LoginAccount } from '../types'
 import BrandLogo from './BrandLogo.vue'
+import CanvasNest from './ui/CanvasNest.vue'
 import UiIcon from './ui/UiIcon.vue'
 
 // 登录页自行管理表单与请求，成功后把会话身份交给根组件继续加载站点数据。
@@ -71,6 +72,7 @@ onMounted(() => {
 
 <template>
   <main class="login-screen">
+    <CanvasNest />
     <section class="login-shell">
       <div class="login-intro">
         <div class="row">

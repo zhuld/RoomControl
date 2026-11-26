@@ -58,6 +58,9 @@ public sealed record ManualTaskDefinitionRequest(
     string Name,
     bool ConfirmBeforeRun = true);
 
+/// <summary>按给定顺序重排全部手动任务，系统总览按钮按此顺序渲染。</summary>
+public sealed record ReorderManualTasksRequest(IReadOnlyList<Guid> TaskIds);
+
 /// <summary>创建用户时提交的身份凭据、角色和启用状态。</summary>
 public sealed record CreateUserRequest(string Username, string Password, string Role, bool IsActive);
 

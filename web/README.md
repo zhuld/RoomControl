@@ -16,10 +16,10 @@ npm run build  # 类型检查并生成 dist/
 - `src/components/OverviewWorkspace.vue`：系统总览，异常优先排序，展示即将执行的自动任务与手动任务按钮；点击手动任务按钮可按配置先确认再批量下发。
 - `src/components/OperateWorkspace.vue`：教室操作，定位教室、显示不可操作原因、下发指令与查看会话回执；设备控制区左侧为视频窗口预留位，控制点按钮按配置顺序垂直排列在右侧。
 - `src/components/AutomationWorkspace.vue`：任务列表、执行记录与新建/修改表单；一个任务可勾选多间教室，按同名控制点批量排程，并可暂停、恢复或删除。以 `embedded` 方式嵌在配置与接入的「自动任务」步骤内，此时不再渲染自己的页头。
-- `src/components/ManualTasksWorkspace.vue`：手动任务列表、执行记录与新建/修改表单；一个任务聚合同名控制点覆盖的多间教室，显示为系统总览上的一个执行按钮。
+- `src/components/ManualTasksWorkspace.vue`：手动任务列表、执行记录与新建/修改表单；一个任务聚合同名控制点覆盖的多间教室，显示为系统总览上的一个执行按钮；拖动任务名称可调整总览按钮顺序。
 - `src/components/SettingsPage.vue`：按「站点 → 位置 → 教室 → 中控 → 自动任务 → 手动任务 → 权限 → 外观」的步骤组织配置；外观步骤对三种角色开放，操作员还可维护「自动任务」与「手动任务」，其余步骤与接入检查仅管理员可见。
 - `src/components/LogsPage.vue`：可暂停自动刷新的操作记录。
-- `src/components/ui/`：状态胶囊、空状态、确认对话框、三级教室选择与图标等共享原语。
+- `src/components/ui/`：状态胶囊、空状态、确认对话框、三级教室选择、登录页粒子背景与图标等共享原语。
 
 ## 设计系统
 
