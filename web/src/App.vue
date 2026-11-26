@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { HubConnectionBuilder, type HubConnection } from '@microsoft/signalr'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { ApiError, readJson, request, toErrorMessage } from './api'
+import { readJson, request, toErrorMessage } from './api'
+import LoginScreen from './components/LoginScreen.vue'
 import LogsPage from './components/LogsPage.vue'
 import OperateWorkspace from './components/OperateWorkspace.vue'
 import OverviewWorkspace from './components/OverviewWorkspace.vue'
@@ -19,7 +20,6 @@ import BrandLogo from './components/BrandLogo.vue'
 import {
   defaultBranding,
   resolveThemeName,
-  userRoles,
   workspaceMeta,
   type AutomationTarget,
   type Branding,
@@ -27,7 +27,6 @@ import {
   type CurrentUser,
   type Density,
   type JoinMapping,
-  type LoginAccount,
   type ManualTask,
   type Room,
   type Schedule,
@@ -50,9 +49,6 @@ const selectedRoomId = ref('')
 const errorMessage = ref('')
 const successMessage = ref('')
 const snapshotError = ref('')
-const password = ref('')
-const username = ref('')
-const loginAccounts = ref<LoginAccount[]>([])
 const currentUser = ref<CurrentUser | null>(null)
 const workspace = ref<Workspace>('overview')
 const settingsSection = ref<SettingsSection>('branding')
@@ -89,11 +85,6 @@ const receipts = ref<CommandReceipt[]>([])
 const RECEIPT_STORAGE_KEY = 'roomcontrol.receipts'
 
 const { confirmation, confirmAction, resolveConfirmation } = useConfirmDialog()
-
-const selectedLoginRole = computed(() => {
-  const account = loginAccounts.value.find((item) => item.username === username.value)
-  return userRoles.find((role) => role.value === account?.role) ?? null
-})
 
 const configuredRoomCount = computed(() => rooms.value.filter((room) => room.controller).length)
 const onlineRoomCount = computed(
@@ -381,14 +372,6 @@ async function loadCurrentUser() {
   }
 }
 
-async function loadLoginAccounts() {
-  try {
-    loginAccounts.value = await readJson<LoginAccount[]>('/api/auth/accounts')
-  } catch {
-    loginAccounts.value = []
-  }
-}
-
 // 后端未完成启动（含数据库迁移与初始化）前保持启动提示，轮询健康检查。
 async function waitForBackend() {
   let attempts = 0
@@ -438,7 +421,6 @@ async function bootstrap() {
   } catch {
     authenticated.value = false
   } finally {
-    if (!authenticated.value) await loadLoginAccounts()
     checkingAuth.value = false
   }
 }
@@ -453,36 +435,18 @@ async function loadSnapshot() {
   }
 }
 
-async function login() {
-  busy.value = true
+// 登录页完成凭据校验后把身份交回根组件，由这里加载站点数据并进入主界面。
+async function handleAuthenticated(user: CurrentUser) {
+  currentUser.value = user
+  authenticated.value = true
+  dismissToast()
   try {
-    await request('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ username: username.value, password: password.value }),
-    })
-    password.value = ''
-    await loadCurrentUser()
-    if (!currentUser.value) throw new Error('登录状态无效，请重试。')
-    authenticated.value = true
-    dismissToast()
-    try {
-      await loadSnapshot()
-    } catch (error) {
-      showError(error)
-    }
-    clearReceipts()
-    workspace.value = 'overview'
+    await loadSnapshot()
   } catch (error) {
-    authenticated.value = false
-    // 登录接口的 401 表示账号或密码无效，通用提示容易误导为会话过期。
-    showError(
-      error instanceof ApiError && error.status === 401
-        ? new Error('用户名或密码错误，或账号已被锁定/禁用。')
-        : error,
-    )
-  } finally {
-    busy.value = false
+    showError(error)
   }
+  clearReceipts()
+  workspace.value = 'overview'
 }
 
 // 登出时同步停止 SignalR 并清空会话数据，避免切换账号后显示旧状态。
@@ -512,12 +476,9 @@ async function logout() {
     schedules.value = []
     manualTasks.value = []
     snapshotError.value = ''
-    username.value = ''
-    password.value = ''
     workspace.value = 'overview'
     clearReceipts()
     dismissToast()
-    await loadLoginAccounts()
   }
 }
 
@@ -709,70 +670,7 @@ onBeforeUnmount(() => {
     </template>
   </main>
 
-  <main v-else-if="!authenticated" class="login-screen">
-    <section class="login-shell">
-      <div class="login-intro">
-        <div class="row">
-          <BrandLogo class="login-brand" :logo-data-url="branding.logoDataUrl" :label="branding.displayName" />
-          <span class="brand-copy">
-            <strong>{{ branding.displayName }}</strong>
-            <span>{{ branding.subtitle || 'ROOM CONTROL PLATFORM' }}</span>
-          </span>
-        </div>
-
-        <ul class="login-features">
-          <li class="login-feature">
-            <UiIcon name="connection" :size="16" />
-            <div><strong>实时状态</strong>中控连接与 Join 回报通过实时通道同步。</div>
-          </li>
-          <li class="login-feature">
-            <UiIcon name="shield" :size="16" />
-            <div><strong>受控操作</strong>高风险指令可要求二次确认，角色权限即时生效。</div>
-          </li>
-          <li class="login-feature">
-            <UiIcon name="audit" :size="16" />
-            <div><strong>可追溯</strong>每次下发都有会话回执，服务端保留操作记录。</div>
-          </li>
-        </ul>
-      </div>
-
-      <div class="login-card">
-        <div>
-          <h2>登录平台</h2>
-          <p class="panel-sub">使用管理员分配的账号进入。</p>
-        </div>
-        <form class="login-form" @submit.prevent="login">
-          <label class="field">
-            用户名
-            <select name="username" v-if="loginAccounts.length" v-model="username" class="select" autocomplete="username" required>
-              <option value="" disabled>请选择账号</option>
-              <option v-for="account in loginAccounts" :key="account.username" :value="account.username">
-                {{ account.username }}
-              </option>
-            </select>
-            <input name="username" v-else v-model="username" class="input" maxlength="60" autocomplete="username" required />
-          </label>
-          <div v-if="selectedLoginRole" class="login-role">
-            <strong>{{ selectedLoginRole.label }}</strong>
-            <span>{{ selectedLoginRole.description }}</span>
-          </div>
-          <div v-else class="login-role">
-            <strong>提示</strong>
-            <span>请联系管理员确认账号权限</span>
-          </div>
-          <label class="field">
-            密码
-            <input name="password" placeholder="输入密码" v-model="password" class="input" type="password" maxlength="128" autocomplete="current-password" required />
-          </label>
-          <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
-          <button class="btn btn-primary btn-block" :disabled="busy">
-            {{ busy ? '正在登录…' : '登录平台' }}
-          </button>
-        </form>
-        <p class="login-footnote">账号由管理员分配；连续失败会触发登录限制。</p>
-      </div>
-    </section>
-  </main>
+  <LoginScreen v-else-if="!authenticated" :branding="branding" @authenticated="handleAuthenticated" />
 
   <div v-else class="app-shell" :class="{ 'is-rail-open': railOpen, 'is-rail-collapsed': railCollapsed }">
     <header class="topbar">

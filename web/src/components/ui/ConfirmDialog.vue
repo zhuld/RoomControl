@@ -60,7 +60,7 @@ watch(
         <span class="dialog-icon"><UiIcon :name="icon" :size="34" /></span>
         <div class="dialog-head-copy">
           <h2 :id="titleId">{{ title }}</h2>
-          <p v-if="message" :id="messageId">{{ message }}</p>
+          <span v-if="message" :id="messageId">{{ message }}</span>
         </div>
       </div>
       <div v-if="$slots.default" class="dialog-body">

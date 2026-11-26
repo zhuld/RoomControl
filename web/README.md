@@ -10,7 +10,8 @@ npm run build  # 类型检查并生成 dist/
 
 ## 界面结构
 
-- `src/App.vue`：会话、实时连接、当前工作区、命令回执与全局状态。
+- `src/App.vue`：启动探测、会话恢复、实时连接、当前工作区、命令回执与全局状态。
+- `src/components/LoginScreen.vue`：登录页，负责账号选择、密码校验与登录错误提示；登录成功后把账号与角色交给根组件加载站点数据。
 - `src/components/TaskRail.vue`：按任务流排列的导航，区分值守、教室与管理。
 - `src/components/OverviewWorkspace.vue`：系统总览，异常优先排序，展示即将执行的自动任务与手动任务按钮；点击手动任务按钮可按配置先确认再批量下发。
 - `src/components/OperateWorkspace.vue`：教室操作，定位教室、显示不可操作原因、下发指令与查看会话回执；设备控制区左侧为视频窗口预留位，控制点按钮按配置顺序垂直排列在右侧。
