@@ -398,6 +398,51 @@ public sealed class ControllerStateStoreTests
         }
     }
 
+    [Fact]
+    public async Task StatusBroadcastUsesIndependentTokenAndSurvivesHubFailure()
+    {
+        // 推送发生在状态落库之后：即使推送失败，也不能抛错或回滚在线状态。
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        var options = new DbContextOptionsBuilder<ControlDbContext>()
+            .UseSqlite(connection)
+            .Options;
+        var contextFactory = new TestContextFactory(options);
+        Guid controllerId;
+        Guid roomId;
+
+        await using (var db = await contextFactory.CreateDbContextAsync())
+        {
+            await db.Database.EnsureCreatedAsync();
+            var room = new Room { Name = "A101", Building = "A楼", Floor = "1F" };
+            var controller = new Controller { Room = room, Name = "CIP", Host = "localhost" };
+            room.Controller = controller;
+            db.Rooms.Add(room);
+            await db.SaveChangesAsync();
+            controllerId = controller.Id;
+            roomId = room.Id;
+        }
+
+        var proxy = new RecordingClientProxy { Failure = new InvalidOperationException("hub unavailable") };
+        var clients = new TestHubClients(proxy);
+        var store = new ControllerStateStore(
+            contextFactory,
+            new TestHubContext(clients),
+            NullLogger<ControllerStateStore>.Instance);
+
+        await store.SetConnectionAsync(controllerId, true, null, CancellationToken.None);
+
+        Assert.Equal($"room:{roomId}", clients.LastGroup);
+        Assert.Equal("controllerStatusChanged", proxy.LastMethod);
+        // 推送不跟随设备读取循环的取消令牌。
+        Assert.False(proxy.LastToken.CanBeCanceled);
+
+        await using (var db = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.True((await db.Controllers.SingleAsync()).IsOnline);
+        }
+    }
+
     private sealed class TestContextFactory(DbContextOptions<ControlDbContext> options)
         : IDbContextFactory<ControlDbContext>
     {
@@ -407,33 +452,55 @@ public sealed class ControllerStateStoreTests
             Task.FromResult(CreateDbContext());
     }
 
-    private sealed class TestHubContext : IHubContext<ControlHub>
+    private sealed class TestHubContext(IHubClients? clients = null) : IHubContext<ControlHub>
     {
-        public IHubClients Clients { get; } = new TestHubClients();
+        public IHubClients Clients { get; } = clients ?? new TestHubClients(new TestClientProxy());
         public IGroupManager Groups { get; } = new TestGroupManager();
     }
 
-    private sealed class TestHubClients : IHubClients
+    private sealed class TestHubClients(IClientProxy proxy) : IHubClients
     {
-        private static readonly IClientProxy Proxy = new TestClientProxy();
+        public string? LastGroup { get; private set; }
 
-        public IClientProxy All => Proxy;
-        public IClientProxy AllExcept(IReadOnlyList<string> excludedConnectionIds) => Proxy;
-        public IClientProxy Client(string connectionId) => Proxy;
-        public IClientProxy Clients(IReadOnlyList<string> connectionIds) => Proxy;
-        public IClientProxy Group(string groupName) => Proxy;
-        public IClientProxy GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => Proxy;
-        public IClientProxy Groups(IReadOnlyList<string> groupNames) => Proxy;
-        public IClientProxy User(string userId) => Proxy;
-        public IClientProxy Users(IReadOnlyList<string> userIds) => Proxy;
-        public IClientProxy Others => Proxy;
-        public IClientProxy OthersInGroup(string groupName) => Proxy;
+        public IClientProxy All => proxy;
+        public IClientProxy AllExcept(IReadOnlyList<string> excludedConnectionIds) => proxy;
+        public IClientProxy Client(string connectionId) => proxy;
+        public IClientProxy Clients(IReadOnlyList<string> connectionIds) => proxy;
+        public IClientProxy Group(string groupName)
+        {
+            LastGroup = groupName;
+            return proxy;
+        }
+
+        public IClientProxy GroupExcept(string groupName, IReadOnlyList<string> excludedConnectionIds) => proxy;
+        public IClientProxy Groups(IReadOnlyList<string> groupNames) => proxy;
+        public IClientProxy User(string userId) => proxy;
+        public IClientProxy Users(IReadOnlyList<string> userIds) => proxy;
+        public IClientProxy Others => proxy;
+        public IClientProxy OthersInGroup(string groupName) => proxy;
     }
 
     private sealed class TestClientProxy : IClientProxy
     {
         public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
+    }
+
+    /// <summary>记录推送目标与令牌，并可模拟推送失败。</summary>
+    private sealed class RecordingClientProxy : IClientProxy
+    {
+        public Exception? Failure { get; init; }
+
+        public string? LastMethod { get; private set; }
+
+        public CancellationToken LastToken { get; private set; }
+
+        public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default)
+        {
+            LastMethod = method;
+            LastToken = cancellationToken;
+            return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+        }
     }
 
     private sealed class TestGroupManager : IGroupManager

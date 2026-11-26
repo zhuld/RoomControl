@@ -35,6 +35,7 @@ import {
   type UserRole,
   type Workspace,
 } from './types'
+import CanvasNest from './components/ui/CanvasNest.vue'
 
 // 根组件维护会话、连接、当前工作区与命令回执；页面只负责各自任务流。
 const authenticated = ref(false)
@@ -80,6 +81,10 @@ let scheduleRefreshTimer: ReturnType<typeof setInterval> | undefined
 const hubState = ref<'connecting' | 'connected' | 'disconnected'>('disconnected')
 const lastHubEventAt = ref<string | null>(null)
 let hub: HubConnection | null = null
+// SignalR 自动重连放弃后由这里继续重试；令牌让旧连接的回调不再影响当前状态。
+const HUB_RETRY_MS = 5_000
+let hubRetryTimer: ReturnType<typeof setTimeout> | undefined
+let hubConnectToken = 0
 
 const receipts = ref<CommandReceipt[]>([])
 const RECEIPT_STORAGE_KEY = 'roomcontrol.receipts'
@@ -333,11 +338,52 @@ function applyBrandingTitle() {
 }
 
 async function loadRooms() {
-  const storedRoom = localStorage.getItem('roomcontrol.room') ?? ''
   rooms.value = await readJson<Room[]>('/api/rooms')
-  if (!rooms.value.some((room) => room.id === selectedRoomId.value)) {
-    selectedRoomId.value =
-      rooms.value.find((room) => room.id === storedRoom)?.id ?? rooms.value[0]?.id ?? ''
+  ensureSelectedRoom()
+}
+
+function ensureSelectedRoom() {
+  if (rooms.value.some((room) => room.id === selectedRoomId.value)) return
+  const storedRoom = localStorage.getItem('roomcontrol.room') ?? ''
+  selectedRoomId.value =
+    rooms.value.find((room) => room.id === storedRoom)?.id ?? rooms.value[0]?.id ?? ''
+}
+
+// 实时推送只覆盖变化：握手、重连或断流期间的推送会丢失，
+// 因此按接口快照校准中控在线状态与控制点状态，保证界面最终与数据库一致。
+async function reconcileRooms() {
+  if (!authenticated.value) return
+  let latest: Room[]
+  try {
+    latest = await readJson<Room[]>('/api/rooms')
+  } catch {
+    // 校准失败时保留现有数据，等下一次推送或校准。
+    return
+  }
+
+  // 教室被增删时整体替换，让订阅的教室分组随之更新；否则只合并状态字段。
+  if (
+    latest.length !== rooms.value.length ||
+    latest.some((room) => !rooms.value.some((item) => item.id === room.id))
+  ) {
+    rooms.value = latest
+    ensureSelectedRoom()
+    return
+  }
+
+  for (const room of rooms.value) {
+    const controller = room.controller
+    const latestController = latest.find((item) => item.id === room.id)?.controller
+    if (!controller || !latestController) continue
+    controller.isOnline = latestController.isOnline
+    controller.lastError = latestController.lastError
+    const latestJoins = new Map(latestController.joins.map((join) => [join.id, join]))
+    for (const join of controller.joins) {
+      const latestJoin = latestJoins.get(join.id)
+      if (!latestJoin) continue
+      join.stateSnapshot = latestJoin.stateSnapshot
+      join.enableSnapshot = latestJoin.enableSnapshot
+    }
   }
 }
 
@@ -350,17 +396,23 @@ async function loadManualTasks() {
 }
 
 // 计划任务与手动任务由后台或他人修改时前端没有事件；定期刷新以同步任务按钮与逾期状态。
+// 空闲时额外校准中控状态：断线期间没有推送，靠快照保持界面与实际连接一致。
 async function refreshSchedulesInBackground() {
   if (!authenticated.value || document.hidden) return
+  const tasks: Promise<void>[] = [loadSchedules(), loadManualTasks()]
+  if (hubState.value !== 'connected') tasks.push(reconcileRooms())
   try {
-    await Promise.all([loadSchedules(), loadManualTasks()])
+    await Promise.all(tasks)
   } catch {
     // 后台刷新失败时保留现有数据，下一次轮询继续重试。
   }
 }
 
 function handleScheduleVisibilityChange() {
-  if (!document.hidden) void refreshSchedulesInBackground()
+  if (document.hidden) return
+  void refreshSchedulesInBackground()
+  // 页面长时间隐藏时推送可能已中断，回到前台先校准一次。
+  void reconcileRooms()
 }
 
 async function loadCurrentUser() {
@@ -466,6 +518,8 @@ async function logout() {
   } catch (error) {
     showError(error)
   } finally {
+    hubConnectToken += 1
+    clearHubRetry()
     await hub?.stop()
     hub = null
     hubState.value = 'disconnected'
@@ -580,10 +634,32 @@ function applyJoinUpdate(event: {
   }
 }
 
+function clearHubRetry() {
+  if (hubRetryTimer !== undefined) {
+    clearTimeout(hubRetryTimer)
+    hubRetryTimer = undefined
+  }
+}
+
+// 自动重连在若干次尝试后会放弃；这里继续按固定间隔重试，避免停机或休眠后一直收不到推送。
+function scheduleHubReconnect() {
+  if (hubRetryTimer !== undefined || !authenticated.value) return
+  hubRetryTimer = setTimeout(() => {
+    hubRetryTimer = undefined
+    if (authenticated.value) void connectToRoomHub(rooms.value.map((room) => room.id))
+  }, HUB_RETRY_MS)
+}
+
 async function connectToRoomHub(roomIds: string[]) {
-  await hub?.stop()
+  const token = (hubConnectToken += 1)
+  clearHubRetry()
+  const previous = hub
   hub = null
-  if (!roomIds.length || !authenticated.value) return
+  await previous?.stop()
+  if (!roomIds.length || !authenticated.value) {
+    hubState.value = 'disconnected'
+    return
+  }
 
   hubState.value = 'connecting'
   // 单个连接订阅所有已加载房间；自动重连后必须重新加入 SignalR 分组。
@@ -607,20 +683,41 @@ async function connectToRoomHub(roomIds: string[]) {
       }
     },
   )
-  connection.onreconnecting(() => (hubState.value = 'connecting'))
-  connection.onreconnected(async () => {
-    hubState.value = 'connected'
-    await Promise.all(roomIds.map((roomId) => connection.invoke('JoinRoom', roomId)))
+  connection.onreconnecting(() => {
+    if (token === hubConnectToken) hubState.value = 'connecting'
   })
-  connection.onclose(() => (hubState.value = 'disconnected'))
+  connection.onreconnected(async () => {
+    if (token !== hubConnectToken) return
+    hubState.value = 'connected'
+    try {
+      await Promise.all(roomIds.map((roomId) => connection.invoke('JoinRoom', roomId)))
+    } catch {
+      // 重新加入分组失败时按快照兜底，状态仍可校准。
+    }
+    // 断线期间的变化不会补发，重连并重新加入分组后按快照校准。
+    await reconcileRooms()
+  })
+  connection.onclose(() => {
+    if (token !== hubConnectToken) return
+    hubState.value = 'disconnected'
+    scheduleHubReconnect()
+  })
 
   try {
     await connection.start()
+    if (token !== hubConnectToken) {
+      await connection.stop()
+      return
+    }
     await Promise.all(roomIds.map((roomId) => connection.invoke('JoinRoom', roomId)))
     hub = connection
     hubState.value = 'connected'
+    // 从读取快照到加入分组之间的推送已经错过，先用最新快照补齐。
+    await reconcileRooms()
   } catch {
-    hubState.value = 'disconnected'
+    if (token === hubConnectToken) hubState.value = 'disconnected'
+    await connection.stop().catch(() => undefined)
+    scheduleHubReconnect()
   }
 }
 
@@ -648,6 +745,7 @@ onBeforeUnmount(() => {
   if (toastTimeout !== undefined) clearTimeout(toastTimeout)
   if (clockInterval !== undefined) clearInterval(clockInterval)
   if (scheduleRefreshTimer !== undefined) clearInterval(scheduleRefreshTimer)
+  clearHubRetry()
   document.removeEventListener('visibilitychange', handleScheduleVisibilityChange)
   void hub?.stop()
 })
@@ -665,6 +763,7 @@ onBeforeUnmount(() => {
       <button type="button" class="btn btn-primary" @click="bootstrap">重试连接</button>
     </div>
     <template v-else>
+      <CanvasNest />
       <span class="spinner"></span>
       <span>{{ apiReady ? '正在连接控制平台…' : '系统启动中…' }}</span>
     </template>
@@ -675,9 +774,8 @@ onBeforeUnmount(() => {
   <div v-else class="app-shell" :class="{ 'is-rail-open': railOpen, 'is-rail-collapsed': railCollapsed }">
     <header class="topbar">
       <div class="topbar-brand">
-        <button type="button" class="btn btn-ghost btn-icon topbar-menu"
-          :aria-label="railOpen ? '关闭任务导航' : '打开任务导航'" :aria-expanded="railOpen"
-          @click="railOpen = !railOpen">
+        <button type="button" class="btn btn-ghost btn-icon topbar-menu" :aria-label="railOpen ? '关闭任务导航' : '打开任务导航'"
+          :aria-expanded="railOpen" @click="railOpen = !railOpen">
           <UiIcon name="menu" :size="18" />
         </button>
         <BrandLogo :logo-data-url="branding.logoDataUrl" :label="branding.displayName" :title="branding.displayName" />
@@ -686,7 +784,7 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <UiIcon class="rail-icon" :name="activeWorkspace.icon" />
-      <div class="topbar-context">        
+      <div class="topbar-context">
         <strong>{{ activeWorkspace.label }}</strong>
       </div>
 
@@ -706,8 +804,8 @@ onBeforeUnmount(() => {
 
         <div v-if="canOperate && rooms.length" class="topbar-search">
           <UiIcon class="search-icon" name="search" :size="14" />
-          <input name="room-jump" v-model="roomJumpQuery" class="input" list="room-jump-options" placeholder="跳转教室（回车）" aria-label="跳转教室"
-            @keydown.enter.prevent="jumpToRoom" />
+          <input name="room-jump" v-model="roomJumpQuery" class="input" list="room-jump-options" placeholder="跳转教室（回车）"
+            aria-label="跳转教室" @keydown.enter.prevent="jumpToRoom" />
           <datalist id="room-jump-options">
             <option v-for="option in roomJumpOptions" :key="option" :value="option"></option>
           </datalist>
@@ -723,8 +821,8 @@ onBeforeUnmount(() => {
     </header>
 
     <TaskRail :current-user="currentUser" :workspace="workspace" :room-count="rooms.length"
-      :online-count="onlineRoomCount" :attention-count="attentionCount"
-      :hub-state="hubState" :rail-collapsed="railCollapsed" @navigate="navigate" @logout="logout"
+      :online-count="onlineRoomCount" :attention-count="attentionCount" :hub-state="hubState"
+      :rail-collapsed="railCollapsed" @navigate="navigate" @logout="logout"
       @toggle-collapse="railCollapsed = !railCollapsed" />
 
     <button v-if="railOpen" type="button" class="rail-scrim" aria-label="关闭任务导航" @click="railOpen = false"></button>
@@ -741,26 +839,22 @@ onBeforeUnmount(() => {
         </div>
 
         <OverviewWorkspace v-if="workspace === 'overview'" :rooms="rooms" :schedules="schedules"
-          :manual-tasks="manualTasks" :current-user="currentUser" :now="currentDateTime"
-          @select-room="openRoom" @open-automation="openAutomation" @open-settings="openSettings"
-          @notify="handleSettingsNotify" />
+          :manual-tasks="manualTasks" :current-user="currentUser" :now="currentDateTime" @select-room="openRoom"
+          @open-automation="openAutomation" @open-settings="openSettings" @notify="handleSettingsNotify" />
 
         <OperateWorkspace v-else-if="workspace === 'operate'" :rooms="rooms" :selected-room-id="selectedRoomId"
-          :current-user="currentUser" :hub-state="hubState" :last-hub-event-at="lastHubEventAt"
-          :receipts="receipts" :schedules="schedules"
-          :now="currentDateTime" @select-room="selectedRoomId = $event" @send-command="sendDigitalPulse"
-          @schedule-command="scheduleCommand" @open-settings="openSettings"
+          :current-user="currentUser" :hub-state="hubState" :last-hub-event-at="lastHubEventAt" :receipts="receipts"
+          :schedules="schedules" :now="currentDateTime" @select-room="selectedRoomId = $event"
+          @send-command="sendDigitalPulse" @schedule-command="scheduleCommand" @open-settings="openSettings"
           @clear-receipts="clearReceipts" />
 
         <SettingsPage v-else-if="workspace === 'settings'" :rooms="rooms" :branding="branding" :theme="theme"
           :density="density" :section="settingsSection" :current-user="currentUser" :focus-room-id="settingsFocusRoomId"
-          :schedules="schedules" :manual-tasks="manualTasks"
-          :selected-room-id="selectedRoomId" :automation-target="automationTarget" :now="currentDateTime"
-          @rooms-changed="handleRoomsChanged" @branding-saved="handleBrandingSaved"
-          @theme-changed="handleThemeChanged" @density-changed="density = $event"
-          @notify="handleSettingsNotify"
-          @automation-changed="handleAutomationChanged" @manual-tasks-changed="handleManualTasksChanged"
-          @section-changed="handleSettingsSection" />
+          :schedules="schedules" :manual-tasks="manualTasks" :selected-room-id="selectedRoomId"
+          :automation-target="automationTarget" :now="currentDateTime" @rooms-changed="handleRoomsChanged"
+          @branding-saved="handleBrandingSaved" @theme-changed="handleThemeChanged" @density-changed="density = $event"
+          @notify="handleSettingsNotify" @automation-changed="handleAutomationChanged"
+          @manual-tasks-changed="handleManualTasksChanged" @section-changed="handleSettingsSection" />
 
         <LogsPage v-else-if="workspace === 'audit'" />
       </div>

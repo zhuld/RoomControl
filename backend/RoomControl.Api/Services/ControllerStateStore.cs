@@ -47,14 +47,16 @@ public sealed class ControllerStateStore(
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        await hubContext.Clients.Group($"room:{controller.RoomId}")
-            .SendAsync("controllerStatusChanged", new
+        await BroadcastAsync(
+            controller.RoomId,
+            "controllerStatusChanged",
+            new
             {
                 controllerId,
                 controller.IsOnline,
                 controller.LastError,
                 controller.UpdatedAtUtc
-            }, cancellationToken);
+            });
     }
 
     /// <summary>
@@ -117,15 +119,17 @@ public sealed class ControllerStateStore(
 
         await db.SaveChangesAsync(cancellationToken);
         var mappingIds = mappings.Select(join => join.Id).ToArray();
-        await hubContext.Clients.Group($"room:{controller.RoomId}")
-            .SendAsync("joinStateChanged", new
+        await BroadcastAsync(
+            controller.RoomId,
+            "joinStateChanged",
+            new
             {
                 controllerId,
                 mappingIds,
                 update.JoinNumber,
                 update.Value,
                 snapshot.LastReportedAtUtc
-            }, cancellationToken);
+            });
     }
 
     /// <summary>
@@ -210,15 +214,17 @@ public sealed class ControllerStateStore(
                 .Where(join => join.StateJoinNumber == snapshot.JoinNumber || join.EnableJoinNumber == snapshot.JoinNumber)
                 .Select(join => join.Id)
                 .ToArray();
-            await hubContext.Clients.Group($"room:{controller.RoomId}")
-                .SendAsync("joinStateChanged", new
+            await BroadcastAsync(
+                controller.RoomId,
+                "joinStateChanged",
+                new
                 {
                     controllerId,
                     mappingIds,
                     snapshot.JoinNumber,
                     snapshot.DigitalValue,
                     snapshot.LastReportedAtUtc
-                }, cancellationToken);
+                });
         }
     }
 
@@ -262,6 +268,23 @@ public sealed class ControllerStateStore(
 
     public void LogUpdateFailure(Guid controllerId, Exception exception) =>
         logger.LogError(exception, "Failed to persist CIP state update for controller {ControllerId}", controllerId);
+
+    /// <summary>
+    /// 状态已落库后再推送；推送使用独立令牌，避免设备读取循环停止时取消提醒，
+    /// 推送失败也只记录日志，不影响已经保存的状态。
+    /// </summary>
+    private async Task BroadcastAsync(Guid roomId, string method, object payload)
+    {
+        try
+        {
+            await hubContext.Clients.Group($"room:{roomId}")
+                .SendAsync(method, payload, CancellationToken.None);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to broadcast {Method} for room {RoomId}.", method, roomId);
+        }
+    }
 
     private static async Task ResetEnableSnapshotsAsync(
         ControlDbContext db,

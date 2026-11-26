@@ -145,7 +145,7 @@ REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健
 - 控制点创建与更新可带 `showConfirmationPopup`（默认 `true`），决定控制台发送指令与删除控制点前是否弹窗确认，`GET /api/rooms` 会返回该开关。按 `PUT /api/controllers/{controllerId}/joins/order` 提交的完整顺序渲染控制台按钮；单点复制会替换目标上相同发送 Join 的既有控制点，整组复制会先清空目标控制点再按源顺序写入。
 - 自动任务的 `joinMappingIds` 可一次覆盖多间教室的同名控制点，同一任务的目标共享 `groupId`；修改整组会保留仍在列表中的目标、删除被移除目标及其执行记录。任务按服务器本地时间执行，支持一次性与按周重复，可暂停与恢复。
 - 手动任务把多间教室的同名控制点聚合为一个系统总览按钮；点击后逐个目标教室下发一次脉冲，单间失败不影响其余教室，结果按次保存为执行摘要。任务可配置执行前二次确认，且与自动任务一样不受使能 Join 限制。总览按钮的排列顺序可在「配置与接入 · 手动任务」拖动任务名称调整，顺序保存在服务端。
-- 中控上报的状态变化通过 `joinStateChanged` 增量推送，连接上下线通过 `controllerStatusChanged` 推送；`GET /api/rooms` 返回当前快照，刷新页面后应重新拉取。
+- 中控上报的状态变化通过 `joinStateChanged` 增量推送，连接上下线通过 `controllerStatusChanged` 推送；`GET /api/rooms` 返回当前快照，刷新页面后应重新拉取。推送只覆盖变化且不补发断线期间的事件，前端在加入分组、自动重连成功以及页面回到前台时会按快照校准；自动重连放弃后仍会持续重试，不会停留在断线前的画面。
 - 操作日志按 `authentication`、`configuration`、`control`、`schedule`、`state`、`connection` 分类，记录可读操作对象，不保存请求正文或密码；认证类记录的对象栏为来源 IP。
 
 ### 权限与会话安全

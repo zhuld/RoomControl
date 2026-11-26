@@ -339,7 +339,7 @@ a:hover {
 
 .topbar-search {
   position: relative;
-  width: 210px;
+  width: 190px;
 }
 
 .topbar-search .input {
@@ -382,7 +382,7 @@ a:hover {
 .rail-collapse {
   flex: 1 0 auto;
   display: grid;
-  place-items: center ;
+  place-items: center;
   width: 28px;
   height: 28px;
   border: 1px solid transparent;
@@ -609,7 +609,7 @@ a:hover {
     gap: var(--space-2);
   }
 
-  .app-shell.is-rail-collapsed .rail-section + .rail-section {
+  .app-shell.is-rail-collapsed .rail-section+.rail-section {
     padding-top: var(--space-2);
     border-top: 1px solid var(--rail-line);
   }
@@ -660,7 +660,7 @@ a:hover {
   min-width: 0;
 }
 
-.topbar-workspace-slot .workspace-actions > * {
+.topbar-workspace-slot .workspace-actions>* {
   min-width: 0;
   white-space: nowrap;
 }
@@ -745,18 +745,6 @@ a:hover {
   }
 }
 
-@media (max-width: 1240px) {
-  .topbar-search {
-    display: none;
-  }
-}
-
-@media (max-width: 1080px) {
-  .topbar-clock span {
-    display: none;
-  }
-}
-
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: minmax(0, 1fr);
@@ -812,6 +800,14 @@ a:hover {
   .workspace-scroll {
     padding: var(--space-4);
   }
+
+  .topbar-clock span {
+    display: none;
+  }
+
+  .topbar-search {
+    display: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -829,6 +825,7 @@ a:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   *,
   *::before,
   *::after {
