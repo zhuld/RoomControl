@@ -289,7 +289,7 @@
 
 .attention-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   min-height: var(--row-h);
@@ -1129,8 +1129,8 @@
   cursor: grab;
 }
 
-.auto-task-title.is-sortable > strong,
-.auto-task-title.is-sortable > span:not(.auto-task-grip) {
+.auto-task-title.is-sortable>strong,
+.auto-task-title.is-sortable>span:not(.auto-task-grip) {
   grid-column: 2;
 }
 
@@ -1946,9 +1946,11 @@
   .setup-step .setup-step-icon {
     display: none;
   }
-  .setup-step .setup-step-state{
+
+  .setup-step .setup-step-state {
     display: none;
   }
+
   .setup-step .setup-step-copy span {
     display: none;
   }

@@ -44,6 +44,7 @@ const emit = defineEmits<{
   openAutomation: [target?: { roomId?: string; scheduleId?: string }]
   openSettings: [section: SettingsSection, roomId?: string]
   notify: [payload: { message: string; isError: boolean }]
+  changed: []
 }>()
 
 const { confirmation, confirmAction, resolveConfirmation } = useConfirmDialog({
@@ -51,6 +52,7 @@ const { confirmation, confirmAction, resolveConfirmation } = useConfirmDialog({
   actionLabel: '确认执行',
 })
 
+const stateBusyKey = ref('')
 const runningManualTaskId = ref('')
 const manualTaskResults = reactive<Record<string, ManualTaskRunResult>>({})
 
@@ -296,6 +298,27 @@ async function runManualTask(task: ManualTask) {
     runningManualTaskId.value = ''
   }
 }
+
+// 暂停与恢复共用同一组端点，恢复时由后端按当前时间重算下一次执行。
+async function toggleTaskState(task: ScheduleGroup) {
+  const groupId = task.groupId ?? task.targets[0]?.id
+  if (!groupId) return
+  stateBusyKey.value = task.key
+  try {
+    await request(`/api/schedules/groups/${groupId}/${task.enabled ? 'pause' : 'resume'}`, {
+      method: 'POST',
+    })
+    emit('notify', {
+      message: `任务「${task.name}」已${task.enabled ? '暂停' : '恢复'}`,
+      isError: false,
+    })
+    emit('changed')
+  } catch (error) {
+    emit('notify', { message: toErrorMessage(error), isError: true })
+  } finally {
+    stateBusyKey.value = ''
+  }
+}
 </script>
 
 <template>
@@ -321,7 +344,7 @@ async function runManualTask(task: ManualTask) {
           <span class="kpi-detail">{{ offlineRooms.length }} 离线 · {{ unconfiguredRooms.length }} 未接入</span>
         </div>
         <strong class="kpi-value">{{ onlineRooms.length }}<span class="text-sm muted"> / {{ configuredRooms.length
-        }}</span></strong>
+            }}</span></strong>
       </article>
       <article class="kpi" :class="attentionCount ? 'is-danger' : 'is-success'">
         <span class="kpi-icon">
@@ -413,6 +436,11 @@ async function runManualTask(task: ManualTask) {
               <strong>{{ group.name }}</strong>
               <span>{{ groupRoomsLabel(group) }} · {{ group.joinName }}</span>
             </div>
+                <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm"
+                  :disabled="stateBusyKey === group.key" :title="group.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'"
+                  @click="toggleTaskState(group)">
+                  {{ group.enabled ? '暂停' : '恢复' }}
+                </button>
             <StatusPill :tone="overdueGroups.some((item) => item.key === group.key) ? 'danger' : 'neutral'"
               :label="formatRelative(group.nextRunAtUtc, now.getTime())" />
           </article>
