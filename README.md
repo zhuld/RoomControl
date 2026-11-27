@@ -119,6 +119,16 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 安装行为与源码部署一致：默认安装到 `C:\Program Files\RoomControl`，SQLite 数据库与日志位于 `C:\ProgramData\RoomControl`，生成 `Start-RoomControl.ps1`/`Stop-RoomControl.ps1`，启动服务并打开浏览器；同样支持 `-InstallDir`、`-DataDir`、`-ListenUrl` 参数。升级时重新解压并再次运行安装脚本即可，数据库保留。
 
+## 在 IIS 中部署
+
+若机器上已有 IIS，也可以把 RoomControl 作为 IIS 站点托管（进程内托管，同一站点同时提供页面、API 与 SignalR），无需 `install.ps1` 启动的控制台进程。需要先安装 **.NET 10 Hosting Bundle** 与 IIS 的 WebSocket 协议功能，然后运行 `publish.ps1`，再以管理员身份执行：
+
+```powershell
+.\scripts\Deploy-RoomControl-IIS.ps1 -HostHeader room.example.com
+```
+
+完整的前置条件、目录权限（应用池身份必须能写 `C:\ProgramData\RoomControl`）、应用池常驻设置、HTTPS 绑定、手工配置与故障排查见 **[docs/iis-deployment.md](./docs/iis-deployment.md)**。
+
 ## 功能与 API
 
 REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健康检查为 `/health`。所有接口共用同源 HttpOnly Cookie 会话，JSON 属性名为 camelCase、枚举序列化为字符串，错误统一返回 ProblemDetails。完整的请求/响应示例、字段约束、权限矩阵、限流规则、SignalR 事件与业务规则见 **[docs/api.md](./docs/api.md)**；数据库表结构、约束与删除行为见 [docs/database.md](./docs/database.md)。

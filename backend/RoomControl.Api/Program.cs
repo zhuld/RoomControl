@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -20,6 +21,16 @@ using RoomControl.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 // 所有接口均为小体积 JSON；限制请求体大小，避免超长正文占用内存和 CPU。
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 1024 * 1024);
+
+// IIS 托管时应用池身份可能没有用户配置目录，需把密钥环指向固定位置，
+// 否则应用池回收或身份变化会让已签发的登录 Cookie 全部失效。
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+        .SetApplicationName("RoomControl");
+}
 var connectionString = builder.Configuration.GetConnectionString("RoomControl")
     ?? throw new InvalidOperationException("Set ConnectionStrings__RoomControl before starting the API.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? "PostgreSQL";
