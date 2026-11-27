@@ -1271,9 +1271,9 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
 
             <div v-if="activeSection === 'controllers'" class="panel-body">
               <div class="controller-layout">
-                <div class="controller-room-list">
+                <div v-if="sortedRooms.length" class="controller-room-list">
                   <strong class="panel-head">选择教室</strong>
-                  <div v-if="sortedRooms.length" class="controller-search">
+                  <div  class="controller-search">
                     <RoomCascader stacked :rooms="rooms" :model-value="configuredRoomId"
                       @update:model-value="configuredRoomId = $event" />
                   </div>

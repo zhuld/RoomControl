@@ -251,32 +251,33 @@ onMounted(() => {
           <div>创建时间</div>
           <div class="table-actions">操作</div>
         </div>
-        <div class="table-wrap room-table-wrap"">
-        <div v-for="user in users" :key="user.id" class="main-table-body user-table">
-          <div>
-            <span class="is-strong">{{ user.username }}</span>
-            <span v-if="user.username === currentUser.username" class="user-self">当前账号</span>
-          </div>
-          <div>
-            <span class="role-badge" :class="roleClass(user.role)">{{ user.roleDisplayName }}</span>
-          </div>
-          <div>
-            <StatusPill :tone="user.isActive ? 'success' : 'neutral'" :label="user.isActive ? '启用' : '禁用'" dot />
-          </div>
-          <span class="text-xs muted">{{ formatDateTime(user.createdAt) }}</span>
+        <div class="table-wrap room-table-wrap">
+          <div v-for="user in users" :key="user.id" class="main-table-body user-table">
+            <div>
+              <span class="is-strong">{{ user.username }}</span>
+              <span v-if="user.username === currentUser.username" class="user-self">当前账号</span>
+            </div>
+            <div>
+              <span class="role-badge" :class="roleClass(user.role)">{{ user.roleDisplayName }}</span>
+            </div>
+            <div>
+              <StatusPill :tone="user.isActive ? 'success' : 'neutral'" :label="user.isActive ? '启用' : '禁用'"
+                dot />
+            </div>
+            <span class="text-xs muted">{{ formatDateTime(user.createdAt) }}</span>
 
-          <div class="table-actions">
-            <button v-if="canManageUsers" class="btn btn-quiet btn-sm" @click="openEditForm(user)">
-              编辑
-            </button>
-            <button v-if="canManageUsers && user.username !== currentUser.username" class="btn btn-danger-quiet btn-sm"
-              @click="requestDelete(user)">
-              删除
-            </button>
+            <div class="table-actions">
+              <button v-if="canManageUsers" class="btn btn-quiet btn-sm" @click="openEditForm(user)">
+                编辑
+              </button>
+              <button v-if="canManageUsers && user.username !== currentUser.username"
+                class="btn btn-danger-quiet btn-sm" @click="requestDelete(user)">
+                删除
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
     <EmptyState v-else-if="!loading && !loadError" icon="user" title="还没有账号" description="添加管理员、操作员或观看员，并分配最小必要权限。">
       <button v-if="canManageUsers" type="button" class="btn btn-primary btn-sm empty-action" @click="openCreateForm">
         添加用户
@@ -328,6 +329,6 @@ onMounted(() => {
     <ConfirmDialog :open="pendingDelete !== null" title="确认删除用户"
       :message="pendingDelete ? `确定要删除用户“${pendingDelete.username}”吗？此操作无法撤销。` : ''" confirm-label="确认删除" tone="danger"
       @cancel="pendingDelete = null" @confirm="confirmDelete" />
-  </div>
+    </div>
   </div>
 </template>

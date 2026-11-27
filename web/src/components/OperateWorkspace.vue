@@ -196,9 +196,9 @@ function receiptLabel(status: CommandReceipt['status']) {
 
       <main class="operate-main">
         <EmptyState v-if="!rooms.length" icon="room" title="还没有教室" description="先由管理员创建教室并接入中控，之后才能下发指令。">
-          <button v-if="canManage" type="button" class="btn btn-primary empty-action"
+          <button v-if="canManage" type="button" class="btn btn-outline empty-action"
             @click="emit('openSettings', 'rooms', '')">
-            前往配置
+            去添加教室
           </button>
         </EmptyState>
 

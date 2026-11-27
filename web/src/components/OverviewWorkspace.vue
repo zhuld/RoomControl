@@ -448,7 +448,7 @@ async function toggleTaskState(task: ScheduleGroup) {
         </div>
         <EmptyState v-else icon="calendar" title="没有已启用的自动任务"
           :description="canOperate ? '进入配置与接入 · 自动任务，为教室控制点安排一次性或每周计划。' : '管理员尚未安排自动任务。'">
-          <button v-if="canOperate" type="button" class="btn btn-outline btn-sm empty-action"
+          <button v-if="canOperate" type="button" class="btn btn-primary btn-sm empty-action"
             @click="emit('openAutomation')">
             创建任务
           </button>
@@ -485,7 +485,7 @@ async function toggleTaskState(task: ScheduleGroup) {
         </div>
       </div>
       <EmptyState v-else icon="bolt" title="还没有手动任务" description="进入配置与接入 · 手动任务，把多间教室的同名控制点聚合为一个总览按钮。">
-        <button type="button" class="btn btn-outline btn-sm empty-action" @click="emit('openSettings', 'manual-tasks')">
+        <button type="button" class="btn btn-primary btn-sm empty-action" @click="emit('openSettings', 'manual-tasks')">
           创建手动任务
         </button>
       </EmptyState>
