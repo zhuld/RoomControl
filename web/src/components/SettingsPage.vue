@@ -34,6 +34,7 @@ import {
 } from '../types'
 import AutomationWorkspace from './AutomationWorkspace.vue'
 import BrandLogo from './BrandLogo.vue'
+import ConfigTransferPanel from './ConfigTransferPanel.vue'
 import ManualTasksWorkspace from './ManualTasksWorkspace.vue'
 import ConfirmDialog from './ui/ConfirmDialog.vue'
 import EmptyState from './ui/EmptyState.vue'
@@ -68,6 +69,7 @@ const emit = defineEmits<{
   sectionChanged: [section: SettingsSection]
   automationChanged: []
   manualTasksChanged: []
+  configImported: []
 }>()
 
 interface SetupStep {
@@ -229,6 +231,10 @@ const setupSteps = computed<SetupStep[]>(() => {
     },
     users: {
       summary: '管理员 / 操作员 / 观看员',
+      done: true,
+    },
+    transfer: {
+      summary: 'JSON 备份与迁移',
       done: true,
     },
     appearance: {
@@ -1011,6 +1017,9 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           </header>
 
           <UsersPage v-if="activeSection === 'users' && currentUser" :current-user="currentUser"
+            @notify="emit('notify', $event)" />
+
+          <ConfigTransferPanel v-if="activeSection === 'transfer'" @imported="emit('configImported')"
             @notify="emit('notify', $event)" />
 
           <AutomationWorkspace v-if="activeSection === 'automation'" :rooms="rooms" :schedules="schedules"

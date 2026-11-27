@@ -2,7 +2,7 @@
 
 RoomControl 是面向单站点内网部署的教室/会议室集中控制平台。首期包含教室与 CIP 控制点管理、状态快照、网页指令、实时状态推送、自动任务与手动任务；真实中控硬件及摄像头功能暂不在首期范围内。
 
-网页分为**控制台**与**配置**两部分：控制台用于查看数字状态、发送脉冲并触发展示在系统总览上的手动任务；配置页按接入顺序拆分为「站点设置」「楼栋与楼层」「教室管理」「中控与设备」「自动任务」「手动任务」「用户与权限」，另提供对三种角色开放的「外观与显示」，可从左侧「配置与接入」进入后按步骤切换。其中「外观与显示」维护主题与显示密度，管理员、操作员和观看员均可调整；品牌标识（左上角 Logo 与名称）、教室（含楼栋与楼层）、中控连接、数字控制点映射、定时与手动任务在对应的配置子页面维护；用户管理用于创建账号并分配管理员/操作员/观看员角色。
+网页分为**控制台**与**配置**两部分：控制台用于查看数字状态、发送脉冲并触发展示在系统总览上的手动任务；配置页按接入顺序拆分为「站点设置」「楼栋与楼层」「教室管理」「中控与设备」「自动任务」「手动任务」「用户与权限」「导入与导出」，另提供对三种角色开放的「外观与显示」，可从左侧「配置与接入」进入后按步骤切换。其中「外观与显示」维护主题与显示密度，管理员、操作员和观看员均可调整；品牌标识（左上角 Logo 与名称）、教室（含楼栋与楼层）、中控连接、数字控制点映射、定时与手动任务在对应的配置子页面维护；用户管理用于创建账号并分配管理员/操作员/观看员角色。
 
 ## 架构
 
@@ -148,6 +148,7 @@ REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健
 | 自动任务 | `GET /api/schedules`、`GET /api/schedules/{scheduleId}/executions`；`POST /api/schedules`、`PUT/DELETE /api/schedules/groups/{groupId}`、`POST /api/schedules/groups/{groupId}/pause`、`POST /api/schedules/groups/{groupId}/resume`、`DELETE /api/schedules/{scheduleId}` | 读取任意登录用户 / 写操作需操作员或管理员 |
 | 手动任务 | `GET /api/manual-tasks`、`GET /api/manual-tasks/{taskId}/executions`；`POST /api/manual-tasks`、`PUT/DELETE /api/manual-tasks/{taskId}`、`POST /api/manual-tasks/{taskId}/run` | 读取任意登录用户 / 写操作与执行需操作员或管理员 |
 | 操作日志 | `GET /api/logs`（按 `category`、`from`/`to` 筛选，不设固定条数上限）、`GET/PUT /api/logs/settings`（自动清理保留天数） | 查看任意登录用户；保留设置仅管理员 |
+| 配置导入导出 | `GET /api/config/export`、`POST /api/config/import` | 管理员 |
 | 实时推送 | `/hubs/control`，客户端调用 `JoinRoom(roomId)` / `LeaveRoom(roomId)`；接收 `joinStateChanged`、`controllerStatusChanged` | 任意登录用户 |
 
 界面相关的关键约定：
@@ -157,6 +158,7 @@ REST 接口位于 `/api`，实时推送使用 SignalR（`/hubs/control`），健
 - 手动任务把多间教室的同名控制点聚合为一个系统总览按钮；点击后逐个目标教室下发一次脉冲，单间失败不影响其余教室，结果按次保存为执行摘要。任务可配置执行前二次确认，且与自动任务一样不受使能 Join 限制。总览按钮的排列顺序可在「配置与接入 · 手动任务」拖动任务名称调整，顺序保存在服务端。
 - 中控上报的状态变化通过 `joinStateChanged` 增量推送，连接上下线通过 `controllerStatusChanged` 推送；`GET /api/rooms` 返回当前快照，刷新页面后应重新拉取。推送只覆盖变化且不补发断线期间的事件，前端在加入分组、自动重连成功以及页面回到前台时会按快照校准；自动重连放弃后仍会持续重试，不会停留在断线前的画面。
 - 操作日志按 `authentication`、`configuration`、`control`、`schedule`、`state`、`connection` 分类，记录可读操作对象，不保存请求正文或密码；认证类记录的对象栏为来源 IP。
+- 「导入与导出」把站点品牌、楼栋楼层、教室、中控、控制点、自动任务与手动任务导出为一个 JSON 文件（按名称引用，可用于其他实例）；导入为**整体替换**，账号、操作日志与任务执行记录不参与导入导出，导入前需管理员二次确认。
 
 ### 权限与会话安全
 

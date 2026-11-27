@@ -6,6 +6,7 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -152,6 +153,7 @@ builder.Services.AddSingleton<IControlCommandSender>(services =>
 builder.Services.AddHostedService(services => services.GetRequiredService<ControllerConnectionService>());
 builder.Services.AddSingleton<ScheduleService>();
 builder.Services.AddSingleton<ManualTaskService>();
+builder.Services.AddSingleton<ConfigTransferService>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -164,6 +166,19 @@ var app = builder.Build();
 
 // 先解析可信代理头，后续限流和 Cookie 安全策略才能读取原始客户端信息。
 app.UseForwardedHeaders();
+
+// 配置文件包含 Logo 与全部教室，可能超过全局 1 MB 的请求体上限；
+// 必须在端点绑定请求体之前放宽限制，因此放在中间件而不是端点过滤器里。
+app.UseWhen(
+    context => context.Request.Path.Equals("/api/config/import", StringComparison.OrdinalIgnoreCase),
+    branch => branch.Use(async (context, next) =>
+    {
+        if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } feature)
+        {
+            feature.MaxRequestBodySize = 16 * 1024 * 1024;
+        }
+        await next();
+    }));
 
 // 统一附加基础安全响应头；页面不嵌入 iframe，也不依赖外部引荐来源。
 // 通过 OnStarting 写入，确保异常处理清空响应后仍会带上这些头。
@@ -193,6 +208,8 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
     var (statusCode, title) = exception switch
     {
         KeyNotFoundException => (StatusCodes.Status404NotFound, "Not found"),
+        // 请求体读取失败（格式错误或超过大小上限）由框架以 BadHttpRequestException 抛出。
+        BadHttpRequestException badRequest => (badRequest.StatusCode, "Invalid request"),
         ArgumentException => (StatusCodes.Status400BadRequest, "Invalid request"),
         ControllerUnavailableException => (StatusCodes.Status503ServiceUnavailable, "Controller unavailable"),
         InvalidOperationException => (StatusCodes.Status409Conflict, "Operation cannot be completed"),
@@ -206,10 +223,15 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
 
     context.Response.StatusCode = statusCode;
     // 除真正的服务端故障外都返回中文 detail；503（如中控离线）属于可预期状态，保留原因供界面提示。
-    await Results.Problem(
-        statusCode: statusCode,
-        title: title,
-        detail: statusCode == StatusCodes.Status500InternalServerError ? null : exception?.Message)
+    var detail = exception switch
+    {
+        _ when statusCode == StatusCodes.Status500InternalServerError => null,
+        BadHttpRequestException => statusCode == StatusCodes.Status413PayloadTooLarge
+            ? "请求内容过大。"
+            : "请求内容格式不正确。",
+        _ => exception?.Message
+    };
+    await Results.Problem(statusCode: statusCode, title: title, detail: detail)
         .ExecuteAsync(context);
 }));
 
@@ -1329,6 +1351,20 @@ api.MapGet("/manual-tasks/{taskId:guid}/executions", async (
     var executions = await service.GetExecutionsAsync(taskId, cancellationToken);
     return Results.Ok(executions);
 });
+
+// 配置导入导出仅管理员可用；文件包含业务配置，不含账号与操作日志。
+api.MapGet("/config/export", async (
+    ConfigTransferService service,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await service.ExportAsync(cancellationToken))
+).RequireAuthorization("AdminOnly");
+
+api.MapPost("/config/import", async (
+    ConfigDocument? document,
+    ConfigTransferService service,
+    CancellationToken cancellationToken) =>
+    Results.Ok(await service.ReplaceAsync(document, cancellationToken))
+).RequireAuthorization("AdminOnly");
 
 // SignalR 与 REST 共用 Cookie 会话；未知 API 路径返回 404，其余未匹配请求交给单页应用入口。
 app.MapHub<ControlHub>("/hubs/control").RequireAuthorization();

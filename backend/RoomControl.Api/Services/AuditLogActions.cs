@@ -45,6 +45,7 @@ public static partial class AuditLogActions
         ["DELETE /api/manual-tasks/{taskId}"] = "删除手动任务",
         ["PUT /api/manual-tasks/order"] = "调整手动任务顺序",
         ["POST /api/manual-tasks/{taskId}/run"] = "执行手动任务",
+        ["POST /api/config/import"] = "导入配置",
     };
 
     public static string NormalizeRoute(string route) => RouteConstraint().Replace(route, "{$1}");

@@ -19,9 +19,10 @@
 - [13. 自动任务](#13-自动任务)
 - [14. 手动任务](#14-手动任务)
 - [15. 操作日志](#15-操作日志)
-- [16. 实时推送（SignalR）](#16-实时推送signalr)
-- [17. 数据模型](#17-数据模型)
-- [18. 业务规则与生命周期](#18-业务规则与生命周期)
+- [16. 配置导入导出](#16-配置导入导出)
+- [17. 实时推送（SignalR）](#17-实时推送signalr)
+- [18. 数据模型](#18-数据模型)
+- [19. 业务规则与生命周期](#19-业务规则与生命周期)
 
 ## 1. 基础约定
 
@@ -172,6 +173,8 @@
 | GET | `/api/logs` | 已登录 | 操作日志 |
 | GET | `/api/logs/settings` | admin | 读取日志保留天数 |
 | PUT | `/api/logs/settings` | admin | 更新日志保留天数并立即清理 |
+| GET | `/api/config/export` | admin | 导出全部业务配置（不含账号与日志） |
+| POST | `/api/config/import` | admin | 导入配置文件并整体替换现有配置 |
 | WebSocket | `/hubs/control` | 已登录 | SignalR 实时状态推送 |
 
 ## 5. 运行状态与站点品牌
@@ -946,7 +949,82 @@
 - 响应返回保存后的值，形如 `{ "retentionDays": 30 }`。
 - 清理任务每天凌晨 3 点（服务器本地时间）执行，应用启动时也会清理一次；保留天数在「配置与接入 · 站点设置」中设置。
 
-## 16. 实时推送（SignalR）
+## 16. 配置导入导出
+
+备份或迁移整站配置。导出与导入只包含业务配置：站点品牌、楼栋与楼层、教室、中控、控制点、自动任务与手动任务；**不包含账号、操作日志与任务执行记录**。
+
+### `GET /api/config/export`
+
+仅 `admin`。返回完整配置文档，可直接保存为 `.json` 文件。
+
+```json
+{
+  "version": 1,
+  "exportedAtUtc": "2026-11-27T05:33:10+00:00",
+  "branding": { "displayName": "RoomControl", "subtitle": "教室中控平台", "logoDataUrl": null },
+  "buildings": [{ "name": "A 栋", "floors": ["1F", "2F"] }],
+  "rooms": [
+    {
+      "name": "A101",
+      "building": "A 栋",
+      "floor": "1F",
+      "controller": {
+        "adapterType": "crestron-cip",
+        "host": "10.0.0.10",
+        "port": 41794,
+        "ipid": 3,
+        "enabled": true,
+        "joins": [
+          { "name": "开机", "sendJoinNumber": 1, "stateJoinNumber": 2, "enableJoinNumber": 0, "showConfirmationPopup": true }
+        ]
+      }
+    }
+  ],
+  "schedules": [
+    {
+      "name": "工作日开机",
+      "kind": "Weekly",
+      "runAtUtc": null,
+      "weekdayMask": 31,
+      "localTime": "08:00:00",
+      "enabled": true,
+      "targets": [{ "building": "A 栋", "floor": "1F", "room": "A101", "join": "开机" }]
+    }
+  ],
+  "manualTasks": [
+    {
+      "name": "一键开机",
+      "confirmBeforeRun": true,
+      "targets": [{ "building": "A 栋", "floor": "1F", "room": "A101", "join": "开机" }]
+    }
+  ]
+}
+```
+
+- 教室与任务目标均以**名称**引用，不含数据库 ID，因此可以导入到另一个实例。
+- `rooms[].controller.joins` 的数组顺序即控制台按钮顺序。
+- `schedules` 表示任务**组**：每条记录对应共享 `groupId` 的同一计划，`targets` 列出覆盖的教室控制点；组内全部目标启用时 `enabled` 为 `true`。
+- 无法解析控制点的旧任务目标不会写入导出文件。
+
+### `POST /api/config/import`
+
+仅 `admin`。请求体为 `GET /api/config/export` 返回的文档。
+
+- **整体替换**：先清空现有楼栋、楼层、教室、中控、控制点、自动任务与手动任务（含其执行记录），再按文件重建；`siteSettings` 只覆盖名称、副标题与 Logo，日志保留天数保持不变。账号与操作日志不受影响。
+- `version` 必须为 `1`，否则返回 `400`。
+- 逐项校验名称长度、Join 范围、位置引用、同名控制点等规则；任一项不合法时返回 `400`，且不修改数据库。
+- 已过期的一次性任务以**停用**状态导入，不会在导入后立即补发。
+- 导入成功后重建 Quartz 调度，并由后台连接服务按最新配置重新连接中控。
+- 请求体上限放宽到 16 MB，可容纳带 Logo 的完整配置。
+- 响应为导入后的数量摘要：
+
+```json
+{ "buildingCount": 1, "roomCount": 2, "controllerCount": 2, "joinCount": 2, "scheduleCount": 2, "manualTaskCount": 1 }
+```
+
+导入写入一条 `configuration` 分类的操作记录（动作「导入配置」）；界面上需管理员二次确认后才会提交。
+
+## 17. 实时推送（SignalR）
 
 - 地址：`/hubs/control`，使用与 REST 相同的 Cookie 会话。
 - 客户端只需加入关心的教室分组，服务端按分组广播，避免无关教室的状态推送到所有终端。
@@ -996,7 +1074,7 @@
 
 因此客户端在首次加入分组、重新加入分组以及从后台恢复时，应调用 `GET /api/rooms` 校准中控在线状态与控制点快照；自动重连多次失败后也应继续重试连接，避免界面长期停留在旧状态。
 
-## 17. 数据模型
+## 18. 数据模型
 
 本节描述接口字段（DTO）。数据库物理表结构、索引、级联删除与列名映射见 [docs/database.md](./database.md)。
 
@@ -1057,7 +1135,7 @@
 | `isActive` | bool | 是否启用 |
 | `createdAt` | datetime | 创建时间（UTC） |
 
-## 18. 业务规则与生命周期
+## 19. 业务规则与生命周期
 
 - **接入顺序**：站点品牌 → 楼栋/楼层 → 教室 → 中控 → 控制点 → 自动任务 → 手动任务。教室只能引用已定义的楼栋与楼层；重命名楼栋/楼层会同步更新教室快照，仍有教室时禁止删除楼栋/楼层。
 - **一台中控对应一间教室**：唯一约束；接入第二台中控返回 `409`。

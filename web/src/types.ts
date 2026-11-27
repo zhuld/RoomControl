@@ -130,6 +130,13 @@ export const settingsSections = [
     description: '管理员可管理配置与账号，操作员可下发指令，观看员仅可查看状态。',
   },
   {
+    value: 'transfer',
+    eyebrow: '备份与迁移',
+    title: '导入与导出',
+    icon: 'transfer',
+    description: '导出全部配置为 JSON 文件，或导入文件整体恢复配置；账号与操作日志不参与导入导出。',
+  },
+  {
     value: 'appearance',
     eyebrow: '显示偏好',
     title: '外观与显示',

@@ -29,5 +29,14 @@ public sealed class QuartzSchedulerFixture : IDisposable
             services.GetRequiredService<ISchedulerFactory>(),
             services.GetRequiredService<ILogger<ScheduleService>>());
 
+    public ConfigTransferService CreateConfigTransferService(
+        IDbContextFactory<ControlDbContext> contextFactory,
+        ScheduleService scheduleService) =>
+        new(
+            contextFactory,
+            scheduleService,
+            services.GetRequiredService<ISchedulerFactory>(),
+            services.GetRequiredService<ILogger<ConfigTransferService>>());
+
     public void Dispose() => services.Dispose();
 }

@@ -556,6 +556,12 @@ async function handleRoomsChanged() {
   }
 }
 
+// 导入会同时替换站点品牌与全部位置、教室和任务，需要刷新整个快照。
+async function handleConfigImported() {
+  await loadBranding()
+  await handleRoomsChanged()
+}
+
 function handleBrandingSaved(saved: Branding) {
   branding.value = saved
   applyBrandingTitle()
@@ -854,7 +860,8 @@ onBeforeUnmount(() => {
           :automation-target="automationTarget" :now="currentDateTime" @rooms-changed="handleRoomsChanged"
           @branding-saved="handleBrandingSaved" @theme-changed="handleThemeChanged" @density-changed="density = $event"
           @notify="handleSettingsNotify" @automation-changed="handleAutomationChanged"
-          @manual-tasks-changed="handleManualTasksChanged" @section-changed="handleSettingsSection" />
+          @manual-tasks-changed="handleManualTasksChanged" @section-changed="handleSettingsSection"
+          @config-imported="handleConfigImported" />
 
         <LogsPage v-else-if="workspace === 'audit'" />
       </div>

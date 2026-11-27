@@ -1520,6 +1520,27 @@
   flex-basis: 100%;
 }
 
+/* 配置导入导出摘要 */
+.config-summary {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-subtle);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.config-summary ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 .location-list {
   display: flex;
   flex-direction: column;
