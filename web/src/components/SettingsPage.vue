@@ -116,7 +116,9 @@ const logRetentionError = ref('')
 
 const buildings = ref<BuildingOption[]>([])
 const controllerTypes = ref<ControllerTypeOption[]>([])
-const buildingForm = reactive({ name: '' })
+// 与后端 Program.cs 的 MaxAutoFloors 保持一致。
+const MAX_AUTO_FLOORS = 100
+const buildingForm = reactive({ name: '', floorCount: 0 })
 const editingBuildingId = ref('')
 const buildingEditName = ref('')
 const floorDrafts = reactive<Record<string, string>>({})
@@ -156,6 +158,11 @@ const sortedRooms = computed(() => sortRoomsByLocation(props.rooms))
 const duplicateBuildingName = computed(() => {
   const name = buildingForm.name.trim()
   return Boolean(name) && buildings.value.some((building) => building.name === name)
+})
+
+const floorCountInvalid = computed(() => {
+  const count = Number(buildingForm.floorCount)
+  return !Number.isInteger(count) || count < 0 || count > MAX_AUTO_FLOORS
 })
 
 function hasDuplicateFloor(building: BuildingOption) {
@@ -544,11 +551,23 @@ async function createBuilding() {
     emit('notify', { message: `楼栋「${name}」已存在，请使用其他名称。`, isError: true })
     return
   }
+  if (floorCountInvalid.value) {
+    emit('notify', { message: `楼层数需为 0–${MAX_AUTO_FLOORS} 的整数。`, isError: true })
+    return
+  }
+
+  const floorCount = Number(buildingForm.floorCount)
   await run(async () => {
-    await request('/api/buildings', { method: 'POST', body: JSON.stringify({ name }) })
+    await request('/api/buildings', {
+      method: 'POST',
+      body: JSON.stringify({ name, floorCount }),
+    })
     buildingForm.name = ''
+    buildingForm.floorCount = 0
     await loadBuildings()
-  }, `楼栋「${name}」已添加`)
+  }, floorCount > 0
+    ? `楼栋「${name}」已添加，并自动创建 ${floorCount} 个楼层`
+    : `楼栋「${name}」已添加`)
 }
 
 function startEditBuilding(building: BuildingOption) {
@@ -1134,8 +1153,16 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <form class="location-add" @submit.prevent="createBuilding">
               <input name="buildingName" v-model="buildingForm.name" class="input" placeholder="新增楼栋，如：A 栋"
                 maxlength="60" required />
-              <button class="btn btn-primary" :disabled="busy || duplicateBuildingName">添加楼栋</button>
+              <label class="floor-count-field" title="添加楼栋时自动创建楼层，沿用站点现有命名；0 表示稍后手动添加">
+                楼层数
+                <input name="buildingFloorCount" v-model.number="buildingForm.floorCount" class="input floor-count-input"
+                  type="number" min="0" :max="MAX_AUTO_FLOORS" step="1" aria-label="自动创建的楼层数" />
+              </label>
+              <button class="btn btn-primary" :disabled="busy || duplicateBuildingName || floorCountInvalid">
+                添加楼栋
+              </button>
               <span v-if="duplicateBuildingName" class="form-note is-error">已存在同名楼栋，请换一个名称</span>
+              <span v-else-if="floorCountInvalid" class="form-note is-error">楼层数需为 0–{{ MAX_AUTO_FLOORS }} 的整数</span>
             </form>
 
             <div v-if="buildings.length" class="location-list">

@@ -18,6 +18,9 @@ using RoomControl.Api.Integrations;
 using RoomControl.Api.Models;
 using RoomControl.Api.Services;
 
+// 创建楼栋时批量生成楼层的上限，前端保持一致。
+const int MaxAutoFloors = 100;
+
 var builder = WebApplication.CreateBuilder(args);
 // 所有接口均为小体积 JSON；限制请求体大小，避免超长正文占用内存和 CPU。
 builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 1024 * 1024);
@@ -544,17 +547,45 @@ api.MapGet("/buildings", async (ControlDbContext db, CancellationToken cancellat
 });
 
 api.MapPost("/buildings", async (
-    LocationNameRequest request,
+    CreateBuildingRequest request,
     ControlDbContext db,
     CancellationToken cancellationToken) =>
 {
     var name = NormalizeLocationName(request.Name, "楼栋");
+    if (request.FloorCount is < 0 or > MaxAutoFloors)
+    {
+        throw new ArgumentException($"楼层数需在 0–{MaxAutoFloors} 之间。");
+    }
+
     if (await db.Buildings.AnyAsync(building => building.Name == name, cancellationToken))
     {
         throw new InvalidOperationException($"楼栋「{name}」已存在。");
     }
 
     var building = new Building { Name = name };
+    if (request.FloorCount > 0)
+    {
+        // 沿用站点已有楼层的命名习惯；新站点默认使用「1楼…N楼」。
+        var floorNameSample = await db.Floors
+            .Select(floor => floor.Name)
+            .FirstOrDefaultAsync(
+                floorName => floorName.EndsWith("楼") || floorName.EndsWith("层")
+                    || floorName.EndsWith("F") || floorName.EndsWith("f"),
+                cancellationToken);
+        var floorSuffix = floorNameSample switch
+        {
+            null => "楼",
+            _ when floorNameSample.EndsWith("楼") => "楼",
+            _ when floorNameSample.EndsWith("层") => "层",
+            _ => "F",
+        };
+
+        for (var floorNumber = 1; floorNumber <= request.FloorCount; floorNumber++)
+        {
+            building.Floors.Add(new Floor { Name = $"{floorNumber}{floorSuffix}" });
+        }
+    }
+
     db.Buildings.Add(building);
     await db.SaveChangesAsync(cancellationToken);
     return Results.Created($"/api/buildings/{building.Id}", new { building.Id, building.Name });

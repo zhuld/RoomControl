@@ -11,6 +11,9 @@ public sealed record CreateRoomRequest(string Name, string? Building, string? Fl
 /// <summary>更新站点名称、副标题和可选的 Data URL Logo。</summary>
 public sealed record UpdateBrandingRequest(string DisplayName, string Subtitle, string? LogoDataUrl);
 
+/// <summary>创建楼栋，可选地批量创建楼层（沿用站点现有命名）。</summary>
+public sealed record CreateBuildingRequest(string Name, int FloorCount = 0);
+
 /// <summary>创建或重命名楼栋/楼层的请求。</summary>
 public sealed record LocationNameRequest(string Name);
 

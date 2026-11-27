@@ -370,10 +370,10 @@
 仅 `admin`。
 
 ```json
-{ "name": "A楼" }
+{ "name": "A楼", "floorCount": 5 }
 ```
 
-名称必填、≤ 60 字符、全局唯一。响应：`201 Created`，`Location: /api/buildings/{id}`，返回 `{ id, name }`。重名返回 `409`。
+名称必填、≤ 60 字符、全局唯一。`floorCount` 可选，取值 0–100；大于 0 时在同一事务中自动创建楼层，省略或为 0 时不创建楼层。自动楼层沿用站点已有命名习惯（如 `1楼`、`1层` 或 `1F`），新站点默认 `1楼`…`N楼`。响应：`201 Created`，`Location: /api/buildings/{id}`，返回 `{ id, name }`。重名返回 `409`，楼层数越界返回 `400`。
 
 ### `PUT /api/buildings/{buildingId}`
 
