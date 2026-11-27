@@ -66,6 +66,51 @@ public sealed class ManualTaskTests
     }
 
     [Fact]
+    public async Task TaskNamesMustBeUniqueWhenCreatingAndUpdating()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var first = await harness.Service.CreateAsync(
+            [harness.MappingIds[0]],
+            "一键上课",
+            true,
+            CancellationToken.None);
+        var second = await harness.Service.CreateAsync(
+            [harness.MappingIds[1]],
+            "一键下课",
+            true,
+            CancellationToken.None);
+
+        var duplicate = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Service.CreateAsync(
+                [harness.MappingIds[2]],
+                " 一键上课 ",
+                false,
+                CancellationToken.None));
+        Assert.Contains("已存在", duplicate.Message);
+
+        var renameConflict = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Service.UpdateAsync(
+                second.Id,
+                [harness.MappingIds[1]],
+                "一键上课",
+                true,
+                CancellationToken.None));
+        Assert.Contains("已存在", renameConflict.Message);
+
+        // 保存时沿用自身名称不受唯一性限制。
+        var updated = await harness.Service.UpdateAsync(
+            first.Id,
+            [harness.MappingIds[0]],
+            "一键上课",
+            false,
+            CancellationToken.None);
+        Assert.Equal("一键上课", updated.Name);
+
+        var tasks = await harness.Service.GetAllAsync(CancellationToken.None);
+        Assert.Equal(2, tasks.Count);
+    }
+
+    [Fact]
     public async Task RunSendsPulseToEveryTargetAndStoresExecutionSummary()
     {
         await using var harness = await Harness.CreateAsync();

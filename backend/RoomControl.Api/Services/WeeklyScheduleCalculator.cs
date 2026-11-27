@@ -39,6 +39,6 @@ public static class WeeklyScheduleCalculator
             }
         }
 
-        throw new InvalidOperationException("Could not calculate the next weekly schedule occurrence.");
+        throw new InvalidOperationException("无法计算下一次每周任务执行时间。");
     }
 }

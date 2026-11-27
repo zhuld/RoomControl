@@ -56,7 +56,7 @@ public sealed class CrestronCipAdapterTests
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(
             () => adapter.ConnectAsync(CancellationToken.None));
-        Assert.Contains("Only CIP Raw", error.Message);
+        Assert.Contains("仅支持 CIP Raw", error.Message);
     }
 
     private static Controller CreateController(int port) => new()

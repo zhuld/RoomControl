@@ -65,6 +65,13 @@ const form = reactive({
 
 const canOperate = computed(() => props.currentUser?.role !== 'viewer')
 
+// 手动任务名称唯一；编辑时排除自身，避免未改动的名称被判为冲突。
+const duplicateTaskName = computed(() => {
+  const name = form.name.trim()
+  if (!name) return null
+  return props.manualTasks.find((task) => task.id !== form.editingId && task.name === name) ?? null
+})
+
 const schedulableRooms = computed(() =>
   props.rooms.filter((room) => room.controller && room.controller.joins.length > 0),
 )
@@ -200,6 +207,13 @@ async function submitForm() {
   }
   if (!form.name.trim()) {
     emit('notify', { message: '请填写任务名称。', isError: true })
+    return
+  }
+  if (duplicateTaskName.value) {
+    emit('notify', {
+      message: `手动任务「${duplicateTaskName.value.name}」已存在，请使用其他名称。`,
+      isError: true,
+    })
     return
   }
 
@@ -518,6 +532,7 @@ function executionLabel(status: string) {
                 任务名称
                 <input name="manualTaskName" v-model="form.name" class="input" maxlength="120" placeholder="例如：全场上课"
                   required />
+                <span v-if="duplicateTaskName" class="form-note is-error">已存在同名任务，请换一个名称</span>
               </label>
 
               <label class="checkbox">
@@ -530,7 +545,7 @@ function executionLabel(status: string) {
                 中控离线会记为失败，失败原因保存在执行记录中。
               </p>
               <div class="form-actions is-start">
-                <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">
+                <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length || !!duplicateTaskName">
                   {{ formBusy ? '正在保存…' : form.mode === 'edit' ? '保存' : '创建' }}
                 </button>
                 <button v-if="form.mode === 'edit'" type="button" class="btn btn-quiet" @click="closeForm">

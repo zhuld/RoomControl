@@ -131,6 +131,10 @@ a:hover {
   color: var(--text-muted);
 }
 
+.text-error {
+  color: var(--danger-text);
+}
+
 .text-sm {
   font-size: var(--text-sm);
 }

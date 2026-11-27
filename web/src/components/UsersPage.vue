@@ -46,6 +46,13 @@ const selectedRole = computed(() =>
   userRoles.find((role) => role.value === (editingId.value ? editForm.role : form.role)),
 )
 
+// 新增用户时用户名必须唯一，编辑时用户名不可修改。
+const duplicateUsername = computed(() => {
+  if (editingId.value) return ''
+  const name = form.username.trim()
+  return name && users.value.some((user) => user.username === name) ? name : ''
+})
+
 // 两组表单共用模板输入项，计算属性把读写路由到当前编辑模式。
 const editingUsername = computed({
   get: () => (editingId.value ? editForm.username : form.username),
@@ -123,6 +130,10 @@ async function saveUser() {
 async function createUser() {
   if (!form.username.trim() || !form.password) {
     emit('notify', { message: '用户名和密码均为必填项。', isError: true })
+    return
+  }
+  if (duplicateUsername.value) {
+    emit('notify', { message: `用户“${duplicateUsername.value}”已存在，请使用其他用户名。`, isError: true })
     return
   }
 
@@ -281,6 +292,7 @@ onMounted(() => {
               用户名
               <input name="username" autocomplete="off" v-model="editingUsername" class="input"
                 placeholder="例如：operator01" maxlength="60" :disabled="Boolean(editingId)" required />
+              <span v-if="duplicateUsername" class="form-note is-error">该用户名已存在，请换一个名称</span>
             </label>
             <label class="field">
               密码
@@ -305,7 +317,7 @@ onMounted(() => {
           <p v-else class="form-note">初始密码可在首次登录后由用户自行修改。</p>
           <div class="form-actions">
             <button type="button" class="btn btn-quiet" @click="closeForm">取消</button>
-            <button type="submit" class="btn btn-primary" :disabled="busy">
+            <button type="submit" class="btn btn-primary" :disabled="busy || Boolean(duplicateUsername)">
               {{ busy ? '保存中…' : '保存' }}
             </button>
           </div>

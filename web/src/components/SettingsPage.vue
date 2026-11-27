@@ -150,6 +150,30 @@ const copyTargetControllerIds = ref<string[]>([])
 
 const sortedRooms = computed(() => sortRoomsByLocation(props.rooms))
 
+// 新增楼栋、楼层、教室时先本地判重，避免提交后才收到 409。
+const duplicateBuildingName = computed(() => {
+  const name = buildingForm.name.trim()
+  return Boolean(name) && buildings.value.some((building) => building.name === name)
+})
+
+function hasDuplicateFloor(building: BuildingOption) {
+  const name = (floorDrafts[building.id] ?? '').trim()
+  return Boolean(name) && building.floors.some((floor) => floor.name === name)
+}
+
+const duplicateRoomName = computed(() => {
+  const name = roomForm.name.trim()
+  return Boolean(name) && props.rooms.some((room) =>
+    room.name === name && room.building === roomForm.building && room.floor === roomForm.floor)
+})
+
+const duplicateRoomEditName = computed(() => {
+  const name = roomEdit.name.trim()
+  return Boolean(name) && props.rooms.some((room) =>
+    room.id !== editingRoomId.value &&
+    room.name === name && room.building === roomEdit.building && room.floor === roomEdit.floor)
+})
+
 const totalFloorCount = computed(() =>
   buildings.value.reduce((sum, building) => sum + building.floors.length, 0),
 )
@@ -348,6 +372,22 @@ watch(
   { immediate: true },
 )
 
+// 发送 Join 在同一中控内唯一；编辑时排除当前控制点，提交前先给出冲突提示。
+const sendJoinConflict = computed(() =>
+  joinRows.value.find(
+    (join) => join.id !== joinDialogTargetId.value && join.sendJoinNumber === joinForm.sendJoinNumber,
+  ),
+)
+
+// 控制点名称同样在同一中控内唯一。
+const duplicateJoinName = computed(() => {
+  const name = joinForm.name.trim()
+  if (!name) return null
+  return joinRows.value.find(
+    (join) => join.id !== joinDialogTargetId.value && join.name === name,
+  ) ?? null
+})
+
 async function loadSetupData() {
   setupLoading.value = true
   setupLoadError.value = ''
@@ -494,6 +534,10 @@ function selectDensity(value: Density) {
 async function createBuilding() {
   const name = buildingForm.name.trim()
   if (!name) return
+  if (duplicateBuildingName.value) {
+    emit('notify', { message: `楼栋「${name}」已存在，请使用其他名称。`, isError: true })
+    return
+  }
   await run(async () => {
     await request('/api/buildings', { method: 'POST', body: JSON.stringify({ name }) })
     buildingForm.name = ''
@@ -530,6 +574,10 @@ async function deleteBuilding(building: BuildingOption) {
 async function createFloor(building: BuildingOption) {
   const name = (floorDrafts[building.id] ?? '').trim()
   if (!name) return
+  if (hasDuplicateFloor(building)) {
+    emit('notify', { message: `楼层「${name}」已存在，请使用其他名称。`, isError: true })
+    return
+  }
   await run(async () => {
     await request(`/api/buildings/${building.id}/floors`, {
       method: 'POST',
@@ -568,6 +616,13 @@ async function deleteFloor(building: BuildingOption, floor: FloorOption) {
 async function createRoom() {
   const name = roomForm.name.trim()
   if (!name) return
+  if (duplicateRoomName.value) {
+    emit('notify', {
+      message: `「${roomForm.building} · ${roomForm.floor}」已存在教室「${name}」，请使用其他名称。`,
+      isError: true,
+    })
+    return
+  }
   await run(async () => {
     await request('/api/rooms', { method: 'POST', body: JSON.stringify(roomForm) })
     roomForm.name = ''
@@ -583,6 +638,13 @@ function startEditRoom(room: Room) {
 }
 
 async function saveRoom(room: Room) {
+  if (duplicateRoomEditName.value) {
+    emit('notify', {
+      message: `「${roomEdit.building} · ${roomEdit.floor}」已存在教室「${roomEdit.name.trim()}」，请使用其他名称。`,
+      isError: true,
+    })
+    return
+  }
   await run(async () => {
     await request(`/api/rooms/${room.id}`, { method: 'PUT', body: JSON.stringify(roomEdit) })
     editingRoomId.value = ''
@@ -635,11 +697,21 @@ async function deleteController() {
   }, `中控「${controller.name}」已移除`)
 }
 
+function nextAvailableSendJoinNumber(): number {
+  const used = new Set(joinRows.value.map((join) => join.sendJoinNumber))
+  let candidate = 1
+  while (used.has(candidate) && candidate < 32768) {
+    candidate += 1
+  }
+  return candidate
+}
+
 function openCreateJoin() {
   joinDialogTargetId.value = ''
   joinForm.name = ''
-  joinForm.sendJoinNumber = 1
-  joinForm.stateJoinNumber = 2
+  // 默认使用下一个未占用的发送 Join，状态 Join 顺延一位。
+  joinForm.sendJoinNumber = nextAvailableSendJoinNumber()
+  joinForm.stateJoinNumber = Math.min(joinForm.sendJoinNumber + 1, 32768)
   joinForm.enableJoinNumber = 0
   joinForm.showConfirmationPopup = true
   joinDialogOpen.value = true
@@ -661,6 +733,7 @@ function closeJoinDialog() {
 }
 
 async function submitJoin() {
+  if (busy.value) return
   const controller = configuredRoom.value?.controller
   if (!controller) return
   const name = joinForm.name.trim()
@@ -672,6 +745,20 @@ async function submitJoin() {
   ) {
     emit('notify', {
       message: '请填写控制点名称，并确保发送、状态 Join 在 1 到 32768 之间；使能 Join 可为 0 或 1 到 32768。',
+      isError: true,
+    })
+    return
+  }
+  if (sendJoinConflict.value) {
+    emit('notify', {
+      message: `发送 Join ${joinForm.sendJoinNumber} 已被控制点「${sendJoinConflict.value.name}」占用，请改用其他发送 Join。`,
+      isError: true,
+    })
+    return
+  }
+  if (duplicateJoinName.value) {
+    emit('notify', {
+      message: `控制点「${duplicateJoinName.value.name}」已存在，请使用其他名称。`,
       isError: true,
     })
     return
@@ -1038,7 +1125,8 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
             <form class="location-add" @submit.prevent="createBuilding">
               <input name="buildingName" v-model="buildingForm.name" class="input" placeholder="新增楼栋，如：A 栋"
                 maxlength="60" required />
-              <button class="btn btn-primary" :disabled="busy">添加楼栋</button>
+              <button class="btn btn-primary" :disabled="busy || duplicateBuildingName">添加楼栋</button>
+              <span v-if="duplicateBuildingName" class="form-note is-error">已存在同名楼栋，请换一个名称</span>
             </form>
 
             <div v-if="buildings.length" class="location-list">
@@ -1082,8 +1170,10 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                   <form class="floor-add" @submit.prevent="createFloor(building)">
                     <input name="floorDraft" v-model="floorDrafts[building.id]" class="input" placeholder="新增楼层，如：5F"
                       maxlength="60" />
-                    <button class="btn btn-outline btn-sm" :disabled="busy || !floorDrafts[building.id]">添加</button>
+                    <button class="btn btn-outline btn-sm"
+                      :disabled="busy || !floorDrafts[building.id] || hasDuplicateFloor(building)">添加</button>
                   </form>
+                  <p v-if="hasDuplicateFloor(building)" class="form-note is-error floor-add-error">已存在同名楼层，请换一个名称</p>
                 </div>
               </article>
             </div>
@@ -1099,6 +1189,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                     教室名称
                     <input name="roomName" v-model="roomForm.name" class="input" placeholder="例如：A101" maxlength="120"
                       required />
+                    <span v-if="duplicateRoomName" class="form-note is-error">该楼栋楼层已存在同名教室</span>
                   </label>
                   <label class="field">
                     楼栋
@@ -1121,7 +1212,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                     </select>
                   </label>
                 </div>
-                <button class="btn btn-primary" :disabled="busy || !createFloorOptions.length" @click="createRoom"">添加教室</button>
+                <button class="btn btn-primary" :disabled="busy || !createFloorOptions.length || duplicateRoomName" @click="createRoom">添加教室</button>
               </div>
               <span v-if="!buildings.length" class="form-note is-warning">添加教室前，请先在「楼栋与楼层」中配置楼栋和楼层。</span>
                   <div v-if="sortedRooms.length">
@@ -1152,9 +1243,11 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
                               </option>
                             </select>
                           </div>
-                          <span class="text-xs muted">保存立即生效</span>
+                          <span class="text-xs" :class="duplicateRoomEditName ? 'text-error' : 'muted'">
+                            {{ duplicateRoomEditName ? '该楼栋楼层已存在同名教室' : '保存立即生效' }}
+                          </span>
                           <div class="room-row-actions">
-                            <button class="btn btn-primary btn-sm" :disabled="busy" @click="saveRoom(room)">保存</button>
+                            <button class="btn btn-primary btn-sm" :disabled="busy || duplicateRoomEditName" @click="saveRoom(room)">保存</button>
                             <button class="btn btn-quiet btn-sm" @click="editingRoomId = ''">取消</button>
                           </div>
                         </div>
@@ -1335,12 +1428,14 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
               命令名称
               <input name="join-name" autocomplete="off" v-model="joinForm.name" class="input" placeholder="例如：上课"
                 maxlength="120" required />
+              <span v-if="duplicateJoinName" class="form-note is-error">已存在同名控制点，请换一个名称</span>
             </label>
             <div class="join-number-fields">
               <label class="field">
                 发送 Join
                 <input name="sendJoinNumber" v-model.number="joinForm.sendJoinNumber" class="input" type="number"
                   min="1" max="32768" required />
+                <span v-if="sendJoinConflict" class="form-note is-error">已被「{{ sendJoinConflict.name }}」占用</span>
               </label>
               <label class="field">
                 状态接收
@@ -1360,7 +1455,7 @@ function isValidOptionalJoinNumber(value: unknown): boolean {
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-quiet" @click="closeJoinDialog">取消</button>
-            <button type="submit" class="btn btn-primary" :disabled="busy">{{ busy ? '保存中…' : '保存' }}</button>
+            <button type="submit" class="btn btn-primary" :disabled="busy || !!sendJoinConflict || !!duplicateJoinName">{{ busy ? '保存中…' : '保存' }}</button>
           </div>
         </form>
       </section>

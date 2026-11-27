@@ -204,10 +204,12 @@ app.UseExceptionHandler(errorApp => errorApp.Run(async context =>
     }
 
     context.Response.StatusCode = statusCode;
+    // 除真正的服务端故障外都返回中文 detail；503（如中控离线）属于可预期状态，保留原因供界面提示。
     await Results.Problem(
         statusCode: statusCode,
         title: title,
-        detail: statusCode >= 500 ? null : exception?.Message).ExecuteAsync(context);
+        detail: statusCode == StatusCodes.Status500InternalServerError ? null : exception?.Message)
+        .ExecuteAsync(context);
 }));
 
 // 部署包将 Vue 构建产物放在 wwwroot；静态页面仍使用同源 API 和 SignalR 地址。
@@ -333,7 +335,7 @@ api.MapGet("/logs", async (
 {
     if (!string.IsNullOrWhiteSpace(category) && !AuditLogCategories.Contains(category))
     {
-        throw new ArgumentException("Unsupported log category.");
+        throw new ArgumentException("不支持的日志分类。");
     }
     if (from is not null && to is not null && from > to)
     {
@@ -468,20 +470,20 @@ api.MapPut("/branding", async (
 {
     if (string.IsNullOrWhiteSpace(request.DisplayName) || request.DisplayName.Length > 60)
     {
-        throw new ArgumentException("Display name is required and must be at most 60 characters.");
+        throw new ArgumentException("站点名称必填且不能超过 60 个字符。");
     }
 
     var subtitle = request.Subtitle?.Trim() ?? string.Empty;
     if (subtitle.Length > 80)
     {
-        throw new ArgumentException("Subtitle must be at most 80 characters.");
+        throw new ArgumentException("副标题不能超过 80 个字符。");
     }
 
     var logo = string.IsNullOrWhiteSpace(request.LogoDataUrl) ? null : request.LogoDataUrl;
     if (logo is not null &&
         (logo.Length > 300_000 || !logo.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)))
     {
-        throw new ArgumentException("Logo must be an uploaded image no larger than 200 KB.");
+        throw new ArgumentException("Logo 必须是上传的图片且不能超过 200 KB。");
     }
 
     var settings = await db.SiteSettings
@@ -543,7 +545,7 @@ api.MapPut("/buildings/{buildingId:guid}", async (
 {
     var name = NormalizeLocationName(request.Name, "楼栋");
     var building = await db.Buildings.SingleOrDefaultAsync(item => item.Id == buildingId, cancellationToken)
-        ?? throw new KeyNotFoundException("Building was not found.");
+        ?? throw new KeyNotFoundException("楼栋不存在，可能已被删除。");
     if (building.Name == name)
     {
         return Results.NoContent();
@@ -571,7 +573,7 @@ api.MapDelete("/buildings/{buildingId:guid}", async (
 {
     var building = await db.Buildings.Include(item => item.Floors)
         .SingleOrDefaultAsync(item => item.Id == buildingId, cancellationToken)
-        ?? throw new KeyNotFoundException("Building was not found.");
+        ?? throw new KeyNotFoundException("楼栋不存在，可能已被删除。");
     var roomCount = await db.Rooms.CountAsync(room => room.Building == building.Name, cancellationToken);
     if (roomCount > 0)
     {
@@ -591,7 +593,7 @@ api.MapPost("/buildings/{buildingId:guid}/floors", async (
 {
     var name = NormalizeLocationName(request.Name, "楼层");
     var building = await db.Buildings.SingleOrDefaultAsync(item => item.Id == buildingId, cancellationToken)
-        ?? throw new KeyNotFoundException("Building was not found.");
+        ?? throw new KeyNotFoundException("楼栋不存在，可能已被删除。");
     if (await db.Floors.AnyAsync(
             floor => floor.BuildingId == buildingId && floor.Name == name,
             cancellationToken))
@@ -614,7 +616,7 @@ api.MapPut("/floors/{floorId:guid}", async (
     var name = NormalizeLocationName(request.Name, "楼层");
     var floor = await db.Floors.Include(item => item.Building)
         .SingleOrDefaultAsync(item => item.Id == floorId, cancellationToken)
-        ?? throw new KeyNotFoundException("Floor was not found.");
+        ?? throw new KeyNotFoundException("楼层不存在，可能已被删除。");
     if (floor.Name == name)
     {
         return Results.NoContent();
@@ -646,7 +648,7 @@ api.MapDelete("/floors/{floorId:guid}", async (
 {
     var floor = await db.Floors.Include(item => item.Building)
         .SingleOrDefaultAsync(item => item.Id == floorId, cancellationToken)
-        ?? throw new KeyNotFoundException("Floor was not found.");
+        ?? throw new KeyNotFoundException("楼层不存在，可能已被删除。");
     var roomCount = await db.Rooms.CountAsync(
         room => room.Building == floor.Building.Name && room.Floor == floor.Name,
         cancellationToken);
@@ -730,6 +732,16 @@ api.MapPost("/rooms", async (
 {
     var (name, building, floor) = NormalizeRoom(request);
     await EnsureLocationAsync(db, building, floor, cancellationToken);
+    // 同一楼栋同一楼层内教室名称唯一，避免列表中无法区分。
+    if (await db.Rooms.AnyAsync(room =>
+            room.Building == building &&
+            room.Floor == floor &&
+            room.Name == name,
+            cancellationToken))
+    {
+        throw new InvalidOperationException($"「{building} · {floor}」已存在教室「{name}」，请使用其他名称。");
+    }
+
     var room = new Room
     {
         Name = name,
@@ -750,7 +762,17 @@ api.MapPut("/rooms/{roomId:guid}", async (
     var (name, building, floor) = NormalizeRoom(request);
     await EnsureLocationAsync(db, building, floor, cancellationToken);
     var room = await db.Rooms.SingleOrDefaultAsync(item => item.Id == roomId, cancellationToken)
-        ?? throw new KeyNotFoundException("Room was not found.");
+        ?? throw new KeyNotFoundException("教室不存在，可能已被删除。");
+    if (await db.Rooms.AnyAsync(item =>
+            item.Id != roomId &&
+            item.Building == building &&
+            item.Floor == floor &&
+            item.Name == name,
+            cancellationToken))
+    {
+        throw new InvalidOperationException($"「{building} · {floor}」已存在教室「{name}」，请使用其他名称。");
+    }
+
     room.Name = name;
     room.Building = building;
     room.Floor = floor;
@@ -767,7 +789,7 @@ api.MapDelete("/rooms/{roomId:guid}", async (
 {
     var room = await db.Rooms.Include(item => item.Controller)
         .SingleOrDefaultAsync(item => item.Id == roomId, cancellationToken)
-        ?? throw new KeyNotFoundException("Room was not found.");
+        ?? throw new KeyNotFoundException("教室不存在，可能已被删除。");
     if (room.Controller is { } controller)
     {
         await scheduleService.DeleteForControllerAsync(controller.Id, cancellationToken);
@@ -790,10 +812,10 @@ api.MapPost("/rooms/{roomId:guid}/controller", async (
     var adapterType = ValidateControllerDefinition(request.AdapterType, request.Host, request.Port, request.Ipid);
     var room = await db.Rooms.Include(item => item.Controller)
         .SingleOrDefaultAsync(item => item.Id == roomId, cancellationToken)
-        ?? throw new KeyNotFoundException("Room was not found.");
+        ?? throw new KeyNotFoundException("教室不存在，可能已被删除。");
     if (room.Controller is not null)
     {
-        throw new InvalidOperationException("A controller is already configured for this room.");
+        throw new InvalidOperationException("该教室已接入中控，请先移除原有中控。");
     }
 
     var controller = new Controller
@@ -830,7 +852,7 @@ api.MapPut("/controllers/{controllerId:guid}", async (
     var adapterType = ValidateControllerDefinition(request.AdapterType, request.Host, request.Port, request.Ipid);
 
     var controller = await db.Controllers.SingleOrDefaultAsync(item => item.Id == controllerId, cancellationToken)
-        ?? throw new KeyNotFoundException("Controller was not found.");
+        ?? throw new KeyNotFoundException("中控不存在，可能已被删除。");
     controller.AdapterType = adapterType.Key;
     controller.Name = adapterType.DisplayName;
     controller.Host = request.Host.Trim();
@@ -849,7 +871,7 @@ api.MapDelete("/controllers/{controllerId:guid}", async (
     CancellationToken cancellationToken) =>
 {
     var controller = await db.Controllers.SingleOrDefaultAsync(item => item.Id == controllerId, cancellationToken)
-        ?? throw new KeyNotFoundException("Controller was not found.");
+        ?? throw new KeyNotFoundException("中控不存在，可能已被删除。");
 
     await scheduleService.DeleteForControllerAsync(controllerId, cancellationToken);
     await manualTaskService.DeleteForControllerAsync(controllerId, cancellationToken);
@@ -871,21 +893,33 @@ api.MapPost("/controllers/{controllerId:guid}/joins", async (
 
     if (!await db.Controllers.AnyAsync(item => item.Id == controllerId, cancellationToken))
     {
-        throw new KeyNotFoundException("Controller was not found.");
+        throw new KeyNotFoundException("中控不存在，可能已被删除。");
     }
+    var trimmedName = request.Name.Trim();
     if (await db.JoinMappings.AnyAsync(item =>
             item.ControllerId == controllerId &&
             item.Kind == JoinKind.Digital &&
-            item.SendJoinNumber == request.SendJoinNumber,
+            item.Name == trimmedName,
             cancellationToken))
     {
-        throw new InvalidOperationException("That send Join is already mapped for this controller.");
+        return JoinNameConflict(trimmedName);
+    }
+    var conflictingJoinName = await db.JoinMappings.AsNoTracking()
+        .Where(item =>
+            item.ControllerId == controllerId &&
+            item.Kind == JoinKind.Digital &&
+            item.SendJoinNumber == request.SendJoinNumber)
+        .Select(item => item.Name)
+        .FirstOrDefaultAsync(cancellationToken);
+    if (conflictingJoinName is not null)
+    {
+        return SendJoinConflict(request.SendJoinNumber, conflictingJoinName);
     }
 
     var mapping = new JoinMapping
     {
         ControllerId = controllerId,
-        Name = request.Name.Trim(),
+        Name = trimmedName,
         Kind = JoinKind.Digital,
         SendJoinNumber = request.SendJoinNumber,
         StateJoinNumber = request.StateJoinNumber,
@@ -919,23 +953,37 @@ api.MapPut("/joins/{mappingId:guid}", async (
     ValidateJoinDefinition(request);
 
     var mapping = await db.JoinMappings.SingleOrDefaultAsync(item => item.Id == mappingId, cancellationToken)
-        ?? throw new KeyNotFoundException("Join mapping was not found.");
+        ?? throw new KeyNotFoundException("控制点不存在，可能已被删除。");
     if (mapping.Kind != JoinKind.Digital)
     {
-        throw new InvalidOperationException("Analog and serial control points are no longer supported.");
+        throw new InvalidOperationException("模拟与串口控制点已不再支持。");
     }
 
+    var trimmedName = request.Name.Trim();
     if (await db.JoinMappings.AnyAsync(item =>
             item.Id != mappingId &&
             item.ControllerId == mapping.ControllerId &&
             item.Kind == JoinKind.Digital &&
-            item.SendJoinNumber == request.SendJoinNumber,
+            item.Name == trimmedName,
             cancellationToken))
     {
-        throw new InvalidOperationException("That send Join is already mapped for this controller.");
+        return JoinNameConflict(trimmedName);
     }
 
-    mapping.Name = request.Name.Trim();
+    var conflictingJoinName = await db.JoinMappings.AsNoTracking()
+        .Where(item =>
+            item.Id != mappingId &&
+            item.ControllerId == mapping.ControllerId &&
+            item.Kind == JoinKind.Digital &&
+            item.SendJoinNumber == request.SendJoinNumber)
+        .Select(item => item.Name)
+        .FirstOrDefaultAsync(cancellationToken);
+    if (conflictingJoinName is not null)
+    {
+        return SendJoinConflict(request.SendJoinNumber, conflictingJoinName);
+    }
+
+    mapping.Name = trimmedName;
     mapping.SendJoinNumber = request.SendJoinNumber;
     mapping.StateJoinNumber = request.StateJoinNumber;
     mapping.EnableJoinNumber = request.EnableJoinNumber ?? 0;
@@ -954,10 +1002,10 @@ api.MapPost("/joins/{mappingId:guid}/copy", async (
 {
     var source = await db.JoinMappings
         .SingleOrDefaultAsync(item => item.Id == mappingId, cancellationToken)
-        ?? throw new KeyNotFoundException("Join mapping was not found.");
+        ?? throw new KeyNotFoundException("控制点不存在，可能已被删除。");
     if (source.Kind != JoinKind.Digital)
     {
-        throw new InvalidOperationException("Analog and serial control points are no longer supported.");
+        throw new InvalidOperationException("模拟与串口控制点已不再支持。");
     }
 
     var targets = await LoadCopyTargetControllersAsync(
@@ -1043,7 +1091,7 @@ api.MapPut("/controllers/{controllerId:guid}/joins/order", async (
         .ToListAsync(cancellationToken);
     if (mappings.Count == 0)
     {
-        throw new KeyNotFoundException("Controller has no control points.");
+        throw new KeyNotFoundException("中控还没有控制点。");
     }
 
     var requestedIds = request.MappingIds ?? [];
@@ -1051,7 +1099,7 @@ api.MapPut("/controllers/{controllerId:guid}/joins/order", async (
         requestedIds.Distinct().Count() != mappings.Count ||
         requestedIds.Any(id => mappings.All(mapping => mapping.Id != id)))
     {
-        throw new ArgumentException("The order must contain every control point exactly once.");
+        throw new ArgumentException("排序必须包含全部控制点且不能重复。");
     }
 
     var byId = mappings.ToDictionary(mapping => mapping.Id);
@@ -1072,7 +1120,7 @@ api.MapDelete("/joins/{mappingId:guid}", async (
     CancellationToken cancellationToken) =>
 {
     var mapping = await db.JoinMappings.SingleOrDefaultAsync(item => item.Id == mappingId, cancellationToken)
-        ?? throw new KeyNotFoundException("Join mapping was not found.");
+        ?? throw new KeyNotFoundException("控制点不存在，可能已被删除。");
 
     await scheduleService.DeleteForJoinMappingAsync(mappingId, cancellationToken);
     await manualTaskService.DeleteForJoinMappingAsync(mappingId, cancellationToken);
@@ -1291,15 +1339,15 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
 {
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 120)
     {
-        throw new ArgumentException("Schedule name is required and must be at most 120 characters.");
+        throw new ArgumentException("任务名称必填且不能超过 120 个字符。");
     }
     if (!Enum.IsDefined(request.Kind))
     {
-        throw new ArgumentException("Unsupported schedule kind.");
+        throw new ArgumentException("不支持的任务类型。");
     }
     if (request.JoinMappingIds is null || request.JoinMappingIds.Count == 0)
     {
-        throw new ArgumentException("At least one control point is required.");
+        throw new ArgumentException("至少需要选择一个控制点。");
     }
 
     DateTimeOffset? runAtUtc = null;
@@ -1307,7 +1355,7 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
     {
         if (request.RunAtLocal is null)
         {
-            throw new ArgumentException("A one-time schedule requires a local run time.");
+            throw new ArgumentException("一次性任务需要填写执行时间。");
         }
 
         // 项目只服务单一本地时区，提交的墙上时间直接按服务器本地时间解释。
@@ -1315,7 +1363,7 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
         runAtUtc = new DateTimeOffset(localRunAt);
         if (runAtUtc <= DateTimeOffset.UtcNow)
         {
-            throw new ArgumentException("A one-time schedule must have a future run time.");
+            throw new ArgumentException("一次性任务的执行时间必须晚于当前时间。");
         }
     }
     if (request.Kind == ScheduleKind.Weekly &&
@@ -1323,7 +1371,7 @@ static (string Name, DateTimeOffset? RunAtUtc) ValidateScheduleDefinition(Schedu
          request.LocalTime < TimeSpan.Zero ||
          request.LocalTime >= TimeSpan.FromDays(1)))
     {
-        throw new ArgumentException("A weekly schedule requires a weekday mask and local time.");
+        throw new ArgumentException("每周任务需要选择重复日与执行时间。");
     }
 
     return (request.Name.Trim(), runAtUtc);
@@ -1333,14 +1381,14 @@ static (string Name, string Building, string Floor) NormalizeRoom(CreateRoomRequ
 {
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 120)
     {
-        throw new ArgumentException("Room name is required and must be at most 120 characters.");
+        throw new ArgumentException("教室名称必填且不能超过 120 个字符。");
     }
 
     var building = request.Building?.Trim() ?? string.Empty;
     var floor = request.Floor?.Trim() ?? string.Empty;
     if (building.Length > 60 || floor.Length > 60)
     {
-        throw new ArgumentException("Building and floor must be at most 60 characters.");
+        throw new ArgumentException("楼栋与楼层名称不能超过 60 个字符。");
     }
 
     return (request.Name.Trim(), building, floor);
@@ -1388,15 +1436,15 @@ static ControllerAdapterOption ValidateControllerDefinition(
         ?? throw new ArgumentException("请选择支持的中控类型。");
     if (string.IsNullOrWhiteSpace(host))
     {
-        throw new ArgumentException("Controller host is required.");
+        throw new ArgumentException("中控主机地址必填。");
     }
     if (host.Trim().Length > 255)
     {
-        throw new ArgumentException("Controller host must be at most 255 characters.");
+        throw new ArgumentException("中控主机地址不能超过 255 个字符。");
     }
     if (port is < 1 or > 65535 || ipid is < 0 or > 255)
     {
-        throw new ArgumentException("Port must be 1-65535 and IPID must be 0-255.");
+        throw new ArgumentException("端口需在 1–65535 之间，IPID 需在 0–255 之间。");
     }
 
     return adapterType;
@@ -1407,15 +1455,29 @@ static void ValidateJoinDefinition(JoinMappingDefinitionRequest request)
 {
     if (string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 120)
     {
-        throw new ArgumentException("Join name is required and must be at most 120 characters.");
+        throw new ArgumentException("控制点名称必填且不能超过 120 个字符。");
     }
     if (request.SendJoinNumber is < 1 or > 32768 ||
         request.StateJoinNumber is < 1 or > 32768 ||
         request.EnableJoinNumber is < 0 or > 32768)
     {
-        throw new ArgumentException("Send and state Join numbers must be between 1 and 32768; enable Join must be 0 or between 1 and 32768.");
+        throw new ArgumentException("发送与状态 Join 需在 1–32768 之间；使能 Join 可为 0 或 1–32768。");
     }
 }
+
+// 发送 Join 冲突属于表单输入错误，直接返回 409，避免以异常形式穿过请求管道。
+static IResult SendJoinConflict(int sendJoinNumber, string existingName) =>
+    Results.Problem(
+        statusCode: StatusCodes.Status409Conflict,
+        title: "Operation cannot be completed",
+        detail: $"发送 Join {sendJoinNumber} 已被控制点「{existingName}」占用，请改用其他发送 Join。");
+
+// 同一中控内控制点名称唯一，冲突时同样直接返回 409。
+static IResult JoinNameConflict(string existingName) =>
+    Results.Problem(
+        statusCode: StatusCodes.Status409Conflict,
+        title: "Operation cannot be completed",
+        detail: $"控制点「{existingName}」已存在，请使用其他名称。");
 
 static JoinMapping CloneMapping(JoinMapping source, Guid targetControllerId, int sortOrder) =>
     new()
@@ -1443,7 +1505,7 @@ static async Task<IReadOnlyList<Controller>> LoadCopyTargetControllersAsync(
         .ToList();
     if (targetIds.Count == 0)
     {
-        throw new ArgumentException("Please select at least one other room.");
+        throw new ArgumentException("请至少选择一间其他教室。");
     }
 
     var targets = await db.Controllers
@@ -1451,7 +1513,7 @@ static async Task<IReadOnlyList<Controller>> LoadCopyTargetControllersAsync(
         .ToListAsync(cancellationToken);
     if (targets.Count != targetIds.Count)
     {
-        throw new KeyNotFoundException("A target controller was not found.");
+        throw new KeyNotFoundException("目标中控不存在，可能已被删除。");
     }
 
     return targets;

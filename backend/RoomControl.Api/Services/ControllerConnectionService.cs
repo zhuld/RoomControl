@@ -29,16 +29,16 @@ public sealed class ControllerConnectionService(
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var mapping = await db.JoinMappings.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == mappingId, cancellationToken)
-            ?? throw new KeyNotFoundException("Join mapping was not found.");
+            ?? throw new KeyNotFoundException("控制点不存在，可能已被删除。");
 
         if (mapping.Kind != JoinKind.Digital)
         {
-            throw new ArgumentException("A digital join is required for a pulse command.");
+            throw new ArgumentException("下发脉冲需要数字控制点。");
         }
 
         if (!_connectedAdapters.TryGetValue(mapping.ControllerId, out var adapter))
         {
-            throw new ControllerUnavailableException("The room controller is offline.");
+            throw new ControllerUnavailableException("教室中控离线，无法下发指令。");
         }
 
         // 配置了使能 Join 时只有高电平才允许手动操作；未上报按低电平处理，直接拒绝。
@@ -53,7 +53,7 @@ public sealed class ControllerConnectionService(
                     cancellationToken);
             if (!isEnabled)
             {
-                throw new InvalidOperationException("The control point is disabled until its enable Join reports high.");
+                throw new InvalidOperationException("使能 Join 未上报高电平，该控制点当前不可操作。");
             }
         }
 
@@ -65,7 +65,7 @@ public sealed class ControllerConnectionService(
         catch (Exception exception) when (exception is IOException or SocketException or ObjectDisposedException)
         {
             throw new ControllerUnavailableException(
-                "The controller connection ended while sending or refreshing state; verify the reported device state.",
+                "发送指令或刷新状态时中控连接已断开，请以设备实际状态为准。",
                 exception);
         }
     }
@@ -196,7 +196,7 @@ public sealed class ControllerConnectionService(
                 await stateStore.SetConnectionAsync(controller.Id, true, null, cancellationToken);
                 delay = TimeSpan.FromSeconds(2);
                 await adapter.RunAsync(cancellationToken);
-                throw new IOException("The CIP connection ended unexpectedly.");
+                throw new IOException("CIP 连接已断开，正在重试。");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -205,7 +205,14 @@ public sealed class ControllerConnectionService(
             catch (Exception exception)
             {
                 logger.LogWarning(exception, "Controller {ControllerId} connection failed; retrying.", controller.Id);
-                await SetConnectionSafelyAsync(controller.Id, false, exception.Message);
+                // 界面会直接显示该原因，框架与系统生成的英文提示统一转为中文。
+                var reason = exception switch
+                {
+                    SocketException socket => $"无法连接中控（{socket.SocketErrorCode}）。",
+                    OperationCanceledException => "连接中控超时或已取消。",
+                    _ => exception.Message
+                };
+                await SetConnectionSafelyAsync(controller.Id, false, reason);
             }
             finally
             {

@@ -95,4 +95,103 @@ public sealed class ScheduleGroupTests(QuartzSchedulerFixture quartz)
             Assert.Equal(1, await db.Schedules.CountAsync(item => item.GroupId == groupId));
         }
     }
+
+    [Fact]
+    public async Task TaskNamesMustBeUniqueAcrossGroups()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+
+        var services = new ServiceCollection();
+        services.AddDbContextFactory<ControlDbContext>(options => options.UseSqlite(connection));
+        using var provider = services.BuildServiceProvider();
+
+        var contextFactory = provider.GetRequiredService<IDbContextFactory<ControlDbContext>>();
+        Guid[] mappingIds;
+        await using (var db = await contextFactory.CreateDbContextAsync())
+        {
+            await db.Database.EnsureCreatedAsync();
+            foreach (var roomName in new[] { "A101", "A102" })
+            {
+                var room = new Room { Name = roomName };
+                var controller = new Controller { Room = room, Name = $"{roomName}-CIP", Host = "localhost" };
+                room.Controller = controller;
+                controller.JoinMappings.Add(new JoinMapping
+                {
+                    Controller = controller,
+                    Name = "开机",
+                    Kind = JoinKind.Digital,
+                    SendJoinNumber = 1,
+                    StateJoinNumber = 2
+                });
+                db.Rooms.Add(room);
+            }
+
+            await db.SaveChangesAsync();
+            mappingIds = await db.JoinMappings
+                .OrderBy(item => item.Id)
+                .Select(item => item.Id)
+                .ToArrayAsync();
+        }
+
+        var service = quartz.CreateService(contextFactory);
+        await service.CreateGroupAsync(
+            [mappingIds[0]],
+            "工作日开机",
+            ScheduleKind.Weekly,
+            null,
+            0b0011111,
+            new TimeSpan(8, 30, 0),
+            CancellationToken.None);
+
+        var duplicate = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.CreateGroupAsync(
+                [mappingIds[1]],
+                " 工作日开机 ",
+                ScheduleKind.Weekly,
+                null,
+                0b0011111,
+                new TimeSpan(8, 30, 0),
+                CancellationToken.None));
+        Assert.Contains("已存在", duplicate.Message);
+
+        var second = await service.CreateGroupAsync(
+            [mappingIds[1]],
+            "周末开机",
+            ScheduleKind.Weekly,
+            null,
+            0b0110000,
+            new TimeSpan(9, 0, 0),
+            CancellationToken.None);
+        var groupId = second[0].GroupId!.Value;
+
+        var renameConflict = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.UpdateGroupAsync(
+                groupId,
+                [mappingIds[1]],
+                "工作日开机",
+                ScheduleKind.Weekly,
+                null,
+                0b0110000,
+                new TimeSpan(9, 0, 0),
+                CancellationToken.None));
+        Assert.Contains("已存在", renameConflict.Message);
+
+        // 保存时沿用自身名称不受唯一性限制。
+        var renamed = await service.UpdateGroupAsync(
+            groupId,
+            [mappingIds[1]],
+            "周末开机",
+            ScheduleKind.Weekly,
+            null,
+            0b0110000,
+            new TimeSpan(10, 0, 0),
+            CancellationToken.None);
+        Assert.Equal("周末开机", Assert.Single(renamed).Name);
+
+        await using (var db = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(2, await db.Schedules.Select(item => item.GroupId).Distinct().CountAsync());
+        }
+    }
 }

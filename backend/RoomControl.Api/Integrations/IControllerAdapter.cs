@@ -37,6 +37,6 @@ public sealed class ControllerAdapterFactory : IControllerAdapterFactory
         controller.AdapterType switch
         {
             "crestron-cip" => new CrestronCipAdapter(controller),
-            _ => throw new NotSupportedException($"Unsupported controller adapter '{controller.AdapterType}'.")
+            _ => throw new NotSupportedException($"不支持的中控适配器「{controller.AdapterType}」。")
         };
 }

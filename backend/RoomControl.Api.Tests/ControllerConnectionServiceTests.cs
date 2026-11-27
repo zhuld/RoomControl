@@ -23,7 +23,7 @@ public sealed class ControllerConnectionServiceTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => harness.Service.SendDigitalPulseAsync(harness.MappingId, enforceEnableJoin: true, CancellationToken.None));
 
-        Assert.Contains("enable Join", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("使能 Join", exception.Message);
         Assert.Empty(harness.Adapter.Pulses);
     }
 

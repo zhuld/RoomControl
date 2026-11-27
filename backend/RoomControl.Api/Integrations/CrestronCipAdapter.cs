@@ -20,7 +20,7 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
     {
         if (controller.Framing != CipFraming.Raw)
         {
-            throw new InvalidOperationException("Only CIP Raw framing is supported.");
+            throw new InvalidOperationException("仅支持 CIP Raw 帧格式。");
         }
 
         await _client.ConnectAsync(controller.Host, controller.Port, cancellationToken);
@@ -43,7 +43,7 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
             }
             else if (CipProtocolCodec.IsRefused(message))
             {
-                throw new InvalidOperationException($"CIP registration was refused for IPID {controller.Ipid}.");
+                throw new InvalidOperationException($"中控拒绝了 IPID {controller.Ipid} 的注册请求。");
             }
         }
 
@@ -117,13 +117,13 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
 
     private async Task<CipMessage> ReadNextMessageAsync(CancellationToken cancellationToken)
     {
-        var stream = _stream ?? throw new InvalidOperationException("The CIP adapter is not connected.");
+        var stream = _stream ?? throw new InvalidOperationException("CIP 连接尚未建立。");
         // TCP 是字节流，必须先读满固定长度头部，再按头部长度读完负载。
         var header = new byte[3];
         await stream.ReadExactlyAsync(header, cancellationToken);
         if (header[1] != 0)
         {
-            throw new InvalidDataException("Invalid raw CIP frame header.");
+            throw new InvalidDataException("CIP 报文头无效。");
         }
 
         var payload = new byte[header[2]];
@@ -138,7 +138,7 @@ public sealed class CrestronCipAdapter(Controller controller) : IControllerAdapt
 
     private async Task WriteRawAsync(byte[] data, CancellationToken cancellationToken)
     {
-        var stream = _stream ?? throw new InvalidOperationException("The CIP adapter is not connected.");
+        var stream = _stream ?? throw new InvalidOperationException("CIP 连接尚未建立。");
         // 多个调用方可能同时发心跳应答和控制命令，写锁避免报文交错。
         await _writeLock.WaitAsync(cancellationToken);
         try

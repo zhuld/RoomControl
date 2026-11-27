@@ -72,7 +72,7 @@ public sealed class UserService
 
         if (_db.Users.Any(u => u.Username == username))
         {
-            throw new InvalidOperationException($"用户 '{username}' 已存在。");
+            throw new InvalidOperationException($"用户「{username}」已存在。");
         }
 
         var salt = RandomNumberGenerator.GetBytes(16);

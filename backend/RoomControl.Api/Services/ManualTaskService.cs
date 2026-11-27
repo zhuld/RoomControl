@@ -32,10 +32,17 @@ public sealed class ManualTaskService(
         CancellationToken cancellationToken)
     {
         var mappings = await LoadMappingsAsync(mappingIds, cancellationToken);
+        var normalizedName = NormalizeName(name);
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // 手动任务显示为总览按钮，重名会让按钮无法区分。
+        if (await db.ManualTasks.AnyAsync(item => item.Name == normalizedName, cancellationToken))
+        {
+            throw new InvalidOperationException($"手动任务「{normalizedName}」已存在，请使用其他名称。");
+        }
+
         var task = new ManualTask
         {
-            Name = NormalizeName(name),
+            Name = normalizedName,
             JoinName = mappings[0].Name,
             ConfirmBeforeRun = confirmBeforeRun,
             SortOrder = (await db.ManualTasks.MaxAsync(item => (int?)item.SortOrder, cancellationToken) ?? -1) + 1
@@ -61,9 +68,17 @@ public sealed class ManualTaskService(
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var task = await db.ManualTasks
             .SingleOrDefaultAsync(item => item.Id == taskId, cancellationToken)
-            ?? throw new KeyNotFoundException("Manual task was not found.");
+            ?? throw new KeyNotFoundException("手动任务不存在，可能已被删除。");
 
-        task.Name = NormalizeName(name);
+        var normalizedName = NormalizeName(name);
+        if (await db.ManualTasks.AnyAsync(
+                item => item.Id != taskId && item.Name == normalizedName,
+                cancellationToken))
+        {
+            throw new InvalidOperationException($"手动任务「{normalizedName}」已存在，请使用其他名称。");
+        }
+
+        task.Name = normalizedName;
         task.JoinName = mappings[0].Name;
         task.ConfirmBeforeRun = confirmBeforeRun;
 
@@ -85,7 +100,7 @@ public sealed class ManualTaskService(
     {
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
         var task = await db.ManualTasks.SingleOrDefaultAsync(item => item.Id == taskId, cancellationToken)
-            ?? throw new KeyNotFoundException("Manual task was not found.");
+            ?? throw new KeyNotFoundException("手动任务不存在，可能已被删除。");
         await DeleteTasksAsync(db, [task], cancellationToken);
     }
 
@@ -96,7 +111,7 @@ public sealed class ManualTaskService(
         var tasks = await db.ManualTasks.ToListAsync(cancellationToken);
         if (tasks.Count == 0)
         {
-            throw new KeyNotFoundException("Manual tasks were not found.");
+            throw new KeyNotFoundException("还没有手动任务。");
         }
 
         var requestedIds = taskIds ?? [];
@@ -104,7 +119,7 @@ public sealed class ManualTaskService(
             requestedIds.Distinct().Count() != tasks.Count ||
             requestedIds.Any(id => tasks.All(task => task.Id != id)))
         {
-            throw new ArgumentException("The order must contain every manual task exactly once.");
+            throw new ArgumentException("排序必须包含全部手动任务且不能重复。");
         }
 
         var byId = tasks.ToDictionary(task => task.Id);
@@ -140,7 +155,7 @@ public sealed class ManualTaskService(
             .Include(item => item.Targets)
             .ThenInclude(target => target.JoinMapping)
             .SingleOrDefaultAsync(item => item.Id == taskId, cancellationToken)
-            ?? throw new KeyNotFoundException("Manual task was not found.");
+            ?? throw new KeyNotFoundException("手动任务不存在，可能已被删除。");
         if (task.Targets.Count == 0)
         {
             throw new InvalidOperationException("手动任务没有可执行的控制点，请先编辑任务。");
@@ -340,7 +355,7 @@ public sealed class ManualTaskService(
             .ToListAsync(cancellationToken);
         if (mappings.Count != ids.Length)
         {
-            throw new KeyNotFoundException("Join mapping was not found.");
+            throw new KeyNotFoundException("控制点不存在，可能已被删除。");
         }
         if (mappings.Any(item => item.Kind != JoinKind.Digital))
         {

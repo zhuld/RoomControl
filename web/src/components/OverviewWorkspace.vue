@@ -94,7 +94,6 @@ const upcomingGroups = computed(() =>
     .sort(
       (left, right) => new Date(left.nextRunAtUtc).getTime() - new Date(right.nextRunAtUtc).getTime(),
     )
-    .slice(0, 5),
 )
 
 function groupRoomsLabel(group: ScheduleGroup) {
@@ -399,6 +398,7 @@ async function toggleTaskState(task: ScheduleGroup) {
               <strong>{{ item.title }}</strong>
               <span :title="item.detail">{{ item.detail }}</span>
             </div>
+            <div></div>
             <button type="button" class="btn btn-quiet btn-sm" @click="handleAttention(item)">
               {{ item.actionLabel }}
             </button>
@@ -422,7 +422,7 @@ async function toggleTaskState(task: ScheduleGroup) {
             <p class="panel-sub">按计划时间排序，仅显示已启用任务。</p>
           </div>
           <button v-if="canOperate" type="button" class="btn btn-ghost btn-sm" @click="emit('openAutomation')">
-            全部任务
+            管理自动任务
             <UiIcon name="chevron-right" :size="14" />
           </button>
         </header>
@@ -435,14 +435,15 @@ async function toggleTaskState(task: ScheduleGroup) {
             <div class="attention-copy">
               <strong>{{ group.name }}</strong>
               <span>{{ groupRoomsLabel(group) }} · {{ group.joinName }}</span>
+            </div>            <div>
+              <StatusPill :tone="overdueGroups.some((item) => item.key === group.key) ? 'danger' : 'neutral'"
+                :label="formatRelative(group.nextRunAtUtc, now.getTime())" />
             </div>
-                <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm"
-                  :disabled="stateBusyKey === group.key" :title="group.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'"
-                  @click="toggleTaskState(group)">
-                  {{ group.enabled ? '暂停' : '恢复' }}
-                </button>
-            <StatusPill :tone="overdueGroups.some((item) => item.key === group.key) ? 'danger' : 'neutral'"
-              :label="formatRelative(group.nextRunAtUtc, now.getTime())" />
+            <button v-if="canOperate" type="button" class="btn btn-quiet btn-sm" :disabled="stateBusyKey === group.key"
+              :title="group.enabled ? '暂停后不再按计划执行，可随时恢复' : '按当前时间重新排定执行'" @click="toggleTaskState(group)">
+              {{ group.enabled ? '暂停' : '恢复' }}
+            </button>
+
           </article>
         </div>
         <EmptyState v-else icon="calendar" title="没有已启用的自动任务"
@@ -462,7 +463,7 @@ async function toggleTaskState(task: ScheduleGroup) {
           <p class="panel-sub">每个按钮对应多间教室的一个控制点，点击后同时下发。</p>
         </div>
         <button type="button" class="btn btn-ghost btn-sm" @click="emit('openSettings', 'manual-tasks')">
-          管理任务
+          管理手动任务
           <UiIcon name="chevron-right" :size="14" />
         </button>
       </header>

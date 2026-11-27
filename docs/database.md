@@ -72,7 +72,7 @@
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
 | `Id` | GUID / uuid | 主键 |
-| `Name` | string(120) | 教室名称 |
+| `Name` | string(120) | 教室名称；同一楼栋同一楼层内唯一（服务层校验） |
 | `Building` | string(60) | 楼栋名称**快照**；重命名楼栋时由接口同步更新 |
 | `Floor` | string(60) | 楼层名称**快照**；重命名楼层时由接口同步更新 |
 
@@ -103,7 +103,7 @@
 | --- | --- | --- |
 | `Id` | GUID / uuid | 主键 |
 | `ControllerId` | GUID / uuid | 所属中控，FK → `Controllers`（级联删除） |
-| `Name` | string(120) | 控制点名称（界面按钮文字） |
+| `Name` | string(120) | 控制点名称（界面按钮文字），同一中控内唯一（服务层校验） |
 | `Kind` | int（枚举） | 信号类型，当前仅 `Digital` |
 | `JoinNumber` | int | **发送** Join 编号（实体属性为 `SendJoinNumber`，列名保留历史值） |
 | `StateJoinNumber` | int | 状态接收 Join，默认 `1` |
@@ -140,7 +140,7 @@
 | `JoinMappingId` | GUID / uuid \| null | 目标控制点，FK → `JoinMappings`（**SetNull**） |
 | `RoomName` | string | 教室名称快照 |
 | `JoinName` | string | 控制点名称快照 |
-| `Name` | string(120) | 任务名称 |
+| `Name` | string(120) | 任务名称；同组目标共享，不同任务组之间不可重名（服务层校验） |
 | `Enabled` | bool | 是否启用；暂停后保留定义与执行记录 |
 | `Kind` | int（枚举） | `Once`（一次性）或 `Weekly`（按周重复） |
 | `RunAtUtc` | 时间 \| null | 一次性任务的执行时刻（按服务器本地时间换算后的 UTC） |
@@ -170,7 +170,7 @@
 | 列 | 类型 | 说明 |
 | --- | --- | --- |
 | `Id` | GUID / uuid | 主键 |
-| `Name` | string(120) | 任务名称（总览按钮文字） |
+| `Name` | string(120) | 任务名称（总览按钮文字），不可与其他手动任务重名（服务层校验） |
 | `JoinName` | string(120) | 聚合的控制点名称快照（一个任务只对应同名控制点） |
 | `ConfirmBeforeRun` | bool | 执行前是否二次确认，默认 `true` |
 | `SortOrder` | int | 新建任务追加在末尾时使用的顺序号 |

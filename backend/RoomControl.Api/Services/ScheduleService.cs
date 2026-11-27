@@ -58,12 +58,18 @@ public sealed class ScheduleService(
         CancellationToken cancellationToken)
     {
         var mappings = await LoadMappingsAsync(mappingIds, cancellationToken);
+        var normalizedName = name.Trim();
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // 同名任务会在列表与总览中无法区分，创建前先检查其他任务是否已使用该名称。
+        if (await db.Schedules.AnyAsync(item => item.Name == normalizedName, cancellationToken))
+        {
+            throw new InvalidOperationException($"自动任务「{normalizedName}」已存在，请使用其他名称。");
+        }
 
         // 同一任务的多间教室共享 GroupId，各自保留独立 Job 与执行记录。
         var groupId = Guid.NewGuid();
         var schedules = mappings
-            .Select(mapping => NewSchedule(groupId, mapping, name, kind, runAtUtc, weekdayMask, localTime))
+            .Select(mapping => NewSchedule(groupId, mapping, normalizedName, kind, runAtUtc, weekdayMask, localTime))
             .ToList();
         db.Schedules.AddRange(schedules);
         await db.SaveChangesAsync(cancellationToken);
@@ -88,12 +94,23 @@ public sealed class ScheduleService(
         CancellationToken cancellationToken)
     {
         var mappings = await LoadMappingsAsync(mappingIds, cancellationToken);
+        var normalizedName = name.Trim();
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
 
         var existing = await LoadGroupAsync(db, groupId, cancellationToken);
         if (existing.Count == 0)
         {
-            throw new KeyNotFoundException("Schedule was not found.");
+            throw new KeyNotFoundException("任务不存在，可能已被删除。");
+        }
+
+        // 改名时排除当前组；旧版单目标任务没有 GroupId，用目标自身 Id 判定。
+        if (await db.Schedules.AnyAsync(
+                item => item.Name == normalizedName &&
+                    item.Id != groupId &&
+                    (item.GroupId == null || item.GroupId != groupId),
+                cancellationToken))
+        {
+            throw new InvalidOperationException($"自动任务「{normalizedName}」已存在，请使用其他名称。");
         }
 
         var wantedMappings = mappings.ToDictionary(mapping => mapping.Id);
@@ -115,7 +132,7 @@ public sealed class ScheduleService(
         foreach (var schedule in kept)
         {
             schedule.GroupId = groupId;
-            ApplyDefinition(schedule, name, kind, runAtUtc, weekdayMask, localTime);
+            ApplyDefinition(schedule, normalizedName, kind, runAtUtc, weekdayMask, localTime);
         }
 
         var keptMappingIds = kept
@@ -125,7 +142,7 @@ public sealed class ScheduleService(
         var groupEnabled = kept.Count > 0 ? kept[0].Enabled : true;
         var created = mappings
             .Where(mapping => !keptMappingIds.Contains(mapping.Id))
-            .Select(mapping => NewSchedule(groupId, mapping, name, kind, runAtUtc, weekdayMask, localTime))
+            .Select(mapping => NewSchedule(groupId, mapping, normalizedName, kind, runAtUtc, weekdayMask, localTime))
             .ToList();
         foreach (var schedule in created)
         {
@@ -174,7 +191,7 @@ public sealed class ScheduleService(
         var schedules = await LoadGroupAsync(db, groupId, cancellationToken);
         if (schedules.Count == 0)
         {
-            throw new KeyNotFoundException("Schedule was not found.");
+            throw new KeyNotFoundException("任务不存在，可能已被删除。");
         }
 
         var scheduler = await schedulerFactory.GetScheduler(cancellationToken);
@@ -203,7 +220,7 @@ public sealed class ScheduleService(
         var schedules = await LoadGroupAsync(db, groupId, cancellationToken);
         if (schedules.Count == 0)
         {
-            throw new KeyNotFoundException("Schedule was not found.");
+            throw new KeyNotFoundException("任务不存在，可能已被删除。");
         }
 
         await DeleteAsync(db, schedules, cancellationToken);
@@ -218,7 +235,7 @@ public sealed class ScheduleService(
             .ToListAsync(cancellationToken);
         if (schedules.Count == 0)
         {
-            throw new KeyNotFoundException("Schedule was not found.");
+            throw new KeyNotFoundException("任务不存在，可能已被删除。");
         }
 
         await DeleteAsync(db, schedules, cancellationToken);
@@ -257,7 +274,7 @@ public sealed class ScheduleService(
         var ids = mappingIds.Distinct().ToArray();
         if (ids.Length == 0)
         {
-            throw new ArgumentException("At least one control point is required.");
+            throw new ArgumentException("至少需要选择一个控制点。");
         }
 
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -268,11 +285,11 @@ public sealed class ScheduleService(
             .ToListAsync(cancellationToken);
         if (mappings.Count != ids.Length)
         {
-            throw new KeyNotFoundException("Join mapping was not found.");
+            throw new KeyNotFoundException("控制点不存在，可能已被删除。");
         }
         if (mappings.Any(item => item.Kind != JoinKind.Digital))
         {
-            throw new InvalidOperationException("Schedules require a digital control point.");
+            throw new InvalidOperationException("自动任务需要数字控制点。");
         }
 
         return mappings;

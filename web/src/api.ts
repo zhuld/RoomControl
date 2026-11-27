@@ -76,8 +76,9 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
   if (!response.ok) {
     let message = describeStatus(response.status)
     try {
-      const problem = (await response.json()) as { detail?: string; title?: string }
-      message = problem.detail || problem.title || message
+      // 只使用后端的中文 detail；title 是英文规范短语，不直接展示给用户。
+      const problem = (await response.json()) as { detail?: string }
+      message = problem.detail || message
     } catch {
       // The response may not contain a problem-details body.
     }

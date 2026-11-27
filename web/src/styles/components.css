@@ -205,6 +205,10 @@
   color: var(--warning-text);
 }
 
+.form-note.is-error {
+  color: var(--danger-text);
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

@@ -100,6 +100,13 @@ const schedulableRooms = computed(() =>
 
 const tasks = computed(() => groupSchedules(props.schedules))
 
+// 自动任务名称唯一；编辑时排除当前任务组，避免未改动的名称被判为冲突。
+const duplicateTaskName = computed(() => {
+  const name = form.name.trim()
+  if (!name) return null
+  return tasks.value.find((task) => task.key !== form.editingGroupId && task.name === name) ?? null
+})
+
 const roomOptions = computed(() =>
   [...new Set(tasks.value.flatMap((task) => task.roomNames))].sort(collator.compare),
 )
@@ -355,6 +362,13 @@ async function submitForm() {
   }
   if (!form.name.trim()) {
     emit('notify', { message: '请填写任务名称。', isError: true })
+    return
+  }
+  if (duplicateTaskName.value) {
+    emit('notify', {
+      message: `自动任务「${duplicateTaskName.value.name}」已存在，请使用其他名称。`,
+      isError: true,
+    })
     return
   }
   if (form.kind === 'Weekly' && form.weekdays.length === 0) {
@@ -675,6 +689,7 @@ watch(
                   任务名称
                   <input name="taskName" v-model="form.name" class="input" maxlength="120" placeholder="例如：工作日上课"
                     required />
+                  <span v-if="duplicateTaskName" class="form-note is-error">已存在同名任务，请换一个名称</span>
                 </label>
 
                 <div class="field">
@@ -734,7 +749,7 @@ watch(
                   中控离线时会记为失败，不会自动补发。
                 </p>
                 <div class="form-actions is-start">
-                  <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length">
+                  <button class="btn btn-primary" :disabled="formBusy || !selectedTargets.length || !!duplicateTaskName">
                     {{ formBusy ? '正在保存…' : form.mode === 'edit' ? '保存' : '创建' }}
                   </button>
                   <button v-if="form.mode === 'edit'" type="button" class="btn btn-quiet" @click="closeForm">
