@@ -505,6 +505,15 @@
   padding-left: 10px;
 }
 
+/* Reka Tree 使用扁平节点 + data-indent 表达层级，沿用原嵌套列表的缩进。 */
+.room-tree [data-indent='2'] {
+  padding-left: 18px;
+}
+
+.room-tree [data-indent='3'] {
+  padding-left: 28px;
+}
+
 .room-tree-toggle {
   display: flex;
   align-items: center;

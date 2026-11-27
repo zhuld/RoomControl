@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { HubConnectionBuilder, type HubConnection } from '@microsoft/signalr'
+import { ConfigProvider } from 'reka-ui'
 import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { readJson, request, toErrorMessage } from './api'
 import LoginScreen from './components/LoginScreen.vue'
@@ -12,6 +13,7 @@ import ConfirmDialog from './components/ui/ConfirmDialog.vue'
 import UiIcon from './components/ui/UiIcon.vue'
 import { useConfirmDialog } from './lib/confirm'
 import { actionSlotKey } from './lib/layout'
+import { rekaTranslations } from './lib/reka'
 import {
   canAccessSettingsSection,
   defaultSettingsSection,
@@ -758,6 +760,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <ConfigProvider locale="zh-CN" :scroll-body="false" :translations="rekaTranslations">
   <!-- 启动状态、登录页和已登录主界面互斥显示。 -->
   <main v-if="!apiReady || checkingAuth" class="loading-screen">
     <div v-if="startupFailed" class="loading-failure" role="alert">
@@ -884,4 +887,5 @@ onBeforeUnmount(() => {
   <ConfirmDialog :open="confirmation !== null" :title="confirmation?.title ?? ''" :message="confirmation?.message ?? ''"
     :confirm-label="confirmation?.actionLabel ?? '确认'" :tone="confirmation?.tone ?? 'default'"
     @cancel="resolveConfirmation(false)" @confirm="resolveConfirmation(true)" />
+  </ConfigProvider>
 </template>

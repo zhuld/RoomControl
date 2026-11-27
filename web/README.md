@@ -19,7 +19,7 @@ npm run build  # 类型检查并生成 dist/
 - `src/components/ManualTasksWorkspace.vue`：手动任务列表、执行记录与新建/修改表单；一个任务聚合同名控制点覆盖的多间教室，显示为系统总览上的一个执行按钮；拖动任务名称可调整总览按钮顺序。
 - `src/components/SettingsPage.vue`：按「站点 → 位置 → 教室 → 中控 → 自动任务 → 手动任务 → 权限 → 外观」的步骤组织配置；外观步骤对三种角色开放，操作员还可维护「自动任务」与「手动任务」，其余步骤与接入检查仅管理员可见。
 - `src/components/LogsPage.vue`：可暂停自动刷新的操作记录。
-- `src/components/ui/`：状态胶囊、空状态、确认对话框、三级教室选择、登录页粒子背景与图标等共享原语。
+- `src/components/ui/`：状态胶囊、空状态、确认对话框、三级教室选择、登录页粒子背景与图标等共享原语；确认对话框与教室树的行为层由 Reka UI 提供，视觉仍由本项目的组件样式决定。
 
 ## 设计系统
 
@@ -39,5 +39,14 @@ npm run build  # 类型检查并生成 dist/
 - 总览、操作台与配置页的教室定位统一使用 `RoomCascader`（楼栋 → 楼层 → 教室）；筛选场景通过 `allow-all` 暴露「全部楼栋/楼层/教室」。
 - 顶栏保留自由文本快速搜索，输入楼栋/楼层/教室或完整路径后回车跳转，适合已知目标时的快速定位。
 - 左侧任务栏默认自动收起为 64px 图标栏，悬停或键盘聚焦时展开为 248px 浮层；底部固定按钮可常驻展开，偏好保存在当前浏览器。窄屏（≤900px）使用抽屉式导航。
+
+### 交互原语（Reka UI）
+
+无样式的交互原语使用 [Reka UI](https://reka-ui.com/)，只负责焦点管理、键盘导航和 ARIA，不引入任何自带样式：
+
+- `App.vue` 根部的 `ConfigProvider` 设置 `locale="zh-CN"`、`scrollBody=false`（页面滚动由 `.workspace-scroll` 承担）和 `lib/reka.ts` 中的中文辅助文案。
+- `ConfirmDialog` 使用 `AlertDialog`；`RoomTree` 使用 `Tree`。两者对调用方保持原有 props / emits / slots 不变。
+- 禁止引入 Reka 的全局 CSS；新组件继续只用 `styles/tokens.css` 的语义令牌着色，并用 `data-state` / `data-selected` / `data-expanded` 表达组件状态。
+- 暂不迁移 Toast、分页、日期选择和三级教室选择：现有实现满足当前需求，或需要额外的产品与值转换决策。接入新原语前先确认它能沿用 6 套主题与标准/紧凑密度。
 
 后端启动方式、角色权限与部署说明见仓库根目录的 [README](../README.md)；REST 与 SignalR 契约见 [docs/api.md](../docs/api.md)。

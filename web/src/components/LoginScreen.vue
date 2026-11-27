@@ -127,7 +127,7 @@ onMounted(() => {
             密码
             <input name="password" placeholder="输入密码" v-model="password" class="input" type="password" maxlength="128" autocomplete="current-password" required />
           </label>
-          <p v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</p>
+          <span v-if="errorMessage" class="login-error" role="alert">{{ errorMessage }}</span>
           <button class="btn btn-primary btn-block" :disabled="busy">
             {{ busy ? '正在登录…' : '登录平台' }}
           </button>

@@ -610,6 +610,22 @@
   width: min(640px, 100%);
 }
 
+/* Reka 把遮罩与内容渲染为同级节点，内容需要自行固定居中。 */
+.reka-dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  z-index: 101;
+  /* Reka 会锁定 body 的 pointer-events，对话框自身需要恢复接收点击。 */
+  pointer-events: auto;
+  width: min(500px, calc(100vw - 32px));
+}
+
+.reka-dialog.is-wide {
+  width: min(640px, calc(100vw - 32px));
+}
+
 .dialog-head {
   display: flex;
   align-items: flex-start;
